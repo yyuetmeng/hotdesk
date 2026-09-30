@@ -48,7 +48,7 @@ in the QR sticker on each desk.
 ### Building layout
 
 `config/building.json` holds the **DIC Annex @ Depot Road** layout, transcribed from
-`CIO_DF_Seat_Assignment.pptx`. It has 155 desks:
+`CIO_DF_Seat_Assignment.pptx`. It has 125 desks:
 
 | Floor | Zone | Desks | Notes |
 |---|---|---|---|
@@ -56,7 +56,6 @@ in the QR sticker on each desk.
 | Level 1 | Discussion Area | 16 | Former discussion area converted to desks (red outline in the deck): 4 single desks + 2 pods |
 | Level 1 | AI Lab | 30 | 6 single desks along the stair wall + 2 pods of 6×2 |
 | Level 2 | General Office | 43 | 5 pods in the top section (the last one single-sided) + 2 pods of 4×2 |
-| Level 2 | UAT Stations | 30 | 6 single desks + 2 pods of 6×2. 10 desks are hatched on the plan (UAT test stations) |
 
 Each zone is an ASCII `map`, one string per row of desks: a space is no desk (aisle or pod gap), `.` is
 an unassigned hot desk, and a letter assigns the desk to a team defined under `"teams"`. The team
@@ -80,6 +79,9 @@ desk IDs in `"sensorless"`. A zone can also use plain `"rows"`/`"cols"` instead 
 The dashboard's **Team assignment** view colours desks by team, the same way as the deck. The symbol on
 each desk still shows its live status. A team filter and a per-team utilisation table show how well
 each team's allocated desks are used.
+
+The latest revision of the deck blanks out the Level 2 UAT Stations block, so it is no longer part of the
+layout. Level 2 now has only the General Office.
 
 ## Sending sensor data
 

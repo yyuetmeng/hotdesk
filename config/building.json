@@ -9,8 +9,7 @@
     "m": { "name": "Magenta team", "color": "#ff00ff" },
     "r": { "name": "Grey team", "color": "#aeaaaa" },
     "s": { "name": "Steel-blue team", "color": "#5b9bd5" },
-    "y": { "name": "Yellow team", "color": "#ffff00" },
-    "u": { "name": "UAT test stations", "color": "#7f7f7f" }
+    "y": { "name": "Yellow team", "color": "#ffff00" }
   },
   "floors": [
     {
@@ -71,18 +70,6 @@
             "cc gg",
             "cc gg",
             "cc gg"
-          ]
-        },
-        {
-          "id": "UAT",
-          "name": "UAT Stations",
-          "map": [
-            ". .. ..",
-            ". .. uu",
-            ". .. uu",
-            ". .. uu",
-            ". .. uu",
-            ". .. uu"
           ]
         }
       ]

@@ -93,5 +93,5 @@ test('shipped building layout loads and matches the seat assignment deck', async
   const seats = expandLayout(building);
   const byZone = {};
   for (const s of seats) byZone[`${s.floor}-${s.zone}`] = (byZone[`${s.floor}-${s.zone}`] ?? 0) + 1;
-  assert.deepEqual(byZone, { 'L1-DF': 36, 'L1-DA': 16, 'L1-AI': 30, 'L2-GO': 43, 'L2-UAT': 30 });
+  assert.deepEqual(byZone, { 'L1-DF': 36, 'L1-DA': 16, 'L1-AI': 30, 'L2-GO': 43 });
 });
