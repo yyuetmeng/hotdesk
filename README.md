@@ -10,6 +10,8 @@ and gives administrators a live dashboard of seat availability.
 
 ![Admin dashboard](docs/dashboard.png)
 
+The current desk layout is in [docs/seat-layout.png](docs/seat-layout.png).
+
 The full proposal (sensor options, state rules, architecture, rollout) is in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Quick start
