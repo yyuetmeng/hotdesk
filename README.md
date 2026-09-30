@@ -12,6 +12,8 @@ and gives administrators a live dashboard of seat availability.
 
 The current desk layout is in [docs/seat-layout.png](docs/seat-layout.png).
 
+To run it on GitHub (Actions CI and Codespaces), follow [docs/GITHUB.md](docs/GITHUB.md).
+
 The full proposal (sensor options, state rules, architecture, rollout) is in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Quick start

@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Unit and API tests
+        run: npm test
+      - name: Smoke test (start server, feed simulator, check dashboard API)
+        env:
+          PORT: 3000
+          ADMIN_TOKEN: ci-admin
+          SENSOR_API_KEY: ci-sensor
+          STATE_FILE: ${{ runner.temp }}/state.json
+        run: |
+          node src/index.js &
+          for i in $(seq 1 20); do curl -fs localhost:3000/healthz && break; sleep 0.5; done
+          SIM_INTERVAL_MS=500 node scripts/simulate.js http://localhost:3000 &
+          sleep 3
+          curl -fs -H "Authorization: Bearer $ADMIN_TOKEN" localhost:3000/api/summary | tee summary.json
+          node -e "const s=require('./summary.json'); if (s.overall.total !== 125) { console.error('expected 125 desks, got', s.overall.total); process.exit(1); }"
+          curl -fs localhost:3000/ -o /dev/null
+          curl -fs "localhost:3000/checkin?seat=L1-DF-01" -o /dev/null
