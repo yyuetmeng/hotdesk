@@ -49,18 +49,29 @@ export function deriveStatus(seat, now, rules = DEFAULT_RULES) {
   return sensorOffline ? Status.OFFLINE : Status.AVAILABLE;
 }
 
-/** Expand the compact building layout into a flat list of seat definitions. */
+/**
+ * Expand the building layout into a flat list of seat definitions.
+ *
+ * A zone is either a plain grid (`rows` x `cols`, every cell a desk) or a
+ * `map`: one string per row where ' ' is no desk, '.' is an unassigned desk
+ * and any other character is a desk assigned to that code in `building.teams`.
+ */
 export function expandLayout(building) {
+  const teams = building.teams ?? {};
   const seats = [];
   for (const floor of building.floors) {
     for (const zone of floor.zones) {
       const noSensor = new Set(zone.sensorless ?? []);
+      const map = zone.map ?? Array.from({ length: zone.rows }, () => '.'.repeat(zone.cols));
       let n = 0;
-      for (let r = 0; r < zone.rows; r++) {
-        for (let c = 0; c < zone.cols; c++) {
+      map.forEach((line, r) => {
+        [...line].forEach((ch, c) => {
+          if (ch === ' ') return;
+          if (ch !== '.' && !teams[ch]) throw new Error(`Zone ${floor.id}-${zone.id}: unknown team code '${ch}'`);
           n++;
           const id = `${floor.id}-${zone.id}-${String(n).padStart(2, '0')}`;
           const sensored = zone.sensors !== false && !noSensor.has(id);
+          const team = ch === '.' ? null : ch;
           seats.push({
             id,
             floor: floor.id,
@@ -69,10 +80,13 @@ export function expandLayout(building) {
             zoneName: zone.name,
             row: r,
             col: c,
+            team,
+            teamName: team ? teams[team].name : null,
+            teamColor: team ? teams[team].color : null,
             sensorId: sensored ? `S-${id}` : null,
           });
-        }
-      }
+        });
+      });
     }
   }
   return seats;
@@ -230,6 +244,8 @@ export class OccupancyEngine extends EventEmitter {
       zoneName: seat.zoneName,
       row: seat.row,
       col: seat.col,
+      team: seat.team,
+      teamName: seat.teamName,
       status,
       hasSensor: Boolean(seat.sensorId),
       sensorOnline,
@@ -241,12 +257,13 @@ export class OccupancyEngine extends EventEmitter {
     };
   }
 
-  list({ floor, zone, status } = {}) {
+  list({ floor, zone, status, team } = {}) {
     const now = this.clock();
     const out = [];
     for (const seat of this.seats.values()) {
       if (floor && seat.floor !== floor) continue;
       if (zone && seat.zone !== zone) continue;
+      if (team && seat.team !== team) continue;
       const v = this.view(seat, now);
       if (status && v.status !== status) continue;
       out.push(v);
@@ -271,6 +288,11 @@ export class OccupancyEngine extends EventEmitter {
       if (!floors.has(seat.floor)) floors.set(seat.floor, { id: seat.floor, name: seat.floorName, zones: new Map() });
       floors.get(seat.floor).zones.set(seat.zone, seat.zoneName);
     }
+    const teams = new Map();
+    for (const seat of this.seats.values()) {
+      const key = seat.team ?? '';
+      if (!teams.has(key)) teams.set(key, { id: seat.team, name: seat.teamName ?? 'Unassigned (open hot desks)', color: seat.teamColor });
+    }
     const withRate = (c) => ({ ...c, occupancyRate: c.total ? (c.occupied + c.away) / c.total : 0 });
     return {
       at: now,
@@ -286,6 +308,7 @@ export class OccupancyEngine extends EventEmitter {
           ...withRate(this.counts(now, (s) => s.floor === f.id && s.zone === id)),
         })),
       })),
+      teams: [...teams.values()].sort((a, b) => (a.id === null) - (b.id === null)).map((t) => ({ ...t, ...withRate(this.counts(now, (s) => s.team === t.id)) })),
     };
   }
 

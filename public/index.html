@@ -88,9 +88,9 @@
   .floor + .floor { margin-top: 20px; }
   .floor h3 { font-size: 13px; margin: 0 0 8px; color: var(--text-secondary); font-weight: 600; }
   .zones { display: flex; flex-wrap: wrap; gap: 16px; }
-  .zone { border: 1px dashed var(--border); border-radius: 8px; padding: 10px; }
+  .zone { border: 1px dashed var(--border); border-radius: 8px; padding: 10px; max-width: 100%; overflow-x: auto; }
   .zone .zname { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between; gap: 12px; }
-  .seats { display: grid; gap: 4px; }
+  .seats { display: grid; gap: 4px; grid-auto-rows: 34px; }
   .seat {
     width: 34px; height: 34px; border-radius: 6px; border: 0; padding: 0; cursor: pointer;
     display: grid; place-items: center; font-size: 13px; font-weight: 700; line-height: 1;
@@ -101,6 +101,7 @@
   .s-occupied { background: var(--occupied); color: var(--on-occupied); }
   .s-away { background: var(--away); color: var(--on-away); }
   .s-offline { background: var(--offline); color: var(--on-offline); }
+  .seat.unassigned { background: transparent; color: var(--text-secondary); box-shadow: inset 0 0 0 1.5px var(--text-muted); }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--text-secondary); font-size: 12px; margin-top: 12px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .legend .seat { width: 18px; height: 18px; font-size: 10px; cursor: default; border-radius: 4px; }
@@ -140,7 +141,12 @@
     <div class="filters" style="justify-content: space-between; margin-bottom: 12px;">
       <h2 style="margin:0">Floor plan</h2>
       <div class="filters">
+        <div class="seg" id="viewMode" role="group" aria-label="Colour desks by">
+          <button type="button" data-mode="status" aria-pressed="true">Status</button>
+          <button type="button" data-mode="team" aria-pressed="false">Team assignment</button>
+        </div>
         <div class="seg" id="floorFilter" role="group" aria-label="Floor"></div>
+        <select id="teamFilter" aria-label="Team filter"><option value="">All teams</option></select>
         <select id="statusFilter" aria-label="Status filter">
           <option value="">All statuses</option>
           <option value="available">Available</option>
@@ -169,6 +175,11 @@
     <h2>Utilisation by zone</h2>
     <div style="overflow-x:auto"><table id="zones"></table></div>
   </section>
+
+  <section class="card">
+    <h2>Utilisation by team</h2>
+    <div style="overflow-x:auto"><table id="teams"></table></div>
+  </section>
 </main>
 <div class="tip" id="tip" role="tooltip"></div>
 
@@ -185,7 +196,7 @@ let token = params.get('token') || safeGet('hotdesk.token') || '';
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
-const state = { seats: new Map(), summary: null, floor: safeGet('hotdesk.floor') || '', status: '' };
+const state = { seats: new Map(), summary: null, floor: safeGet('hotdesk.floor') || '', status: '', team: '', mode: 'status' };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -254,15 +265,29 @@ function renderPlan() {
     </div>`).join('') || '<div class="empty">No seats configured.</div>';
 }
 
+const teamKey = (t) => t ?? '_';
+function teamInfo(id) { return (state.summary?.teams ?? []).find((t) => t.id === id); }
+function inkFor(hex) {
+  const n = parseInt(hex.slice(1), 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? '#0b0b0b' : '#ffffff';
+}
+
 function seatButton(s) {
-  const dim = state.status && s.status !== state.status ? ' dim' : '';
-  return `<button type="button" class="seat s-${s.status}${dim}" data-seat="${esc(s.id)}"
-    style="grid-column:${s.col + 1};grid-row:${s.row + 1}"
-    aria-label="${esc(s.id)}: ${STATUS[s.status].label}">${STATUS[s.status].glyph}</button>`;
+  const dim = (state.status && s.status !== state.status) || (state.team && teamKey(s.team) !== state.team) ? ' dim' : '';
+  let cls = `s-${s.status}`, style = '';
+  if (state.mode === 'team') {
+    const color = teamInfo(s.team)?.color;
+    if (color) { cls = ''; style = `background:${color};color:${inkFor(color)};`; }
+    else cls = 'unassigned';
+  }
+  const team = s.teamName ? `, ${esc(s.teamName)}` : ', unassigned';
+  return `<button type="button" class="seat ${cls}${dim}" data-seat="${esc(s.id)}"
+    style="${style}grid-column:${s.col + 1};grid-row:${s.row + 1}"
+    aria-label="${esc(s.id)}: ${STATUS[s.status].label}${team}">${STATUS[s.status].glyph}</button>`;
 }
 
 function seatTip(s) {
-  const lines = [`<b>${esc(s.id)} — ${STATUS[s.status].label}</b>`];
+  const lines = [`<b>${esc(s.id)} — ${STATUS[s.status].label}</b>`, s.teamName ? `Assigned to: ${esc(s.teamName)}` : 'Unassigned (open hot desk)'];
   if (s.checkedInBy) lines.push(`Checked in: ${esc(s.checkedInBy)} at ${fmtTime(s.checkedInAt)}`);
   if (s.hasSensor) lines.push(`Sensor: ${s.sensorOnline ? (s.presence ? 'presence detected' : 'no presence') : 'offline'}`);
   else lines.push('No sensor — QR check-in only');
@@ -271,8 +296,30 @@ function seatTip(s) {
   return lines[0] + lines.slice(1).join('<br>');
 }
 
-$('legend').innerHTML = Object.entries(STATUS).map(([k, v]) =>
-  `<span><span class="seat s-${k}">${v.glyph}</span>${v.label}</span>`).join('');
+function renderLegend() {
+  const status = Object.entries(STATUS).map(([k, v]) =>
+    `<span><span class="seat s-${k}">${v.glyph}</span>${v.label}</span>`).join('');
+  if (state.mode === 'status') { $('legend').innerHTML = status; return; }
+  const teams = (state.summary?.teams ?? []).map((t) => t.color
+    ? `<span><span class="seat" style="background:${t.color}"></span>${esc(t.name)}</span>`
+    : `<span><span class="seat unassigned"></span>${esc(t.name)}</span>`).join('');
+  $('legend').innerHTML = teams + `<span class="muted">Symbol shows live status: ${Object.values(STATUS).map((v) => `${v.glyph} ${v.label}`).join(' · ')}</span>`;
+}
+
+function renderTeamFilter() {
+  const sel = $('teamFilter');
+  const opts = (state.summary?.teams ?? []).map((t) => `<option value="${esc(teamKey(t.id))}">${esc(t.name)}</option>`).join('');
+  sel.innerHTML = `<option value="">All teams</option>${opts}`;
+  sel.value = state.team;
+}
+
+$('viewMode').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.mode = b.dataset.mode;
+  for (const x of $('viewMode').children) x.setAttribute('aria-pressed', String(x === b));
+  renderLegend(); renderPlan();
+});
+$('teamFilter').addEventListener('change', (e) => { state.team = e.target.value; renderPlan(); });
 
 $('floorFilter').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
@@ -310,6 +357,17 @@ function renderZones() {
       <td class="num">${z.available}</td><td class="num">${z.occupied}</td><td class="num">${z.away}</td><td class="num">${z.offline}</td>
       <td><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><i style="width:${pct(z.occupancyRate)}"></i></div>
       <span style="width:3em;text-align:right">${pct(z.occupancyRate)}</span></div></td></tr>`).join('')}</tbody>`;
+}
+
+function renderTeams() {
+  const rows = state.summary?.teams ?? [];
+  $('teams').innerHTML = `<thead><tr><th>Team</th><th class="num">Desks</th><th class="num">Available</th>
+    <th class="num">Occupied</th><th class="num">Away</th><th class="num">Offline</th><th>Occupancy</th></tr></thead>
+    <tbody>${rows.map((t) => `<tr><td><span style="display:inline-flex;align-items:center;gap:8px">
+      <span class="swatch" style="${t.color ? `background:${t.color}` : 'box-shadow:inset 0 0 0 1.5px var(--text-muted)'}"></span>${esc(t.name)}</span></td>
+      <td class="num">${t.total}</td><td class="num">${t.available}</td><td class="num">${t.occupied}</td><td class="num">${t.away}</td><td class="num">${t.offline}</td>
+      <td><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><i style="width:${pct(t.occupancyRate)}"></i></div>
+      <span style="width:3em;text-align:right">${pct(t.occupancyRate)}</span></div></td></tr>`).join('')}</tbody>`;
 }
 
 // ---------- Activity ----------
@@ -380,7 +438,7 @@ function refreshSummarySoon() {
     summaryTimer = null;
     try {
       state.summary = await api('/api/summary');
-      renderKpis(); renderPlan(); renderZones(); renderFeed();
+      renderKpis(); renderPlan(); renderZones(); renderTeams(); renderFeed();
     } catch (e) { console.error(e); }
   }, 400);
 }
@@ -391,7 +449,7 @@ function connect() {
     const { seats, summary } = JSON.parse(e.data);
     state.seats = new Map(seats.map((s) => [s.id, s]));
     state.summary = summary;
-    renderKpis(); renderFloorFilter(); renderPlan(); renderZones();
+    renderKpis(); renderFloorFilter(); renderTeamFilter(); renderLegend(); renderPlan(); renderZones(); renderTeams();
     $('live').textContent = 'Live'; $('live').classList.add('on');
   });
   es.addEventListener('seat', (e) => {

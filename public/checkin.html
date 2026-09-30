@@ -56,7 +56,7 @@ try { $('user').value = localStorage.getItem('hotdesk.user') || ''; } catch {}
 
 function render(s) {
   $('title').textContent = `Desk ${s.id}`;
-  $('where').textContent = `${s.floorName} · ${s.zoneName}`;
+  $('where').textContent = `${s.floorName} · ${s.zoneName} · ${s.teamName ?? 'Open hot desk'}`;
   $('status').textContent = LABEL[s.status];
   $('dot').style.background = `var(--${s.status})`;
   $('hint').textContent = s.hasSensor

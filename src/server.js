@@ -156,7 +156,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken }) {
     // --- Administrator endpoints ---
     if (method === 'GET') {
       requireAdmin(req, url);
-      const q = Object.fromEntries(['floor', 'zone', 'status'].map((k) => [k, url.searchParams.get(k) ?? undefined]));
+      const q = Object.fromEntries(['floor', 'zone', 'status', 'team'].map((k) => [k, url.searchParams.get(k) ?? undefined]));
       switch (url.pathname) {
         case '/api/seats':
           return send(res, 200, engine.list(q));

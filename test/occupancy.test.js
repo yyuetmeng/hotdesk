@@ -36,6 +36,38 @@ test('layout expansion assigns ids and sensors', () => {
   ]);
 });
 
+test('map layouts: spaces are gaps, letters assign teams, "." is unassigned', () => {
+  const seats = expandLayout({
+    teams: { a: { name: 'Alpha', color: '#ff0000' } },
+    floors: [{ id: 'L1', name: 'L1', zones: [{ id: 'Z', name: 'Z', map: ['aa .', '', ' a'] }] }],
+  });
+  assert.deepEqual(
+    seats.map((s) => [s.id, s.row, s.col, s.team, s.teamName]),
+    [
+      ['L1-Z-01', 0, 0, 'a', 'Alpha'],
+      ['L1-Z-02', 0, 1, 'a', 'Alpha'],
+      ['L1-Z-03', 0, 3, null, null],
+      ['L1-Z-04', 2, 1, 'a', 'Alpha'],
+    ],
+  );
+  assert.throws(
+    () => expandLayout({ floors: [{ id: 'L1', zones: [{ id: 'Z', map: ['x'] }] }] }),
+    /unknown team code 'x'/,
+  );
+});
+
+test('summary groups seats by team, unassigned last', () => {
+  const layout = {
+    teams: { a: { name: 'Alpha', color: '#ff0000' } },
+    floors: [{ id: 'L1', name: 'L1', zones: [{ id: 'Z', name: 'Z', map: ['.a', 'a'] }] }],
+  };
+  const engine = new OccupancyEngine({ seats: expandLayout(layout) });
+  engine.recordSensorEvent({ sensorId: 'S-L1-Z-02', presence: true });
+  const teams = engine.summary().teams.map((t) => [t.id, t.total, t.occupied]);
+  assert.deepEqual(teams, [['a', 2, 1], [null, 1, 0]]);
+  assert.equal(engine.list({ team: 'a' }).length, 2);
+});
+
 test('sensor seat: never-seen sensor is offline, heartbeat makes it available', () => {
   const { engine } = setup();
   assert.equal(status(engine, 'L1-A-01'), Status.OFFLINE);

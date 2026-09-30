@@ -47,9 +47,39 @@ in the QR sticker on each desk.
 
 ### Building layout
 
-`config/building.json` describes floors and zones as desk grids. Desk IDs are generated as
-`<floor>-<zone>-<nn>` (e.g. `L1-A-01`) and sensor IDs as `S-<deskId>`. Set `"sensors": false` on a zone
-(or list desk IDs in `"sensorless"`) for QR-only areas.
+`config/building.json` holds the **DIC Annex @ Depot Road** layout, transcribed from
+`CIO_DF_Seat_Assignment.pptx`. It has 155 desks:
+
+| Floor | Zone | Desks | Notes |
+|---|---|---|---|
+| Level 1 | Digital Factory | 36 | 6 pods of 3×2 desks |
+| Level 1 | Discussion Area | 16 | Former discussion area converted to desks (red outline in the deck): 4 single desks + 2 pods |
+| Level 1 | AI Lab | 30 | 6 single desks along the stair wall + 2 pods of 6×2 |
+| Level 2 | General Office | 43 | 5 pods in the top section (the last one single-sided) + 2 pods of 4×2 |
+| Level 2 | UAT Stations | 30 | 6 single desks + 2 pods of 6×2. 10 desks are hatched on the plan (UAT test stations) |
+
+Each zone is an ASCII `map`, one string per row of desks: a space is no desk (aisle or pod gap), `.` is
+an unassigned hot desk, and a letter assigns the desk to a team defined under `"teams"`. The team
+colours match the coloured blocks in the deck. The deck has no legend, so the teams are named by
+colour (e.g. "Amber team"). **Rename them in `building.json` to the real team names.**
+
+```json
+"map": [
+  "mm lc gg",
+  "mm lc gg",
+  "mm ll gg",
+  "",
+  "rr cc ll"
+]
+```
+
+Desk IDs are `<floor>-<zone>-<nn>`, numbered in reading order (left to right, top to bottom, e.g.
+`L1-DF-01`). Sensor IDs are `S-<deskId>`. For QR-only areas, set `"sensors": false` on a zone or list
+desk IDs in `"sensorless"`. A zone can also use plain `"rows"`/`"cols"` instead of a `map`.
+
+The dashboard's **Team assignment** view colours desks by team, the same way as the deck. The symbol on
+each desk still shows its live status. A team filter and a per-team utilisation table show how well
+each team's allocated desks are used.
 
 ## Sending sensor data
 

@@ -36,7 +36,7 @@ known if the person voluntarily checks in.
 
 Every desk has a QR sticker that opens `/checkin?seat=<id>` on the employee's phone. It's used for:
 
-- Areas where sensors are not installed yet (e.g. the Quiet Room in the sample layout).
+- Areas where sensors are not installed yet.
 - Desks whose sensor is offline.
 - Letting colleagues and facilities know *who* is at a desk (optional).
 
@@ -111,6 +111,8 @@ Other rules:
 - **Occupancy trend** over the last 24 h.
 - **Utilisation by zone** table, which helps right-size the number of desks per team.
 - **Recent activity** feed (check-ins, checkouts, auto-releases, status changes).
+- **Team assignment** view and **utilisation by team**: desks are allocated to teams in blocks (see the
+  seat assignment deck), so admins can see whether a team's block is under- or over-used and rebalance it.
 
 ## 5. API
 
