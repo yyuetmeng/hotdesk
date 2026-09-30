@@ -1,0 +1,15 @@
+{
+  "name": "hotdesk",
+  "version": "0.1.0",
+  "description": "Hot desk seat occupancy monitoring with live admin dashboard",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "simulate": "node scripts/simulate.js",
+    "test": "node --test"
+  }
+}

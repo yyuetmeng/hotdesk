@@ -1,0 +1,189 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { OccupancyEngine, Status, ConflictError, expandLayout } from '../src/occupancy.js';
+
+const MIN = 60_000;
+const building = {
+  floors: [
+    {
+      id: 'L1',
+      name: 'Level 1',
+      zones: [
+        { id: 'A', name: 'A', rows: 1, cols: 2 },
+        { id: 'Q', name: 'Quiet', rows: 1, cols: 1, sensors: false },
+      ],
+    },
+  ],
+};
+
+function setup(rules) {
+  let now = Date.parse('2026-09-30T09:00:00Z');
+  const clock = { now: () => now, advance: (m) => (now += m * MIN) };
+  const engine = new OccupancyEngine({ seats: expandLayout(building), rules, clock: clock.now });
+  const changes = [];
+  engine.on('change', (s) => changes.push(s));
+  return { engine, clock, changes };
+}
+
+const status = (engine, id) => engine.view(engine.getSeat(id)).status;
+
+test('layout expansion assigns ids and sensors', () => {
+  const seats = expandLayout(building);
+  assert.deepEqual(seats.map((s) => [s.id, s.sensorId]), [
+    ['L1-A-01', 'S-L1-A-01'],
+    ['L1-A-02', 'S-L1-A-02'],
+    ['L1-Q-01', null],
+  ]);
+});
+
+test('sensor seat: never-seen sensor is offline, heartbeat makes it available', () => {
+  const { engine } = setup();
+  assert.equal(status(engine, 'L1-A-01'), Status.OFFLINE);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01' });
+  assert.equal(status(engine, 'L1-A-01'), Status.AVAILABLE);
+});
+
+test('presence -> occupied; leaving -> away during grace -> available after grace', () => {
+  const { engine, clock, changes } = setup({ awayGraceMinutes: 20 });
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  assert.equal(status(engine, 'L1-A-01'), Status.OCCUPIED);
+
+  clock.advance(60);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
+  assert.equal(status(engine, 'L1-A-01'), Status.AWAY);
+  const v = engine.view(engine.getSeat('L1-A-01'));
+  assert.equal(v.holdExpiresAt, clock.now() + 20 * MIN);
+
+  clock.advance(10);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false }); // heartbeat
+  engine.sweep();
+  assert.equal(status(engine, 'L1-A-01'), Status.AWAY);
+
+  clock.advance(11);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
+  engine.sweep();
+  assert.equal(status(engine, 'L1-A-01'), Status.AVAILABLE);
+  assert.deepEqual(
+    changes.filter((c) => c.id === 'L1-A-01').map((c) => c.status),
+    ['occupied', 'away', 'available'],
+  );
+});
+
+test('returning within grace keeps the seat', () => {
+  const { engine, clock } = setup();
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
+  clock.advance(15);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  assert.equal(status(engine, 'L1-A-01'), Status.OCCUPIED);
+});
+
+test('checked-in user is auto-released after leaving for longer than the grace', () => {
+  const { engine, clock } = setup({ awayGraceMinutes: 20 });
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
+  engine.checkIn('L1-A-01', 'alice');
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  clock.advance(120);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
+  clock.advance(21);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01' });
+  engine.sweep();
+  const v = engine.view(engine.getSeat('L1-A-01'));
+  assert.equal(v.status, Status.AVAILABLE);
+  assert.equal(v.checkedInBy, null);
+  assert.ok(engine.activity.some((a) => a.type === 'auto-release' && a.detail === 'alice'));
+});
+
+test('check-in on a sensor seat with no presence is released after the confirm window', () => {
+  const { engine, clock } = setup({ checkinConfirmMinutes: 15 });
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01' });
+  engine.checkIn('L1-A-01', 'bob');
+  assert.equal(status(engine, 'L1-A-01'), Status.OCCUPIED);
+  clock.advance(14);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01' });
+  engine.sweep();
+  assert.equal(status(engine, 'L1-A-01'), Status.OCCUPIED);
+  clock.advance(2);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01' });
+  engine.sweep();
+  assert.equal(status(engine, 'L1-A-01'), Status.AVAILABLE);
+  assert.equal(engine.getSeat('L1-A-01').checkedInBy, null);
+});
+
+test('sensorless seat: check-in lasts TTL, checkout frees immediately', () => {
+  const { engine, clock } = setup({ checkinTtlMinutes: 240 });
+  assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
+  engine.checkIn('L1-Q-01', 'carol');
+  clock.advance(239);
+  engine.sweep();
+  assert.equal(status(engine, 'L1-Q-01'), Status.OCCUPIED);
+  engine.checkOut('L1-Q-01', 'carol');
+  assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
+
+  engine.checkIn('L1-Q-01', 'carol');
+  clock.advance(241);
+  engine.sweep();
+  assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
+});
+
+test('checkout on a sensor seat skips the away hold', () => {
+  const { engine } = setup();
+  engine.checkIn('L1-A-01', 'dan');
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
+  assert.equal(status(engine, 'L1-A-01'), Status.AWAY);
+  engine.checkOut('L1-A-01', 'dan');
+  assert.equal(status(engine, 'L1-A-01'), Status.AVAILABLE);
+});
+
+test('cannot take a seat held by someone else; one seat per person', () => {
+  const { engine } = setup();
+  engine.checkIn('L1-Q-01', 'erin');
+  assert.throws(() => engine.checkIn('L1-Q-01', 'frank'), ConflictError);
+  assert.throws(() => engine.checkOut('L1-Q-01', 'frank'), ConflictError);
+
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-02' });
+  engine.checkIn('L1-A-02', 'erin');
+  assert.equal(engine.getSeat('L1-Q-01').checkedInBy, null);
+  assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
+  assert.equal(engine.getSeat('L1-A-02').checkedInBy, 'erin');
+});
+
+test('sensor going silent falls back to check-in, else offline', () => {
+  const { engine, clock } = setup({ sensorOfflineMinutes: 15 });
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  clock.advance(16);
+  assert.equal(status(engine, 'L1-A-01'), Status.OFFLINE);
+  engine.checkIn('L1-A-01', 'gus');
+  assert.equal(status(engine, 'L1-A-01'), Status.OCCUPIED);
+});
+
+test('out-of-order sensor events are ignored', () => {
+  const { engine, clock } = setup();
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false, at: clock.now() - 5 * MIN });
+  assert.equal(status(engine, 'L1-A-01'), Status.OCCUPIED);
+});
+
+test('summary, history sampling and snapshot round-trip', () => {
+  const { engine, clock } = setup();
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-02' });
+  engine.sweep();
+  clock.advance(0.5);
+  engine.sweep();
+  clock.advance(1);
+  engine.sweep();
+  assert.equal(engine.history.length, 2);
+
+  const s = engine.summary();
+  assert.deepEqual(
+    { total: s.overall.total, occupied: s.overall.occupied, available: s.overall.available },
+    { total: 3, occupied: 1, available: 2 },
+  );
+  assert.equal(s.floors[0].zones.length, 2);
+
+  const copy = new OccupancyEngine({ seats: expandLayout(building), state: engine.snapshot(), clock: clock.now });
+  assert.equal(status(copy, 'L1-A-01'), Status.OCCUPIED);
+  assert.equal(copy.history.length, 2);
+});

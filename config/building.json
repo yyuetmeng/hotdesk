@@ -1,0 +1,22 @@
+{
+  "name": "HQ Building",
+  "floors": [
+    {
+      "id": "L1",
+      "name": "Level 1",
+      "zones": [
+        { "id": "A", "name": "Open Plan A", "rows": 3, "cols": 6 },
+        { "id": "B", "name": "Open Plan B", "rows": 3, "cols": 6 },
+        { "id": "Q", "name": "Quiet Room (QR check-in only)", "rows": 2, "cols": 4, "sensors": false }
+      ]
+    },
+    {
+      "id": "L2",
+      "name": "Level 2",
+      "zones": [
+        { "id": "C", "name": "Collaboration", "rows": 4, "cols": 6 },
+        { "id": "D", "name": "Focus Pods", "rows": 2, "cols": 6 }
+      ]
+    }
+  ]
+}

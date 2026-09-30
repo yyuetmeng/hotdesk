@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desk Check-in</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f4f2; --card: #fcfcfb; --border: #e2e1dc;
+    --text: #0b0b0b; --muted: #52514e;
+    --available: #0ca30c; --occupied: #2a78d6; --away: #fab219; --offline: #a9a8a2; --danger: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { color-scheme: dark; --bg: #111110; --card: #1a1a19; --border: #2e2e2b; --text: #fff; --muted: #c3c2b7; --occupied: #3987e5; --offline: #5c5b56; }
+  }
+  :root[data-theme="dark"] { color-scheme: dark; --bg: #111110; --card: #1a1a19; --border: #2e2e2b; --text: #fff; --muted: #c3c2b7; --occupied: #3987e5; --offline: #5c5b56; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 420px; margin: 0 auto; padding: 24px 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .status { display: inline-flex; align-items: center; gap: 8px; margin: 16px 0; font-weight: 600; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 12px 0 4px; }
+  input { width: 100%; font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .row { display: flex; gap: 8px; margin-top: 16px; }
+  button { flex: 1; font: inherit; font-weight: 600; padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; background: var(--card); color: var(--text); }
+  button.primary { background: var(--text); color: var(--card); border-color: var(--text); }
+  #msg { margin-top: 12px; font-size: 14px; min-height: 1.5em; }
+  #msg.err { color: var(--danger); }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1 id="title">Desk</h1>
+    <div class="muted" id="where"></div>
+    <div class="status"><span class="dot" id="dot"></span><span id="status">Loading…</span></div>
+    <div class="muted" id="hint"></div>
+    <label for="user">Your name or employee ID</label>
+    <input id="user" autocomplete="username">
+    <div class="row">
+      <button class="primary" id="in" type="button">Check in</button>
+      <button id="out" type="button">I'm leaving</button>
+    </div>
+    <div id="msg" role="status"></div>
+  </div>
+</main>
+<script>
+const LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away — held for its user', offline: 'Sensor offline' };
+const seatId = new URLSearchParams(location.search).get('seat');
+const $ = (id) => document.getElementById(id);
+try { $('user').value = localStorage.getItem('hotdesk.user') || ''; } catch {}
+
+function render(s) {
+  $('title').textContent = `Desk ${s.id}`;
+  $('where').textContent = `${s.floorName} · ${s.zoneName}`;
+  $('status').textContent = LABEL[s.status];
+  $('dot').style.background = `var(--${s.status})`;
+  $('hint').textContent = s.hasSensor
+    ? 'This desk has a presence sensor: it frees itself automatically once you have been away for a while.'
+    : 'This desk has no sensor: please tap "I\'m leaving" when you go. Check-ins expire automatically.';
+}
+
+async function call(path, body) {
+  const res = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+async function act(kind) {
+  const user = $('user').value.trim();
+  $('msg').className = '';
+  if (!user) { $('msg').className = 'err'; $('msg').textContent = 'Enter your name first.'; return; }
+  try { localStorage.setItem('hotdesk.user', user); } catch {}
+  try {
+    render(await call(`/api/seats/${encodeURIComponent(seatId)}/${kind}`, { user }));
+    $('msg').textContent = kind === 'checkin' ? 'You are checked in. Enjoy your day!' : 'Thanks — the desk is free for others.';
+  } catch (e) { $('msg').className = 'err'; $('msg').textContent = e.message; }
+}
+$('in').onclick = () => act('checkin');
+$('out').onclick = () => act('checkout');
+
+if (!seatId) { $('status').textContent = 'No desk specified — scan the QR code on the desk.'; }
+else call(`/api/seats/${encodeURIComponent(seatId)}`).then(render).catch((e) => { $('status').textContent = e.message; });
+</script>
+</body>
+</html>

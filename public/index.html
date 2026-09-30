@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hot Desk Monitor</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f4f2;
+    --surface-1: #fcfcfb;
+    --border: #e2e1dc;
+    --grid: #ecebe7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7974;
+    --occupied: #2a78d6;
+    --available: #0ca30c;
+    --away: #fab219;
+    --offline: #a9a8a2;
+    --on-occupied: #ffffff;
+    --on-available: #ffffff;
+    --on-away: #0b0b0b;
+    --on-offline: #0b0b0b;
+    --line: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #111110;
+      --surface-1: #1a1a19;
+      --border: #2e2e2b;
+      --grid: #262624;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8f8e86;
+      --occupied: #3987e5;
+      --offline: #5c5b56;
+      --on-offline: #ffffff;
+      --line: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #111110;
+    --surface-1: #1a1a19;
+    --border: #2e2e2b;
+    --grid: #262624;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e86;
+    --occupied: #3987e5;
+    --offline: #5c5b56;
+    --on-offline: #ffffff;
+    --line: #3987e5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--surface-0); color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface-1);
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  .live { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13px; }
+  .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--offline); }
+  .live.on::before { background: var(--available); }
+  .spacer { flex: 1; }
+  main { padding: 20px 24px 40px; max-width: 1280px; margin: 0 auto; display: grid; gap: 20px; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .kpi .label { color: var(--text-secondary); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .kpi .value { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 4px; }
+  .kpi .sub { color: var(--text-muted); font-size: 12px; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    border: 0; background: transparent; color: var(--text-secondary); padding: 6px 12px; font: inherit; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+  select { font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); }
+  .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+  @media (max-width: 900px) { .two { grid-template-columns: minmax(0, 1fr); } main { padding: 16px; } header { padding: 12px 16px; } }
+  .floor + .floor { margin-top: 20px; }
+  .floor h3 { font-size: 13px; margin: 0 0 8px; color: var(--text-secondary); font-weight: 600; }
+  .zones { display: flex; flex-wrap: wrap; gap: 16px; }
+  .zone { border: 1px dashed var(--border); border-radius: 8px; padding: 10px; }
+  .zone .zname { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between; gap: 12px; }
+  .seats { display: grid; gap: 4px; }
+  .seat {
+    width: 34px; height: 34px; border-radius: 6px; border: 0; padding: 0; cursor: pointer;
+    display: grid; place-items: center; font-size: 13px; font-weight: 700; line-height: 1;
+  }
+  .seat:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+  .seat.dim { opacity: 0.18; }
+  .s-available { background: var(--available); color: var(--on-available); }
+  .s-occupied { background: var(--occupied); color: var(--on-occupied); }
+  .s-away { background: var(--away); color: var(--on-away); }
+  .s-offline { background: var(--offline); color: var(--on-offline); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--text-secondary); font-size: 12px; margin-top: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .seat { width: 18px; height: 18px; font-size: 10px; cursor: default; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--grid); }
+  th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
+  td.num, th.num { text-align: right; }
+  .bar { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; min-width: 60px; }
+  .bar > i { display: block; height: 100%; background: var(--occupied); border-radius: 0 3px 3px 0; }
+  .feed { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto; font-size: 13px; }
+  .feed li { padding: 6px 0; border-bottom: 1px solid var(--grid); display: flex; gap: 8px; }
+  .feed time { color: var(--text-muted); font-variant-numeric: tabular-nums; flex: none; }
+  .muted { color: var(--text-muted); }
+  #chart { position: relative; }
+  #chart svg { display: block; width: 100%; height: 200px; }
+  .tip {
+    position: fixed; pointer-events: none; z-index: 10; background: var(--surface-1); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 0.12); display: none; max-width: 260px;
+  }
+  .tip b { display: block; margin-bottom: 2px; }
+  .empty { color: var(--text-muted); padding: 24px 0; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hot Desk Monitor</h1>
+  <span id="live" class="live">Connecting…</span>
+  <span class="spacer"></span>
+  <span class="muted" id="rules"></span>
+</header>
+
+<main>
+  <section class="kpis" id="kpis" aria-label="Current seat availability"></section>
+
+  <section class="card">
+    <div class="filters" style="justify-content: space-between; margin-bottom: 12px;">
+      <h2 style="margin:0">Floor plan</h2>
+      <div class="filters">
+        <div class="seg" id="floorFilter" role="group" aria-label="Floor"></div>
+        <select id="statusFilter" aria-label="Status filter">
+          <option value="">All statuses</option>
+          <option value="available">Available</option>
+          <option value="occupied">Occupied</option>
+          <option value="away">Away (held)</option>
+          <option value="offline">Sensor offline</option>
+        </select>
+      </div>
+    </div>
+    <div id="plan"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <div class="two">
+    <section class="card">
+      <h2>Occupancy, last 24 hours</h2>
+      <div id="chart"></div>
+    </section>
+    <section class="card">
+      <h2>Recent activity</h2>
+      <ul class="feed" id="feed"></ul>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Utilisation by zone</h2>
+    <div style="overflow-x:auto"><table id="zones"></table></div>
+  </section>
+</main>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+const STATUS = {
+  available: { label: 'Available', glyph: '✓' },
+  occupied: { label: 'Occupied', glyph: '●' },
+  away: { label: 'Away (held)', glyph: '…' },
+  offline: { label: 'Sensor offline', glyph: '!' },
+};
+
+const params = new URLSearchParams(location.search);
+let token = params.get('token') || safeGet('hotdesk.token') || '';
+function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+const state = { seats: new Map(), summary: null, floor: safeGet('hotdesk.floor') || '', status: '' };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const pct = (x) => `${Math.round(x * 100)}%`;
+
+function withToken(path) {
+  if (!token) return path;
+  return path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
+}
+
+async function api(path) {
+  const res = await fetch(withToken(path));
+  if (res.status === 401) {
+    const t = prompt('Administrator token');
+    if (t === null) throw new Error('unauthorised');
+    token = t; safeSet('hotdesk.token', t);
+    return api(path);
+  }
+  if (!res.ok) throw new Error(`${path}: ${res.status}`);
+  return res.json();
+}
+
+// ---------- KPIs ----------
+function renderKpis() {
+  const s = state.summary; if (!s) return;
+  const o = s.overall;
+  const tile = (key, value, sub) => `
+    <div class="card kpi">
+      <div class="label">${key ? `<span class="seat s-${key}" style="width:16px;height:16px;font-size:10px;border-radius:4px;cursor:default">${STATUS[key].glyph}</span>${STATUS[key].label}` : 'Occupancy rate'}</div>
+      <div class="value">${value}</div>
+      <div class="sub">${sub}</div>
+    </div>`;
+  $('kpis').innerHTML =
+    tile(null, pct(o.occupancyRate), `${o.occupied + o.away} of ${o.total} seats in use`) +
+    tile('available', o.available, 'free to take now') +
+    tile('occupied', o.occupied, 'presence detected / checked in') +
+    tile('away', o.away, `held ≤ ${s.rules.awayGraceMinutes} min, then released`) +
+    tile('offline', o.offline, 'sensors needing attention');
+  $('rules').textContent = `Updated ${fmtTime(s.at)}`;
+}
+
+// ---------- Floor plan ----------
+function renderFloorFilter() {
+  const floors = state.summary?.floors ?? [];
+  if (state.floor && !floors.some((f) => f.id === state.floor)) state.floor = '';
+  const opts = [{ id: '', name: 'All floors' }, ...floors];
+  $('floorFilter').innerHTML = opts.map((f) =>
+    `<button type="button" data-floor="${esc(f.id)}" aria-pressed="${f.id === state.floor}">${esc(f.name)}</button>`).join('');
+}
+
+function renderPlan() {
+  const floors = (state.summary?.floors ?? []).filter((f) => !state.floor || f.id === state.floor);
+  const seats = [...state.seats.values()];
+  $('plan').innerHTML = floors.map((f) => `
+    <div class="floor">
+      <h3>${esc(f.name)} · ${f.available} available of ${f.total}</h3>
+      <div class="zones">${f.zones.map((z) => {
+        const zs = seats.filter((s) => s.floor === f.id && s.zone === z.id);
+        const cols = Math.max(1, ...zs.map((s) => s.col + 1));
+        return `<div class="zone">
+          <div class="zname"><span>${esc(z.name)}</span><span>${z.available}/${z.total} free</span></div>
+          <div class="seats" style="grid-template-columns:repeat(${cols}, 34px)">
+            ${zs.map(seatButton).join('')}
+          </div></div>`;
+      }).join('')}</div>
+    </div>`).join('') || '<div class="empty">No seats configured.</div>';
+}
+
+function seatButton(s) {
+  const dim = state.status && s.status !== state.status ? ' dim' : '';
+  return `<button type="button" class="seat s-${s.status}${dim}" data-seat="${esc(s.id)}"
+    style="grid-column:${s.col + 1};grid-row:${s.row + 1}"
+    aria-label="${esc(s.id)}: ${STATUS[s.status].label}">${STATUS[s.status].glyph}</button>`;
+}
+
+function seatTip(s) {
+  const lines = [`<b>${esc(s.id)} — ${STATUS[s.status].label}</b>`];
+  if (s.checkedInBy) lines.push(`Checked in: ${esc(s.checkedInBy)} at ${fmtTime(s.checkedInAt)}`);
+  if (s.hasSensor) lines.push(`Sensor: ${s.sensorOnline ? (s.presence ? 'presence detected' : 'no presence') : 'offline'}`);
+  else lines.push('No sensor — QR check-in only');
+  if (s.status === 'away') lines.push(`Last seen ${fmtTime(s.lastPresenceAt)}`);
+  if (s.holdExpiresAt) lines.push(`Auto-release at ${fmtTime(s.holdExpiresAt)}`);
+  return lines[0] + lines.slice(1).join('<br>');
+}
+
+$('legend').innerHTML = Object.entries(STATUS).map(([k, v]) =>
+  `<span><span class="seat s-${k}">${v.glyph}</span>${v.label}</span>`).join('');
+
+$('floorFilter').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.floor = b.dataset.floor; safeSet('hotdesk.floor', state.floor);
+  renderFloorFilter(); renderPlan();
+});
+$('statusFilter').addEventListener('change', (e) => { state.status = e.target.value; renderPlan(); });
+
+const tip = $('tip');
+function showTip(html, x, y) {
+  tip.innerHTML = html; tip.style.display = 'block';
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(x + 14, innerWidth - r.width - 8) + 'px';
+  tip.style.top = Math.min(y + 14, innerHeight - r.height - 8) + 'px';
+}
+function hideTip() { tip.style.display = 'none'; }
+$('plan').addEventListener('pointermove', (e) => {
+  const b = e.target.closest('.seat'); if (!b) return hideTip();
+  showTip(seatTip(state.seats.get(b.dataset.seat)), e.clientX, e.clientY);
+});
+$('plan').addEventListener('pointerleave', hideTip);
+$('plan').addEventListener('focusin', (e) => {
+  const b = e.target.closest('.seat'); if (!b) return;
+  const r = b.getBoundingClientRect();
+  showTip(seatTip(state.seats.get(b.dataset.seat)), r.right, r.top);
+});
+$('plan').addEventListener('focusout', hideTip);
+
+// ---------- Zone table ----------
+function renderZones() {
+  const rows = (state.summary?.floors ?? []).flatMap((f) => f.zones.map((z) => ({ floor: f.name, ...z })));
+  $('zones').innerHTML = `<thead><tr><th>Floor</th><th>Zone</th><th class="num">Seats</th><th class="num">Available</th>
+    <th class="num">Occupied</th><th class="num">Away</th><th class="num">Offline</th><th>Occupancy</th></tr></thead>
+    <tbody>${rows.map((z) => `<tr><td>${esc(z.floor)}</td><td>${esc(z.name)}</td><td class="num">${z.total}</td>
+      <td class="num">${z.available}</td><td class="num">${z.occupied}</td><td class="num">${z.away}</td><td class="num">${z.offline}</td>
+      <td><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><i style="width:${pct(z.occupancyRate)}"></i></div>
+      <span style="width:3em;text-align:right">${pct(z.occupancyRate)}</span></div></td></tr>`).join('')}</tbody>`;
+}
+
+// ---------- Activity ----------
+const ACT = {
+  checkin: (a) => `${esc(a.detail)} checked in at <b>${esc(a.seatId)}</b>`,
+  checkout: (a) => `${esc(a.detail)} checked out of <b>${esc(a.seatId)}</b>`,
+  moved: (a) => `${esc(a.detail)} moved away from <b>${esc(a.seatId)}</b>`,
+  'auto-release': (a) => `<b>${esc(a.seatId)}</b> auto-released${a.detail ? ` (was ${esc(a.detail)})` : ''}`,
+  status: (a) => `<b>${esc(a.seatId)}</b> ${esc(a.detail)}`,
+};
+async function renderFeed() {
+  const items = await api('/api/activity');
+  $('feed').innerHTML = items.slice(0, 60).map((a) =>
+    `<li><time>${fmtTime(a.at)}</time><span>${(ACT[a.type] ?? ACT.status)(a)}</span></li>`).join('')
+    || '<li class="muted">No activity yet.</li>';
+}
+
+// ---------- Occupancy chart (single series: % of seats in use) ----------
+let history = [];
+function renderChart() {
+  const el = $('chart');
+  if (history.length < 2) { el.innerHTML = '<div class="empty">Collecting data — samples are taken every minute.</div>'; return; }
+  const W = el.clientWidth || 600, H = 200, m = { l: 40, r: 12, t: 10, b: 24 };
+  const t0 = history[0].t, t1 = history.at(-1).t;
+  const x = (t) => m.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - m.l - m.r);
+  const y = (v) => m.t + (1 - v) * (H - m.t - m.b);
+  const rate = (h) => (h.total ? (h.occupied + h.away) / h.total : 0);
+  const d = history.map((h, i) => `${i ? 'L' : 'M'}${x(h.t).toFixed(1)},${y(rate(h)).toFixed(1)}`).join('');
+  const area = `${d}L${x(t1)},${y(0)}L${x(t0)},${y(0)}Z`;
+  const yt = [0, 0.25, 0.5, 0.75, 1];
+  const nx = Math.min(6, Math.max(2, Math.floor(W / 110)), Math.max(2, Math.floor((t1 - t0) / 60_000) + 1));
+  const xt = Array.from({ length: nx }, (_, i) => t0 + ((t1 - t0) * i) / (nx - 1));
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Seat occupancy rate over the last 24 hours">
+    ${yt.map((v) => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/>
+      <text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${pct(v)}</text>`).join('')}
+    ${xt.map((t, i) => `<text x="${x(t)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === nx - 1 ? 'end' : 'middle'}" font-size="11" fill="var(--text-muted)">${fmtTime(t)}</text>`).join('')}
+    <path d="${area}" fill="var(--line)" opacity="0.12"/>
+    <path d="${d}" fill="none" stroke="var(--line)" stroke-width="2" stroke-linejoin="round"/>
+    <line id="xh" y1="${m.t}" y2="${H - m.b}" stroke="var(--text-muted)" stroke-dasharray="3 3" visibility="hidden"/>
+    <circle id="xd" r="4" fill="var(--line)" stroke="var(--surface-1)" stroke-width="2" visibility="hidden"/>
+    <rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" id="hit"/>
+  </svg>`;
+  const svg = el.querySelector('svg');
+  svg.querySelector('#hit').addEventListener('pointermove', (e) => {
+    const r = svg.getBoundingClientRect();
+    const px = ((e.clientX - r.left) / r.width) * W;
+    const t = t0 + ((px - m.l) / (W - m.l - m.r)) * (t1 - t0);
+    let h = history[0];
+    for (const s of history) if (Math.abs(s.t - t) < Math.abs(h.t - t)) h = s;
+    const xh = svg.querySelector('#xh'), xd = svg.querySelector('#xd');
+    xh.setAttribute('x1', x(h.t)); xh.setAttribute('x2', x(h.t)); xh.setAttribute('visibility', 'visible');
+    xd.setAttribute('cx', x(h.t)); xd.setAttribute('cy', y(rate(h))); xd.setAttribute('visibility', 'visible');
+    showTip(`<b>${fmtTime(h.t)} — ${pct(rate(h))} in use</b>Occupied ${h.occupied} · Away ${h.away}<br>Available ${h.available} · Offline ${h.offline}`, e.clientX, e.clientY);
+  });
+  svg.querySelector('#hit').addEventListener('pointerleave', () => {
+    svg.querySelector('#xh').setAttribute('visibility', 'hidden');
+    svg.querySelector('#xd').setAttribute('visibility', 'hidden');
+    hideTip();
+  });
+}
+addEventListener('resize', () => renderChart());
+
+// ---------- Live updates ----------
+let summaryTimer = null;
+function refreshSummarySoon() {
+  if (summaryTimer) return;
+  summaryTimer = setTimeout(async () => {
+    summaryTimer = null;
+    try {
+      state.summary = await api('/api/summary');
+      renderKpis(); renderPlan(); renderZones(); renderFeed();
+    } catch (e) { console.error(e); }
+  }, 400);
+}
+
+function connect() {
+  const es = new EventSource(withToken('/api/stream'));
+  es.addEventListener('snapshot', (e) => {
+    const { seats, summary } = JSON.parse(e.data);
+    state.seats = new Map(seats.map((s) => [s.id, s]));
+    state.summary = summary;
+    renderKpis(); renderFloorFilter(); renderPlan(); renderZones();
+    $('live').textContent = 'Live'; $('live').classList.add('on');
+  });
+  es.addEventListener('seat', (e) => {
+    const s = JSON.parse(e.data);
+    state.seats.set(s.id, s);
+    const b = document.querySelector(`[data-seat="${CSS.escape(s.id)}"]`);
+    if (b) b.outerHTML = seatButton(s);
+    refreshSummarySoon();
+  });
+  es.onerror = () => { $('live').textContent = 'Reconnecting…'; $('live').classList.remove('on'); };
+}
+
+async function start() {
+  try {
+    await api('/api/summary'); // triggers the token prompt before opening the stream
+    connect();
+    renderFeed();
+    const loadHistory = async () => { history = await api('/api/history'); renderChart(); };
+    loadHistory();
+    setInterval(loadHistory, 60_000);
+    setInterval(refreshSummarySoon, 30_000); // hold timers expire without a sensor event
+  } catch (e) {
+    $('live').textContent = 'Not authorised';
+  }
+}
+start();
+</script>
+</body>
+</html>
