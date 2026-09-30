@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desk Sensors</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f4f2; --surface-1: #fcfcfb; --border: #e2e1dc; --grid: #ecebe7;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+    --good: #0ca30c; --warn: #fab219; --bad: #d03b3b; --neutral: #a9a8a2; --accent: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2b; --grid: #262624;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86; --neutral: #5c5b56; --accent: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2b; --grid: #262624;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86; --neutral: #5c5b56; --accent: #3987e5;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--surface-0); color: var(--text-primary); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface-1); }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; flex: 1; }
+  a { color: var(--accent); }
+  main { padding: 20px 24px 40px; max-width: 1180px; margin: 0 auto; display: grid; gap: 20px; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+  .card h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .card > p { margin: 0 0 12px; color: var(--text-secondary); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .kpi .label { color: var(--text-secondary); font-size: 13px; }
+  .kpi .value { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+  th { color: var(--text-secondary); font-weight: 500; font-size: 12px; position: sticky; top: 0; background: var(--surface-1); }
+  .scroll { overflow: auto; max-height: 560px; }
+  input, select, textarea, button { font: inherit; color: var(--text-primary); }
+  input, select, textarea { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-0); }
+  input.sensor { width: 100%; min-width: 170px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  textarea { width: 100%; min-height: 120px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); cursor: pointer; font-weight: 600; }
+  button.primary { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .muted { color: var(--text-muted); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  code { background: var(--grid); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+  .msg { font-size: 13px; min-height: 1.4em; }
+  .msg.err { color: var(--bad); }
+  .steps { margin: 0; padding-left: 20px; color: var(--text-secondary); }
+  .steps li { margin: 4px 0; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .two { grid-template-columns: minmax(0, 1fr); } main { padding: 16px; } header { padding: 12px 16px; } }
+  .empty { color: var(--text-muted); padding: 16px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Desk sensors</h1>
+  <a href="/" id="dashLink">← Dashboard</a>
+</header>
+<main>
+  <section class="kpis" id="kpis" aria-label="Sensor summary"></section>
+
+  <section class="card" id="unlinkedCard">
+    <h2>Sensors waiting to be linked</h2>
+    <p>These sensors are sending readings but aren't assigned to a desk yet. Choose the desk each one is fitted to.</p>
+    <div class="scroll"><table id="unlinked"></table></div>
+    <div class="msg" id="unlinkedMsg" role="status"></div>
+  </section>
+
+  <section class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <div>
+        <h2>Desks</h2>
+        <p style="margin:0;color:var(--text-secondary)">Type or paste the sensor's ID (usually the DevEUI printed on the sensor) and press Save.</p>
+      </div>
+      <div class="row">
+        <input id="filter" type="search" placeholder="Filter desks or sensors" aria-label="Filter desks">
+        <select id="show" aria-label="Show">
+          <option value="">All desks</option>
+          <option value="none">No sensor linked</option>
+          <option value="offline">Linked, not reporting</option>
+          <option value="online">Reporting</option>
+        </select>
+      </div>
+    </div>
+    <div class="scroll"><table id="desks"></table></div>
+    <div class="msg" id="desksMsg" role="status"></div>
+  </section>
+
+  <div class="two">
+    <section class="card">
+      <h2>Bulk link from a spreadsheet</h2>
+      <p>One line per desk: <code>desk,sensor</code>. Leave the sensor empty to unlink. A header row is fine.</p>
+      <textarea id="csv" spellcheck="false" placeholder="desk,sensor&#10;L1-DF-01,24E124136B316941&#10;L1-DF-02,24E124136B316942"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="import" type="button">Link all</button>
+        <button id="export" type="button">Download current links (CSV)</button>
+      </div>
+      <div class="msg" id="csvMsg" role="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>Where sensors send their readings</h2>
+      <p>Set one of these up once in the system your sensors report to. Send the sensor key in the <code>X-Api-Key</code> header.</p>
+      <ol class="steps">
+        <li><b>The Things Stack (TTN):</b> Integrations → Webhooks → Add webhook → Custom. Base URL
+          <code id="ttnUrl"></code>, enable <b>Uplink message</b>, add header <code>X-Api-Key</code>.</li>
+        <li><b>ChirpStack v4:</b> Application → Integrations → HTTP. Endpoint <code id="csUrl"></code>,
+          add header <code>X-Api-Key</code>, JSON encoding.</li>
+        <li><b>Anything else</b> (your own gateway or bridge): POST JSON to <code id="genericUrl"></code>
+          as <code>{"sensorId": "…", "presence": true}</code>.</li>
+      </ol>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const safeGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const safeSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+let token = new URLSearchParams(location.search).get('token') || safeGet('hotdesk.token') || '';
+let data = { desks: [], unlinked: [] };
+
+function ago(t) {
+  if (!t) return 'never';
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return new Date(t).toLocaleDateString();
+}
+
+async function api(path, opts = {}) {
+  const headers = { ...(opts.body ? { 'content-type': 'application/json' } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}) };
+  const res = await fetch(path, { ...opts, headers });
+  if (res.status === 401) {
+    const t = prompt('Administrator token');
+    if (t === null) throw new Error('Not authorised');
+    token = t; safeSet('hotdesk.token', t);
+    return api(path, opts);
+  }
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+
+function sensorState(d) {
+  if (!d.sensorId) return { key: 'none', label: 'No sensor', color: 'var(--neutral)' };
+  if (d.sensorOnline) return { key: 'online', label: d.presence ? 'Reporting · someone there' : 'Reporting · empty', color: 'var(--good)' };
+  return { key: 'offline', label: d.lastSensorSeenAt ? 'Stopped reporting' : 'Waiting for first reading', color: 'var(--warn)' };
+}
+
+function renderKpis() {
+  const linked = data.desks.filter((d) => d.sensorId).length;
+  const online = data.desks.filter((d) => d.sensorOnline).length;
+  const tile = (label, value) => `<div class="card kpi"><div class="label">${label}</div><div class="value">${value}</div></div>`;
+  $('kpis').innerHTML =
+    tile('Desks with a sensor', `${linked} / ${data.desks.length}`) +
+    tile('Sensors reporting', online) +
+    tile('Linked but not reporting', linked - online) +
+    tile('Waiting to be linked', data.unlinked.length);
+}
+
+function deskOptions(selected = '') {
+  return `<option value="">Choose desk…</option>` + data.desks.map((d) =>
+    `<option value="${esc(d.id)}"${d.id === selected ? ' selected' : ''}>${esc(d.id)}${d.sensorId ? ' (has sensor)' : ''}</option>`).join('');
+}
+
+function renderUnlinked() {
+  $('unlinkedCard').hidden = !data.unlinked.length;
+  $('unlinked').innerHTML = `<thead><tr><th>Sensor ID</th><th>Name in network server</th><th>Last reading</th><th>Readings</th><th>Desk</th><th></th></tr></thead>
+    <tbody>${data.unlinked.map((u) => `<tr>
+      <td class="mono">${esc(u.sensorId)}</td><td>${esc(u.name ?? '')}</td>
+      <td>${ago(u.lastSeenAt)}${u.presence === null ? '' : u.presence ? ' · someone there' : ' · empty'}</td>
+      <td>${u.reports}</td>
+      <td><select data-for="${esc(u.sensorId)}" aria-label="Desk for ${esc(u.sensorId)}">${deskOptions()}</select></td>
+      <td><button type="button" data-link="${esc(u.sensorId)}">Link</button></td></tr>`).join('')}</tbody>`;
+}
+
+function renderDesks() {
+  const q = $('filter').value.trim().toLowerCase();
+  const show = $('show').value;
+  const rows = data.desks.filter((d) => {
+    if (q && !`${d.id} ${d.zoneName} ${d.sensorId ?? ''}`.toLowerCase().includes(q)) return false;
+    return !show || sensorState(d).key === show;
+  });
+  $('desks').innerHTML = `<thead><tr><th>Desk</th><th>Location</th><th style="width:34%">Sensor ID</th><th>Sensor</th><th>Last reading</th><th></th></tr></thead>
+    <tbody>${rows.map((d) => {
+      const st = sensorState(d);
+      return `<tr>
+        <td style="white-space:nowrap"><b>${esc(d.id)}</b></td>
+        <td class="muted">${esc(d.floorName)} · ${esc(d.zoneName)}</td>
+        <td><input class="sensor" data-desk="${esc(d.id)}" value="${esc(d.sensorId ?? '')}" placeholder="${d.placeholderId ? `or name the device ${esc(d.placeholderId)}` : 'not linked'}" aria-label="Sensor ID for ${esc(d.id)}"></td>
+        <td><span class="pill"><span class="dot" style="background:${st.color}"></span>${st.label}</span></td>
+        <td>${d.sensorId ? ago(d.lastSensorSeenAt) : ''}</td>
+        <td class="row" style="flex-wrap:nowrap"><button type="button" data-save="${esc(d.id)}">Save</button>
+          ${d.sensorId ? `<button type="button" data-unlink="${esc(d.id)}">Unlink</button>` : ''}</td></tr>`;
+    }).join('') || `<tr><td colspan="6" class="empty">No desks match.</td></tr>`}</tbody>`;
+}
+
+function render() { renderKpis(); renderUnlinked(); renderDesks(); }
+
+async function load() {
+  data = await api('/api/sensors');
+  render();
+}
+
+function say(id, text, err = false) { $(id).textContent = text; $(id).className = err ? 'msg err' : 'msg'; }
+
+async function link(rows, msgId) {
+  try {
+    const r = await api('/api/sensors/links', { method: 'POST', body: JSON.stringify(rows) });
+    const failed = r.results.filter((x) => !x.ok);
+    say(msgId, `${r.linked} desk${r.linked === 1 ? '' : 's'} updated.` + (failed.length ? ` Not found: ${failed.map((f) => f.seatId).join(', ')}` : ''), failed.length > 0);
+    await load();
+  } catch (e) { say(msgId, e.message, true); }
+}
+
+// Don't overwrite a sensor ID someone is typing when the page auto-refreshes.
+const editing = () => document.activeElement?.matches?.('input.sensor, select, textarea');
+
+$('desks').addEventListener('click', (e) => {
+  const save = e.target.closest('[data-save]');
+  const unlink = e.target.closest('[data-unlink]');
+  if (save) {
+    const input = document.querySelector(`input[data-desk="${CSS.escape(save.dataset.save)}"]`);
+    link([{ seatId: save.dataset.save, sensorId: input.value.trim() || null }], 'desksMsg');
+  } else if (unlink && confirm(`Unlink the sensor from ${unlink.dataset.unlink}?`)) {
+    link([{ seatId: unlink.dataset.unlink, sensorId: null }], 'desksMsg');
+  }
+});
+$('desks').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.matches('input.sensor')) {
+    link([{ seatId: e.target.dataset.desk, sensorId: e.target.value.trim() || null }], 'desksMsg');
+  }
+});
+$('unlinked').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-link]'); if (!b) return;
+  const desk = document.querySelector(`select[data-for="${CSS.escape(b.dataset.link)}"]`).value;
+  if (!desk) return say('unlinkedMsg', 'Choose a desk first.', true);
+  const current = data.desks.find((d) => d.id === desk);
+  if (current?.sensorId && !confirm(`${desk} already has sensor ${current.sensorId}. Replace it?`)) return;
+  link([{ seatId: desk, sensorId: b.dataset.link }], 'unlinkedMsg');
+});
+$('filter').addEventListener('input', renderDesks);
+$('show').addEventListener('change', renderDesks);
+
+$('import').addEventListener('click', () => {
+  const rows = $('csv').value.split(/\r?\n/).map((l) => l.split(/[,;\t]/).map((c) => c.trim().replace(/^"|"$/g, '')))
+    .filter(([desk]) => desk && !/^desk/i.test(desk))
+    .map(([seatId, sensorId]) => ({ seatId, sensorId: sensorId || null }));
+  if (!rows.length) return say('csvMsg', 'Paste at least one "desk,sensor" line.', true);
+  link(rows, 'csvMsg');
+});
+$('export').addEventListener('click', () => {
+  const csv = 'desk,sensor\n' + data.desks.map((d) => `${d.id},${d.sensorId ?? ''}`).join('\n') + '\n';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'desk-sensors.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+$('ttnUrl').textContent = `${location.origin}/api/integrations/ttn`;
+$('csUrl').textContent = `${location.origin}/api/integrations/chirpstack`;
+$('genericUrl').textContent = `${location.origin}/api/sensors/events`;
+
+load().then(() => {
+  if (token) $('dashLink').href = `/?token=${encodeURIComponent(token)}`;
+  setInterval(() => { if (!editing()) load().catch(() => {}); }, 15_000);
+}).catch((e) => say('desksMsg', e.message, true));
+</script>
+</body>
+</html>

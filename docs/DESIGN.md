@@ -26,7 +26,9 @@ A small battery-powered sensor is mounted under each desk. Suitable off-the-shel
 | Ceiling people-counting camera/radar | One device covers many desks | Fewer devices | Privacy concerns, higher cost, harder to map to a single desk |
 
 Sensors report over **LoRaWAN or BLE** to a gateway on each floor. The gateway forwards readings to this
-application's ingestion API (`POST /api/sensors/events`). Each reading is `{ sensorId, presence, at }`.
+application's webhooks (TTN, ChirpStack, or the generic `POST /api/sensors/events`). Each reading becomes
+`{ sensorId, presence, at }`, and an admin links each sensor ID to its desk on the Sensors page
+(see [SENSORS.md](SENSORS.md)).
 Sensors also send periodic heartbeats (every 5–10 min) so we can tell a quiet desk from a dead sensor.
 
 **Privacy:** sensors only report "someone is / is not at desk X". No camera, no identity. Identity is only
@@ -120,6 +122,11 @@ Other rules:
 | Method & path | Who | Purpose |
 |---|---|---|
 | `POST /api/sensors/events` | Gateway (`X-Api-Key`) | One reading or an array of `{sensorId, presence?, at?}`; omit `presence` for a heartbeat |
+| `POST /api/integrations/ttn` | The Things Stack webhook (`X-Api-Key`) | Uplink messages; DevEUI or device ID identifies the sensor |
+| `POST /api/integrations/chirpstack?event=up` | ChirpStack v4 HTTP integration (`X-Api-Key`) | Uplink events; other event types ignored |
+| `GET /api/sensors` | Admin | Every desk's sensor link and health, plus sensors reporting without a desk |
+| `POST /api/sensors/links` | Admin | Bulk link `[{seatId, sensorId}]` (null unlinks) |
+| `PUT /api/seats/:id/sensor` | Admin | Link one desk: `{sensorId}` |
 | `GET /api/availability?floor=` | Employees | Seat statuses, with no personal data |
 | `GET /api/seats/:id` | Employees | One seat's status |
 | `POST /api/seats/:id/checkin` | Employees | `{user}` |

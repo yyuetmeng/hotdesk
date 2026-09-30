@@ -135,6 +135,7 @@
   <span id="live" class="live">Connecting…</span>
   <span class="spacer"></span>
   <span class="muted" id="rules"></span>
+  <a id="sensorsLink" class="btn" href="/sensors">Sensors</a>
   <a id="labelsLink" class="btn" href="/labels" target="_blank" rel="noopener">Print desk labels</a>
 </header>
 
@@ -294,7 +295,7 @@ function seatTip(s) {
   const lines = [`<b>${esc(s.id)} — ${STATUS[s.status].label}</b>`];
   if (hasTeams()) lines.push(s.teamName ? `Assigned to: ${esc(s.teamName)}` : 'Unassigned (open hot desk)');
   if (s.checkedInBy) lines.push(`Checked in: ${esc(s.checkedInBy)}, ${fmtTime(s.checkedInAt)}–${fmtTime(s.checkedInUntil)}`);
-  if (s.hasSensor) lines.push(`Sensor: ${s.sensorOnline ? (s.presence ? 'presence detected' : 'no presence') : 'offline'}`);
+  if (s.hasSensor) lines.push(`Sensor ${esc(s.sensorId)}: ${s.sensorOnline ? (s.presence ? 'presence detected' : 'no presence') : 'offline'}`);
   else lines.push('No sensor — QR check-in only');
   if (s.status === 'away') lines.push(`Last seen ${fmtTime(s.lastPresenceAt)}`);
   if (s.holdExpiresAt) lines.push(`Auto-release at ${fmtTime(s.holdExpiresAt)}`);
@@ -479,6 +480,7 @@ async function start() {
   try {
     await api('/api/summary'); // triggers the token prompt before opening the stream
     $('labelsLink').href = withToken('/labels');
+    $('sensorsLink').href = withToken('/sensors');
     connect();
     renderFeed();
     const loadHistory = async () => { history = await api('/api/history'); renderChart(); };

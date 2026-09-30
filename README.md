@@ -13,6 +13,7 @@ and gives administrators a live dashboard of seat availability.
 The current desk layout is in [docs/seat-layout.png](docs/seat-layout.png).
 
 To run it on GitHub (Actions CI and Codespaces), follow [docs/GITHUB.md](docs/GITHUB.md).
+To connect real desk sensors, follow [docs/SENSORS.md](docs/SENSORS.md).
 
 The full proposal (sensor options, state rules, architecture, rollout) is in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -116,25 +117,34 @@ works too (cut along the dashed guides shown on screen).
 Print the labels only once the app has its permanent address. The QR codes contain that address, so a
 Codespaces URL on a sticker stops working when the Codespace is deleted.
 
-## Sending sensor data
+## Connecting sensors
 
-```bash
-curl -X POST localhost:3000/api/sensors/events \
-  -H 'content-type: application/json' -H "x-api-key: $SENSOR_API_KEY" \
-  -d '[{"sensorId":"S-L1-A-01","presence":true},{"sensorId":"S-L1-A-02"}]'
-```
+Sensors report through a LoRaWAN network server (The Things Stack or ChirpStack) or any system that can POST
+JSON. Each sensor is then linked to its desk. **Step-by-step guide: [docs/SENSORS.md](docs/SENSORS.md).**
 
-Omit `presence` for a heartbeat. `at` (an ISO timestamp) is optional and is used to discard out-of-order readings.
+- **Webhooks:** `POST /api/integrations/ttn` and `POST /api/integrations/chirpstack` (TTN / ChirpStack v4
+  uplinks). Generic: `POST /api/sensors/events` with `{"sensorId": "...", "presence": true}`. All of them
+  need the `X-Api-Key` header.
+- **Linking:** open **Sensors** on the dashboard (`/sensors`). Link sensors as they start reporting, paste
+  IDs per desk, or bulk-link from a `desk,sensor` CSV. Alternatively, name each device in the network
+  server after its desk (e.g. `s-l1-df-01`) and it links itself.
+- **Before hardware arrives:** a desk with no sensor (or only its placeholder ID `S-<desk>`) works as a
+  QR check-in desk.
 
 ## Project layout
 
 ```
-src/occupancy.js   rules engine: seat states, auto-release, summaries (pure, clock-injectable)
+src/occupancy.js   rules engine: seat states, auto-release, sensor links, summaries (pure, clock-injectable)
+src/integrations.js TTN / ChirpStack uplink parsing
+src/labels.js      printable QR desk labels
 src/server.js      HTTP API, SSE stream, static pages
 src/store.js       JSON persistence
 src/index.js       wiring + periodic sweep
 public/index.html  admin dashboard
 public/checkin.html employee QR check-in page
+public/sensors.html admin page for linking sensors to desks
 scripts/simulate.js sensor/check-in simulator
 docs/DESIGN.md     proposal & design
+docs/SENSORS.md    connecting and linking sensors
+docs/GITHUB.md     running on GitHub (CI, Codespaces)
 ```

@@ -23,6 +23,13 @@ export const DEFAULT_RULES = Object.freeze({
 const MINUTE = 60_000;
 const HISTORY_LIMIT = 24 * 60; // one sample per minute, 24h
 const ACTIVITY_LIMIT = 200;
+const UNLINKED_LIMIT = 500;
+
+/** Sensor IDs are compared case-insensitively (DevEUIs and MACs are written both ways). */
+export function normalizeSensorId(id) {
+  if (typeof id !== 'string' && typeof id !== 'number') return null;
+  return String(id).trim().toUpperCase() || null;
+}
 
 export class NotFoundError extends Error {}
 export class ConflictError extends Error {}
@@ -32,13 +39,22 @@ export class ValidationError extends Error {}
  * Pure function: the status of a seat at time `now`.
  * Sensor data wins when the sensor is healthy; check-ins are the fallback.
  */
+/**
+ * Does this desk have a sensor? A placeholder id from the layout (S-<desk>)
+ * only counts once a device has actually reported under it, so desks
+ * without hardware yet behave as QR-only desks instead of "offline".
+ */
+export function hasSensor(seat) {
+  return Boolean(seat.sensorId) && !(seat.placeholderSensor && !seat.lastSensorSeenAt);
+}
+
 export function deriveStatus(seat, now, rules = DEFAULT_RULES) {
-  const hasSensor = Boolean(seat.sensorId);
+  const hasSensor_ = hasSensor(seat);
   const checkedIn = Boolean(seat.checkedInAt) && now < seat.checkedInUntil;
   const sensorOffline =
-    hasSensor && (!seat.lastSensorSeenAt || now - seat.lastSensorSeenAt > rules.sensorOfflineMinutes * MINUTE);
+    hasSensor_ && (!seat.lastSensorSeenAt || now - seat.lastSensorSeenAt > rules.sensorOfflineMinutes * MINUTE);
 
-  if (hasSensor && !sensorOffline) {
+  if (hasSensor_ && !sensorOffline) {
     if (seat.presence) return Status.OCCUPIED;
     if (checkedIn && now - seat.checkedInAt < rules.checkinConfirmMinutes * MINUTE) {
       // Just checked in; give the sensor a chance to see them. If they had
@@ -103,7 +119,8 @@ export class OccupancyEngine extends EventEmitter {
    * @param {object} opts
    * @param {object[]} opts.seats  seat definitions (see expandLayout)
    * @param {object} [opts.rules]  overrides for DEFAULT_RULES
-   * @param {object} [opts.state]  persisted snapshot from snapshot()
+   * @param {object} [opts.state]  persisted snapshot from snapshot(); its `sensorLinks`
+   *   (desk id -> sensor id, or null for none) override the layout's default sensor ids
    * @param {() => number} [opts.clock]
    */
   constructor({ seats, rules = {}, state = {}, clock = Date.now }) {
@@ -115,10 +132,14 @@ export class OccupancyEngine extends EventEmitter {
     this.lastStatus = new Map();
     this.history = state.history ?? [];
     this.activity = state.activity ?? [];
+    this.sensorLinks = { ...(state.sensorLinks ?? {}) };
+    // Sensors that report but are not linked to any desk yet, so an admin can link them.
+    this.unlinked = new Map(Object.entries(state.unlinkedSensors ?? {}));
 
     const saved = state.seats ?? {};
     for (const def of seats) {
-      const seat = { ...def, presence: false, lastPresenceAt: null, lastSensorSeenAt: null, checkedInBy: null, checkedInAt: null, checkedInUntil: null };
+      const linked = def.id in this.sensorLinks ? this.sensorLinks[def.id] : def.sensorId;
+      const seat = { ...def, sensorId: normalizeSensorId(linked), placeholderSensor: !(def.id in this.sensorLinks) && Boolean(def.sensorId), presence: false, lastPresenceAt: null, lastSensorSeenAt: null, checkedInBy: null, checkedInAt: null, checkedInUntil: null };
       for (const f of STATE_FIELDS) if (saved[def.id]?.[f] !== undefined) seat[f] = saved[def.id][f];
       // State saved before check-ins had an end time: give them the default duration.
       if (seat.checkedInAt && !seat.checkedInUntil) seat.checkedInUntil = seat.checkedInAt + this.rules.checkinDurationMinutes * MINUTE;
@@ -139,10 +160,14 @@ export class OccupancyEngine extends EventEmitter {
    * Ingest a reading from a desk sensor. `presence` may be omitted for a
    * pure heartbeat (keeps the sensor marked online).
    */
-  recordSensorEvent({ sensorId, presence, at }) {
-    const seat = this.bySensor.get(sensorId);
-    if (!seat) throw new NotFoundError(`Unknown sensor ${sensorId}`);
+  recordSensorEvent({ sensorId, presence, at, name }) {
+    const id = normalizeSensorId(sensorId);
+    const seat = this.bySensor.get(id);
     const now = this.clock();
+    if (!seat) {
+      if (id) this.#noteUnlinked(id, { presence, at: now, name });
+      throw new NotFoundError(`Sensor ${sensorId} is not linked to a desk`);
+    }
     const t = Math.min(Number.isFinite(at) ? at : now, now);
     if (seat.lastSensorSeenAt && t < seat.lastSensorSeenAt) return this.view(seat); // stale / out of order
 
@@ -161,6 +186,84 @@ export class OccupancyEngine extends EventEmitter {
    * Check `user` in at a desk for `minutes` (default: checkinDurationMinutes).
    * Checking in again at the same desk renews the check-in from now.
    */
+  /** Is this sensor id linked to a desk? */
+  isLinked(sensorId) {
+    return this.bySensor.has(normalizeSensorId(sensorId));
+  }
+
+  /**
+   * Link a sensor to a desk (or unlink with a null sensorId). A sensor can only
+   * be on one desk: linking it here removes it from any other desk.
+   */
+  linkSensor(seatId, sensorId) {
+    const seat = this.getSeat(seatId);
+    const id = normalizeSensorId(sensorId);
+    const now = this.clock();
+    if (id === seat.sensorId) return this.view(seat, now);
+    const previous = id && this.bySensor.get(id);
+    if (previous) {
+      this.#setSensor(previous, null);
+      this.#log(now, previous, 'sensor', `${id} moved to ${seat.id}`);
+      this.#refresh(previous, now);
+    }
+    this.#setSensor(seat, id);
+    this.unlinked.delete(id);
+    this.#log(now, seat, 'sensor', id ? `linked ${id}` : 'sensor unlinked');
+    this.#refresh(seat, now);
+    this.emit('change', this.view(seat, now));
+    return this.view(seat, now);
+  }
+
+  #setSensor(seat, id) {
+    if (seat.sensorId) this.bySensor.delete(seat.sensorId);
+    seat.sensorId = id;
+    seat.placeholderSensor = false;
+    if (id) this.bySensor.set(id, seat);
+    this.sensorLinks[seat.id] = id;
+    // Readings from the old sensor say nothing about the new one.
+    seat.presence = false;
+    seat.lastPresenceAt = null;
+    seat.lastSensorSeenAt = null;
+  }
+
+  #noteUnlinked(id, { presence, at, name }) {
+    const prev = this.unlinked.get(id);
+    this.unlinked.delete(id); // re-insert so the map stays ordered by last report
+    this.unlinked.set(id, {
+      sensorId: id,
+      name: name ?? prev?.name ?? null,
+      firstSeenAt: prev?.firstSeenAt ?? at,
+      lastSeenAt: at,
+      presence: typeof presence === 'boolean' ? presence : (prev?.presence ?? null),
+      reports: (prev?.reports ?? 0) + 1,
+    });
+    if (this.unlinked.size > UNLINKED_LIMIT) this.unlinked.delete(this.unlinked.keys().next().value);
+    if (!prev) this.emit('unlinked', this.unlinked.get(id));
+  }
+
+  /** Every desk's sensor link and health, plus sensors reporting without a desk. */
+  sensorReport() {
+    const now = this.clock();
+    return {
+      desks: [...this.seats.values()].map((seat) => {
+        const v = this.view(seat, now);
+        return {
+          id: v.id,
+          floorName: v.floorName,
+          zoneName: v.zoneName,
+          sensorId: v.sensorId,
+          // A device named after this desk in the network server links itself.
+          placeholderId: seat.placeholderSensor && !seat.lastSensorSeenAt ? seat.sensorId : null,
+          sensorOnline: v.sensorOnline,
+          lastSensorSeenAt: seat.lastSensorSeenAt,
+          presence: seat.presence,
+          status: v.status,
+        };
+      }),
+      unlinked: [...this.unlinked.values()].reverse(),
+    };
+  }
+
   checkIn(seatId, user, { minutes = this.rules.checkinDurationMinutes } = {}) {
     if (!user) throw new ValidationError('user is required');
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > this.rules.checkinMaxMinutes) {
@@ -243,7 +346,7 @@ export class OccupancyEngine extends EventEmitter {
 
   view(seat, now = this.clock()) {
     const status = deriveStatus(seat, now, this.rules);
-    const sensorOnline = seat.sensorId
+    const sensorOnline = hasSensor(seat)
       ? Boolean(seat.lastSensorSeenAt) && now - seat.lastSensorSeenAt <= this.rules.sensorOfflineMinutes * MINUTE
       : null;
     let holdExpiresAt = null;
@@ -265,8 +368,10 @@ export class OccupancyEngine extends EventEmitter {
       team: seat.team,
       teamName: seat.teamName,
       status,
-      hasSensor: Boolean(seat.sensorId),
+      hasSensor: hasSensor(seat),
+      sensorId: hasSensor(seat) ? seat.sensorId : null,
       sensorOnline,
+      lastSensorSeenAt: seat.lastSensorSeenAt,
       presence: seat.presence,
       checkedInBy: seat.checkedInBy,
       checkedInAt: seat.checkedInAt,
@@ -336,6 +441,12 @@ export class OccupancyEngine extends EventEmitter {
     for (const seat of this.seats.values()) {
       seats[seat.id] = Object.fromEntries(STATE_FIELDS.map((f) => [f, seat[f]]));
     }
-    return { seats, history: this.history, activity: this.activity };
+    return {
+      seats,
+      history: this.history,
+      activity: this.activity,
+      sensorLinks: this.sensorLinks,
+      unlinkedSensors: Object.fromEntries(this.unlinked),
+    };
   }
 }

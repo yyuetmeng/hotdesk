@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { OccupancyEngine, Status, ConflictError, ValidationError, expandLayout } from '../src/occupancy.js';
+import { OccupancyEngine, Status, ConflictError, NotFoundError, ValidationError, expandLayout } from '../src/occupancy.js';
 
 const MIN = 60_000;
 const building = {
@@ -68,11 +68,19 @@ test('summary groups seats by team, unassigned last', () => {
   assert.equal(engine.list({ team: 'a' }).length, 2);
 });
 
-test('sensor seat: never-seen sensor is offline, heartbeat makes it available', () => {
+test('placeholder sensor id counts once it reports; a linked sensor that never reports is offline', () => {
   const { engine } = setup();
-  assert.equal(status(engine, 'L1-A-01'), Status.OFFLINE);
-  engine.recordSensorEvent({ sensorId: 'S-L1-A-01' });
+  // No hardware yet: the desk works as a QR-only desk rather than showing "offline".
   assert.equal(status(engine, 'L1-A-01'), Status.AVAILABLE);
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).hasSensor, false);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01' }); // a device named after the desk reports
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).hasSensor, true);
+  assert.equal(status(engine, 'L1-A-01'), Status.AVAILABLE);
+
+  engine.linkSensor('L1-A-02', '24E124136B316941');
+  assert.equal(status(engine, 'L1-A-02'), Status.OFFLINE, 'installed but not reporting yet');
+  engine.recordSensorEvent({ sensorId: '24E124136B316941' });
+  assert.equal(status(engine, 'L1-A-02'), Status.AVAILABLE);
 });
 
 test('presence -> occupied; leaving -> away during grace -> available after grace', () => {
@@ -266,3 +274,34 @@ test('summary, history sampling and snapshot round-trip', () => {
   assert.equal(status(copy, 'L1-A-01'), Status.OCCUPIED);
   assert.equal(copy.history.length, 2);
 });
+
+test('linking a real sensor to a desk, moving it, and unlinking', () => {
+  const { engine, clock } = setup();
+  // A sensor that isn't linked yet is remembered so an admin can link it.
+  assert.throws(() => engine.recordSensorEvent({ sensorId: '24e124136b316941', presence: true, name: 'desk-1' }), NotFoundError);
+  assert.deepEqual([...engine.unlinked.keys()], ['24E124136B316941']);
+  assert.equal(engine.sensorReport().unlinked[0].name, 'desk-1');
+
+  engine.linkSensor('L1-A-01', '24e124136b316941');
+  assert.equal(engine.unlinked.size, 0);
+  assert.equal(engine.isLinked('S-L1-A-01'), false, 'placeholder id replaced');
+  engine.recordSensorEvent({ sensorId: '24E124136B316941', presence: true });
+  assert.equal(status(engine, 'L1-A-01'), Status.OCCUPIED);
+
+  // Moving the sensor to another desk clears the old desk's readings.
+  engine.linkSensor('L1-A-02', '24E124136B316941');
+  assert.equal(engine.getSeat('L1-A-01').sensorId, null);
+  assert.equal(status(engine, 'L1-A-01'), Status.AVAILABLE, 'no sensor: follows check-ins');
+  assert.equal(status(engine, 'L1-A-02'), Status.OFFLINE, 'waiting for first reading from the moved sensor');
+
+  engine.linkSensor('L1-A-02', null);
+  assert.equal(engine.isLinked('24E124136B316941'), false);
+  assert.ok(engine.activity.some((a) => a.type === 'sensor' && /linked 24E1/.test(a.detail)));
+
+  // Links survive a restart.
+  const copy = new OccupancyEngine({ seats: expandLayout(building), state: engine.snapshot(), clock: clock.now });
+  assert.equal(copy.getSeat('L1-A-01').sensorId, null);
+  assert.equal(copy.getSeat('L1-A-02').sensorId, null);
+  assert.equal(copy.getSeat('L1-Q-01').sensorId, null);
+});
+

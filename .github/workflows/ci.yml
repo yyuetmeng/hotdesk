@@ -41,3 +41,7 @@ jobs:
           curl -fs "localhost:3000/checkin?seat=L1-DF-01" -o /dev/null
           curl -fs -H "Authorization: Bearer $ADMIN_TOKEN" localhost:3000/labels | grep -c '<svg ' | grep -qx 125
           PUBLIC_URL=https://hotdesk.example.com npm run labels
+          curl -fs -X POST localhost:3000/api/integrations/ttn -H 'content-type: application/json' -H "x-api-key: $SENSOR_API_KEY" \
+            -d '{"end_device_ids":{"device_id":"s-l2-go-43","dev_eui":"0011223344556677"},"uplink_message":{"decoded_payload":{"occupancy":"occupied"}}}' \
+            | grep -q '"seat":"L2-GO-43"'
+          curl -fs -H "Authorization: Bearer $ADMIN_TOKEN" localhost:3000/sensors -o /dev/null

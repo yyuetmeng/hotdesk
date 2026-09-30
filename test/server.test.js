@@ -66,7 +66,7 @@ test('check-in flow and privacy of public views', async () => {
   assert.equal(seats.find((s) => s.id === 'L1-A-02').checkedInBy, 'alice');
 
   res = await post('/api/seats/L1-A-02/checkout', { user: 'alice' });
-  assert.equal((await res.json()).status, 'offline'); // sensor never reported
+  assert.equal((await res.json()).status, 'available'); // no sensor has reported: follows check-ins
   assert.equal((await post('/api/seats/L1-A-02/checkin', {})).status, 400);
   assert.equal((await post('/api/seats/ZZ/checkin', { user: 'x' })).status, 404);
 });
@@ -121,3 +121,44 @@ test('check-in options expose the default and maximum duration', async () => {
   const res = await fetch(`${base}/api/checkin-options`);
   assert.deepEqual(await res.json(), { checkinDurationMinutes: 180, checkinMaxMinutes: 480 });
 });
+
+test('LoRaWAN webhooks feed readings; unknown sensors are listed for linking', async () => {
+  const key = { 'x-api-key': 'sensor-key' };
+  const ttn = (devEui, occupancy) => ({
+    end_device_ids: { device_id: `dev-${devEui}`, dev_eui: devEui },
+    uplink_message: { decoded_payload: { occupancy } },
+  });
+  assert.equal((await post('/api/integrations/ttn', ttn('A1', 'occupied'))).status, 401);
+
+  let res = await post('/api/integrations/ttn', ttn('A1B2C3D4E5F60708', 'occupied'), key);
+  assert.equal(res.status, 202);
+  assert.equal((await res.json()).ok, false);
+
+  let report = await (await fetch(`${base}/api/sensors`, { headers: admin })).json();
+  assert.equal(report.unlinked[0].sensorId, 'A1B2C3D4E5F60708');
+
+  assert.equal((await post('/api/sensors/links', [{ seatId: 'L1-A-01', sensorId: 'a1b2c3d4e5f60708' }])).status, 401);
+  res = await post('/api/sensors/links', [{ seatId: 'L1-A-01', sensorId: 'a1b2c3d4e5f60708' }, { seatId: 'NOPE', sensorId: 'X' }], admin);
+  assert.deepEqual((await res.json()).linked, 1);
+
+  res = await post('/api/integrations/ttn', ttn('A1B2C3D4E5F60708', 'occupied'), key);
+  assert.deepEqual(await res.json(), { ok: true, sensorId: 'A1B2C3D4E5F60708', seat: 'L1-A-01', presence: true });
+
+  // ChirpStack: matched by device name when the DevEUI isn't linked (name the device after the desk).
+  res = await post('/api/integrations/chirpstack?event=up', { deviceInfo: { devEui: 'ffff', deviceName: 's-l1-a-02' }, object: { pir: 'idle' } }, key);
+  assert.equal((await res.json()).seat, 'L1-A-02');
+  res = await post('/api/integrations/chirpstack?event=status', { deviceInfo: { devEui: 'ffff' } }, key);
+  assert.deepEqual(await res.json(), { ignored: true });
+
+  const put = await fetch(`${base}/api/seats/L1-A-02/sensor`, { method: 'PUT', headers: { ...admin, 'content-type': 'application/json' }, body: JSON.stringify({ sensorId: null }) });
+  assert.equal((await put.json()).hasSensor, false);
+
+  report = await (await fetch(`${base}/api/sensors`, { headers: admin })).json();
+  assert.equal(report.desks.find((d) => d.id === 'L1-A-01').sensorId, 'A1B2C3D4E5F60708');
+  assert.ok(!report.unlinked.some((u) => u.sensorId === 'A1B2C3D4E5F60708'), 'linked sensor leaves the waiting list');
+
+  const pub = await (await fetch(`${base}/api/seats/L1-A-01`)).json();
+  assert.equal(pub.sensorId, undefined, 'sensor ids are not shown publicly');
+  assert.equal((await fetch(`${base}/sensors`)).status, 200);
+});
+

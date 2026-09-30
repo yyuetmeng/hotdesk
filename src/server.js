@@ -4,6 +4,7 @@ import { extname, join, normalize, sep } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { ConflictError, NotFoundError, ValidationError } from './occupancy.js';
 import { renderLabelsPage } from './labels.js';
+import { parseChirpstack, parseTtn } from './integrations.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -57,7 +58,7 @@ function requestOrigin(req) {
 
 /** What employees may see: status only, never who is sitting where. */
 function publicView(v) {
-  const { checkedInBy, checkedInAt, presence, lastPresenceAt, ...rest } = v;
+  const { checkedInBy, checkedInAt, presence, lastPresenceAt, sensorId, lastSensorSeenAt, ...rest } = v;
   return rest;
 }
 
@@ -125,6 +126,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
 
     if (method === 'GET' && url.pathname === '/') return serveStatic(res, 'index.html');
     if (method === 'GET' && url.pathname === '/checkin') return serveStatic(res, 'checkin.html');
+    if (method === 'GET' && url.pathname === '/sensors') return serveStatic(res, 'sensors.html');
     if (method === 'GET' && parts[0] === 'static') return serveStatic(res, parts.slice(1).join('/'));
     if (method === 'GET' && url.pathname === '/healthz') return send(res, 200, { ok: true });
     if (method === 'GET' && url.pathname === '/labels') {
@@ -153,6 +155,51 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
         }
       });
       return send(res, 202, { accepted: results.filter((r) => r.ok).length, results });
+    }
+
+    // LoRaWAN network server webhooks. Always answer 2xx so the network server
+    // doesn't disable the webhook over a sensor that simply isn't linked yet.
+    if (method === 'POST' && (url.pathname === '/api/integrations/ttn' || url.pathname === '/api/integrations/chirpstack')) {
+      requireSensorKey(req);
+      const body = await readJson(req);
+      const reading = url.pathname.endsWith('/ttn') ? parseTtn(body) : parseChirpstack(body, url.searchParams.get('event'));
+      if (!reading || !reading.ids.length) return send(res, 202, { ignored: true });
+      const sensorId = reading.ids.find((id) => engine.isLinked(id)) ?? reading.ids[0];
+      try {
+        const seat = engine.recordSensorEvent({ sensorId, presence: reading.presence, at: reading.at, name: reading.name });
+        return send(res, 202, { ok: true, sensorId, seat: seat.id, presence: reading.presence ?? null });
+      } catch (err) {
+        if (!(err instanceof NotFoundError)) throw err;
+        return send(res, 202, { ok: false, sensorId, error: err.message });
+      }
+    }
+
+    // --- Linking sensors to desks (admin) ---
+    if (url.pathname === '/api/sensors' && method === 'GET') {
+      requireAdmin(req, url);
+      return send(res, 200, engine.sensorReport());
+    }
+    if (url.pathname === '/api/sensors/links' && method === 'POST') {
+      // Bulk link: [{ seatId, sensorId }]; sensorId null/"" unlinks.
+      requireAdmin(req, url);
+      const body = await readJson(req);
+      if (!Array.isArray(body)) throw new HttpError(400, 'Expected an array of { seatId, sensorId }');
+      if (body.length > 2000) throw new HttpError(400, 'Too many rows');
+      const results = body.map(({ seatId, sensorId }) => {
+        try {
+          const seat = engine.linkSensor(String(seatId ?? '').trim(), sensorId || null);
+          return { ok: true, seatId: seat.id, sensorId: seat.sensorId };
+        } catch (err) {
+          if (err instanceof NotFoundError) return { ok: false, seatId, error: err.message };
+          throw err;
+        }
+      });
+      return send(res, 200, { linked: results.filter((r) => r.ok).length, results });
+    }
+    if (method === 'PUT' && parts[1] === 'seats' && parts[3] === 'sensor' && parts.length === 4) {
+      requireAdmin(req, url);
+      const body = await readJson(req);
+      return send(res, 200, engine.linkSensor(parts[2], body.sensorId || null));
     }
 
     // --- Employee endpoints (QR code on each desk opens /checkin?seat=ID) ---

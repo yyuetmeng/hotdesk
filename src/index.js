@@ -24,6 +24,10 @@ const rules = Object.fromEntries(
 
 const engine = new OccupancyEngine({ seats: expandLayout(building), rules, state: await store.load() });
 engine.on('change', () => store.scheduleSave(() => engine.snapshot()));
+engine.on('unlinked', (u) => {
+  store.scheduleSave(() => engine.snapshot());
+  console.log(`Sensor ${u.sensorId}${u.name ? ` (${u.name})` : ''} is reporting but not linked to a desk. Link it on /sensors.`);
+});
 
 const server = createApp({
   engine,
