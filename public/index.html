@@ -55,6 +55,7 @@
     --line: #3987e5;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
     margin: 0; background: var(--surface-0); color: var(--text-primary);
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -176,7 +177,7 @@
     <div style="overflow-x:auto"><table id="zones"></table></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="teamSection">
     <h2>Utilisation by team</h2>
     <div style="overflow-x:auto"><table id="teams"></table></div>
   </section>
@@ -280,14 +281,15 @@ function seatButton(s) {
     if (color) { cls = ''; style = `background:${color};color:${inkFor(color)};`; }
     else cls = 'unassigned';
   }
-  const team = s.teamName ? `, ${esc(s.teamName)}` : ', unassigned';
+  const team = !hasTeams() ? '' : s.teamName ? `, ${esc(s.teamName)}` : ', unassigned';
   return `<button type="button" class="seat ${cls}${dim}" data-seat="${esc(s.id)}"
     style="${style}grid-column:${s.col + 1};grid-row:${s.row + 1}"
     aria-label="${esc(s.id)}: ${STATUS[s.status].label}${team}">${STATUS[s.status].glyph}</button>`;
 }
 
 function seatTip(s) {
-  const lines = [`<b>${esc(s.id)} — ${STATUS[s.status].label}</b>`, s.teamName ? `Assigned to: ${esc(s.teamName)}` : 'Unassigned (open hot desk)'];
+  const lines = [`<b>${esc(s.id)} — ${STATUS[s.status].label}</b>`];
+  if (hasTeams()) lines.push(s.teamName ? `Assigned to: ${esc(s.teamName)}` : 'Unassigned (open hot desk)');
   if (s.checkedInBy) lines.push(`Checked in: ${esc(s.checkedInBy)} at ${fmtTime(s.checkedInAt)}`);
   if (s.hasSensor) lines.push(`Sensor: ${s.sensorOnline ? (s.presence ? 'presence detected' : 'no presence') : 'offline'}`);
   else lines.push('No sensor — QR check-in only');
@@ -306,7 +308,13 @@ function renderLegend() {
   $('legend').innerHTML = teams + `<span class="muted">Symbol shows live status: ${Object.values(STATUS).map((v) => `${v.glyph} ${v.label}`).join(' · ')}</span>`;
 }
 
+const hasTeams = () => (state.summary?.teams ?? []).some((t) => t.id !== null);
+
 function renderTeamFilter() {
+  // Team features only make sense when the building layout assigns desks to teams.
+  const show = hasTeams();
+  for (const id of ['viewMode', 'teamFilter', 'teamSection']) $(id).hidden = !show;
+  if (!show) { state.mode = 'status'; state.team = ''; }
   const sel = $('teamFilter');
   const opts = (state.summary?.teams ?? []).map((t) => `<option value="${esc(teamKey(t.id))}">${esc(t.name)}</option>`).join('');
   sel.innerHTML = `<option value="">All teams</option>${opts}`;

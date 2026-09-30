@@ -57,18 +57,15 @@ in the QR sticker on each desk.
 | Level 1 | AI Lab | 30 | 6 single desks along the stair wall + 2 pods of 6×2 |
 | Level 2 | General Office | 43 | 5 pods in the top section (the last one single-sided) + 2 pods of 4×2 |
 
-Each zone is an ASCII `map`, one string per row of desks: a space is no desk (aisle or pod gap), `.` is
-an unassigned hot desk, and a letter assigns the desk to a team defined under `"teams"`. The team
-colours match the coloured blocks in the deck. The deck has no legend, so the teams are named by
-colour (e.g. "Amber team"). **Rename them in `building.json` to the real team names.**
+Each zone is an ASCII `map`, one string per row of desks: `.` is a desk and a space is no desk (an aisle or
+the gap between pods). All desks are open hot desks. The coloured blocks in the deck are not used.
 
 ```json
 "map": [
-  "mm lc gg",
-  "mm lc gg",
-  "mm ll gg",
+  ".. .. ..",
+  ".. .. ..",
   "",
-  "rr cc ll"
+  ".. .. .."
 ]
 ```
 
@@ -76,12 +73,12 @@ Desk IDs are `<floor>-<zone>-<nn>`, numbered in reading order (left to right, to
 `L1-DF-01`). Sensor IDs are `S-<deskId>`. For QR-only areas, set `"sensors": false` on a zone or list
 desk IDs in `"sensorless"`. A zone can also use plain `"rows"`/`"cols"` instead of a `map`.
 
-The dashboard's **Team assignment** view colours desks by team, the same way as the deck. The symbol on
-each desk still shows its live status. A team filter and a per-team utilisation table show how well
-each team's allocated desks are used.
+Optionally, desks can be assigned to teams. Define `"teams": { "a": { "name": "...", "color": "#..." } }`
+and use the team's letter in the map instead of `.`. When a layout has teams, the dashboard adds a
+**Team assignment** view, a team filter and a utilisation-by-team table. Otherwise these are hidden.
 
-The latest revision of the deck blanks out the Level 2 UAT Stations block, so it is no longer part of the
-layout. Level 2 now has only the General Office.
+The deck's blue arrows and "OSN" label are ignored. The latest revision of the deck blanks out the Level 2
+UAT Stations block, so it is no longer part of the layout. Level 2 now has only the General Office.
 
 ## Sending sensor data
 

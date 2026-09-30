@@ -111,8 +111,8 @@ Other rules:
 - **Occupancy trend** over the last 24 h.
 - **Utilisation by zone** table, which helps right-size the number of desks per team.
 - **Recent activity** feed (check-ins, checkouts, auto-releases, status changes).
-- **Team assignment** view and **utilisation by team**: desks are allocated to teams in blocks (see the
-  seat assignment deck), so admins can see whether a team's block is under- or over-used and rebalance it.
+- Optional **team assignment** view and **utilisation by team**: shown only if the layout assigns desks to
+  teams, so admins can see whether a team's block is under- or over-used. The current layout has no teams.
 
 ## 5. API
 

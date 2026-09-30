@@ -1,16 +1,6 @@
 {
   "name": "DIC Annex @ Depot Road",
   "source": "CIO_DF_Seat_Assignment.pptx",
-  "teams": {
-    "a": { "name": "Amber team", "color": "#ffc000" },
-    "c": { "name": "Cyan team", "color": "#00b0f0" },
-    "g": { "name": "Green team", "color": "#00ff00" },
-    "l": { "name": "Lime team", "color": "#56de12" },
-    "m": { "name": "Magenta team", "color": "#ff00ff" },
-    "r": { "name": "Grey team", "color": "#aeaaaa" },
-    "s": { "name": "Steel-blue team", "color": "#5b9bd5" },
-    "y": { "name": "Yellow team", "color": "#ffff00" }
-  },
   "floors": [
     {
       "id": "L1",
@@ -20,13 +10,13 @@
           "id": "DF",
           "name": "Digital Factory",
           "map": [
-            "mm lc gg",
-            "mm lc gg",
-            "mm ll gg",
+            ".. .. ..",
+            ".. .. ..",
+            ".. .. ..",
             "",
-            "rr cc ll",
-            "rr cc ll",
-            "rr cc ll"
+            ".. .. ..",
+            ".. .. ..",
+            ".. .. .."
           ]
         },
         {
@@ -35,21 +25,21 @@
           "map": [
             "....",
             "",
-            "rs yy",
-            "r. yy",
-            ".. yy"
+            ".. ..",
+            ".. ..",
+            ".. .."
           ]
         },
         {
           "id": "AI",
           "name": "AI Lab",
           "map": [
-            "a aa aa",
-            "g aa aa",
-            "g aa aa",
-            "g aa aa",
-            "g aa aa",
-            ". aa aa"
+            ". .. ..",
+            ". .. ..",
+            ". .. ..",
+            ". .. ..",
+            ". .. ..",
+            ". .. .."
           ]
         }
       ]
@@ -62,14 +52,14 @@
           "id": "GO",
           "name": "General Office",
           "map": [
-            "aa aa a. aa a",
-            "aa aa a. aa a",
-            "aa aa aa aa a",
+            ".. .. .. .. .",
+            ".. .. .. .. .",
+            ".. .. .. .. .",
             "",
-            "cc gg",
-            "cc gg",
-            "cc gg",
-            "cc gg"
+            ".. ..",
+            ".. ..",
+            ".. ..",
+            ".. .."
           ]
         }
       ]
