@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { OccupancyEngine, Status, ConflictError, expandLayout } from '../src/occupancy.js';
+import { OccupancyEngine, Status, ConflictError, ValidationError, expandLayout } from '../src/occupancy.js';
 
 const MIN = 60_000;
 const building = {
@@ -142,20 +142,67 @@ test('check-in on a sensor seat with no presence is released after the confirm w
   assert.equal(engine.getSeat('L1-A-01').checkedInBy, null);
 });
 
-test('sensorless seat: check-in lasts TTL, checkout frees immediately', () => {
-  const { engine, clock } = setup({ checkinTtlMinutes: 240 });
+test('check-in lasts 3 hours by default, then expires; checkout frees immediately', () => {
+  const { engine, clock } = setup();
   assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
-  engine.checkIn('L1-Q-01', 'carol');
-  clock.advance(239);
+  const v = engine.checkIn('L1-Q-01', 'carol');
+  assert.equal(v.checkedInUntil, clock.now() + 180 * MIN);
+  assert.equal(v.holdExpiresAt, v.checkedInUntil);
+  clock.advance(179);
   engine.sweep();
   assert.equal(status(engine, 'L1-Q-01'), Status.OCCUPIED);
-  engine.checkOut('L1-Q-01', 'carol');
-  assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
-
-  engine.checkIn('L1-Q-01', 'carol');
-  clock.advance(241);
+  clock.advance(1);
   engine.sweep();
   assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
+  assert.equal(engine.getSeat('L1-Q-01').checkedInBy, null);
+  assert.ok(engine.activity.some((a) => a.type === 'expired' && a.detail === 'carol'));
+
+  engine.checkIn('L1-Q-01', 'carol');
+  engine.checkOut('L1-Q-01', 'carol');
+  assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
+});
+
+test('user-chosen duration, renewal, and validation', () => {
+  const { engine, clock } = setup();
+  engine.checkIn('L1-Q-01', 'dora', { minutes: 60 });
+  clock.advance(50);
+  const renewed = engine.checkIn('L1-Q-01', 'dora'); // scan again: another 3 hours from now
+  assert.equal(renewed.checkedInUntil, clock.now() + 180 * MIN);
+  assert.ok(engine.activity.some((a) => a.type === 'renew'));
+  clock.advance(100);
+  engine.sweep();
+  assert.equal(status(engine, 'L1-Q-01'), Status.OCCUPIED);
+
+  for (const minutes of [0, 481, 1.5, NaN]) {
+    assert.throws(() => engine.checkIn('L1-Q-01', 'dora', { minutes }), ValidationError);
+  }
+  assert.throws(() => engine.checkIn('L1-Q-01', ''), ValidationError);
+});
+
+test('on a sensor desk the check-in still expires after 3 hours, but presence keeps it occupied', () => {
+  const { engine, clock } = setup();
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  engine.checkIn('L1-A-01', 'erik');
+  clock.advance(181);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  engine.sweep();
+  const v = engine.view(engine.getSeat('L1-A-01'));
+  assert.equal(v.checkedInBy, null);
+  assert.equal(v.status, Status.OCCUPIED);
+  // The person has left: normal away grace then release.
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
+  assert.equal(status(engine, 'L1-A-01'), Status.AWAY);
+});
+
+test('state saved before check-ins had an end time gets the default duration', () => {
+  let now = Date.parse('2026-09-30T09:00:00Z');
+  const engine = new OccupancyEngine({
+    seats: expandLayout(building),
+    state: { seats: { 'L1-Q-01': { checkedInBy: 'fay', checkedInAt: now - 60 * MIN } } },
+    clock: () => now,
+  });
+  assert.equal(engine.getSeat('L1-Q-01').checkedInUntil, now + 120 * MIN);
+  assert.equal(status(engine, 'L1-Q-01'), Status.OCCUPIED);
 });
 
 test('checkout on a sensor seat skips the away hold', () => {

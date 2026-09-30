@@ -10,6 +10,10 @@
   "scripts": {
     "start": "node src/index.js",
     "simulate": "node scripts/simulate.js",
-    "test": "node --test"
+    "test": "node --test",
+    "labels": "node scripts/labels.js"
+  },
+  "dependencies": {
+    "qrcode-generator": "^2.0.4"
   }
 }

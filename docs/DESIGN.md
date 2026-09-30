@@ -34,7 +34,8 @@ known if the person voluntarily checks in.
 
 ### 2.2 Fallback: QR code check-in
 
-Every desk has a QR sticker that opens `/checkin?seat=<id>` on the employee's phone. It's used for:
+Every desk has a QR sticker that opens `/checkin?seat=<id>` on the employee's phone. The stickers are printed
+from the admin dashboard (**Print desk labels**, see the README). It's used for:
 
 - Areas where sensors are not installed yet.
 - Desks whose sensor is offline.
@@ -59,7 +60,7 @@ The time rules (all configurable via environment variables):
 |---|---|---|
 | `AWAY_GRACE_MINUTES` | 20 | Presence lost for longer than this → seat released automatically |
 | `CHECKIN_CONFIRM_MINUTES` | 15 | A QR check-in on a sensor desk must be confirmed by presence within this time, or it's released (stops people "reserving" by scanning and walking away) |
-| `CHECKIN_TTL_MINUTES` | 240 | On desks without a working sensor, a check-in expires after this unless renewed by scanning again |
+| `CHECKIN_DURATION_MINUTES` | 180 | Every check-in lasts 3 hours by default (the user may choose 1–8 h). It expires at the end unless renewed by scanning again. On sensor desks, live presence keeps the desk occupied after that |
 | `SENSOR_OFFLINE_MINUTES` | 15 | No reading for this long → sensor considered offline |
 
 Other rules:

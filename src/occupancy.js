@@ -12,8 +12,10 @@ export const DEFAULT_RULES = Object.freeze({
   awayGraceMinutes: 20,
   // A QR check-in on a sensor seat must be confirmed by presence within this window.
   checkinConfirmMinutes: 15,
-  // Seats without a (working) sensor: a check-in lasts this long unless renewed.
-  checkinTtlMinutes: 240,
+  // How long a check-in holds a desk unless the user picks another duration or scans again to renew.
+  checkinDurationMinutes: 180,
+  // Longest duration a user may pick for a single check-in.
+  checkinMaxMinutes: 480,
   // A sensor that has not reported for this long is considered offline.
   sensorOfflineMinutes: 15,
 });
@@ -24,6 +26,7 @@ const ACTIVITY_LIMIT = 200;
 
 export class NotFoundError extends Error {}
 export class ConflictError extends Error {}
+export class ValidationError extends Error {}
 
 /**
  * Pure function: the status of a seat at time `now`.
@@ -31,12 +34,13 @@ export class ConflictError extends Error {}
  */
 export function deriveStatus(seat, now, rules = DEFAULT_RULES) {
   const hasSensor = Boolean(seat.sensorId);
+  const checkedIn = Boolean(seat.checkedInAt) && now < seat.checkedInUntil;
   const sensorOffline =
     hasSensor && (!seat.lastSensorSeenAt || now - seat.lastSensorSeenAt > rules.sensorOfflineMinutes * MINUTE);
 
   if (hasSensor && !sensorOffline) {
     if (seat.presence) return Status.OCCUPIED;
-    if (seat.checkedInAt && now - seat.checkedInAt < rules.checkinConfirmMinutes * MINUTE) {
+    if (checkedIn && now - seat.checkedInAt < rules.checkinConfirmMinutes * MINUTE) {
       // Just checked in; give the sensor a chance to see them. If they had
       // already been sitting there and left, the away grace applies instead.
       if (!seat.lastPresenceAt || seat.lastPresenceAt < seat.checkedInAt) return Status.OCCUPIED;
@@ -45,7 +49,7 @@ export function deriveStatus(seat, now, rules = DEFAULT_RULES) {
     return Status.AVAILABLE;
   }
 
-  if (seat.checkedInAt && now - seat.checkedInAt < rules.checkinTtlMinutes * MINUTE) return Status.OCCUPIED;
+  if (checkedIn) return Status.OCCUPIED;
   return sensorOffline ? Status.OFFLINE : Status.AVAILABLE;
 }
 
@@ -92,7 +96,7 @@ export function expandLayout(building) {
   return seats;
 }
 
-const STATE_FIELDS = ['presence', 'lastPresenceAt', 'lastSensorSeenAt', 'checkedInBy', 'checkedInAt'];
+const STATE_FIELDS = ['presence', 'lastPresenceAt', 'lastSensorSeenAt', 'checkedInBy', 'checkedInAt', 'checkedInUntil'];
 
 export class OccupancyEngine extends EventEmitter {
   /**
@@ -114,8 +118,10 @@ export class OccupancyEngine extends EventEmitter {
 
     const saved = state.seats ?? {};
     for (const def of seats) {
-      const seat = { ...def, presence: false, lastPresenceAt: null, lastSensorSeenAt: null, checkedInBy: null, checkedInAt: null };
+      const seat = { ...def, presence: false, lastPresenceAt: null, lastSensorSeenAt: null, checkedInBy: null, checkedInAt: null, checkedInUntil: null };
       for (const f of STATE_FIELDS) if (saved[def.id]?.[f] !== undefined) seat[f] = saved[def.id][f];
+      // State saved before check-ins had an end time: give them the default duration.
+      if (seat.checkedInAt && !seat.checkedInUntil) seat.checkedInUntil = seat.checkedInAt + this.rules.checkinDurationMinutes * MINUTE;
       this.seats.set(seat.id, seat);
       if (seat.sensorId) this.bySensor.set(seat.sensorId, seat);
     }
@@ -151,8 +157,15 @@ export class OccupancyEngine extends EventEmitter {
     return this.view(seat);
   }
 
-  checkIn(seatId, user) {
-    if (!user) throw new ConflictError('user is required');
+  /**
+   * Check `user` in at a desk for `minutes` (default: checkinDurationMinutes).
+   * Checking in again at the same desk renews the check-in from now.
+   */
+  checkIn(seatId, user, { minutes = this.rules.checkinDurationMinutes } = {}) {
+    if (!user) throw new ValidationError('user is required');
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > this.rules.checkinMaxMinutes) {
+      throw new ValidationError(`Check-in duration must be between 1 and ${this.rules.checkinMaxMinutes} minutes`);
+    }
     const seat = this.getSeat(seatId);
     const now = this.clock();
     const status = deriveStatus(seat, now, this.rules);
@@ -170,7 +183,8 @@ export class OccupancyEngine extends EventEmitter {
     const renewing = seat.checkedInBy === user;
     seat.checkedInBy = user;
     seat.checkedInAt = now;
-    if (!renewing) this.#log(now, seat, 'checkin', user);
+    seat.checkedInUntil = now + minutes * MINUTE;
+    this.#log(now, seat, renewing ? 'renew' : 'checkin', user);
     this.#refresh(seat, now);
     return this.view(seat);
   }
@@ -199,6 +213,7 @@ export class OccupancyEngine extends EventEmitter {
   }
 
   #refresh(seat, now) {
+    if (seat.checkedInBy && now >= seat.checkedInUntil) this.#release(seat, now, 'expired');
     let status = deriveStatus(seat, now, this.rules);
     if (status === Status.AVAILABLE && seat.checkedInBy) {
       this.#release(seat, now, 'auto-release');
@@ -216,6 +231,7 @@ export class OccupancyEngine extends EventEmitter {
     const user = seat.checkedInBy;
     seat.checkedInBy = null;
     seat.checkedInAt = null;
+    seat.checkedInUntil = null;
     this.#log(now, seat, reason, user);
     this.emit('change', this.view(seat, now));
   }
@@ -233,8 +249,10 @@ export class OccupancyEngine extends EventEmitter {
     let holdExpiresAt = null;
     if (status === Status.AWAY) holdExpiresAt = seat.lastPresenceAt + this.rules.awayGraceMinutes * MINUTE;
     else if (status === Status.OCCUPIED && !seat.presence && seat.checkedInAt) {
-      const ttl = seat.sensorId && sensorOnline ? this.rules.checkinConfirmMinutes : this.rules.checkinTtlMinutes;
-      holdExpiresAt = seat.checkedInAt + ttl * MINUTE;
+      // Unconfirmed check-in on a working sensor ends early if nobody sits down.
+      holdExpiresAt = seat.sensorId && sensorOnline
+        ? Math.min(seat.checkedInAt + this.rules.checkinConfirmMinutes * MINUTE, seat.checkedInUntil)
+        : seat.checkedInUntil;
     }
     return {
       id: seat.id,
@@ -252,6 +270,7 @@ export class OccupancyEngine extends EventEmitter {
       presence: seat.presence,
       checkedInBy: seat.checkedInBy,
       checkedInAt: seat.checkedInAt,
+      checkedInUntil: seat.checkedInUntil,
       lastPresenceAt: seat.lastPresenceAt,
       holdExpiresAt,
     };

@@ -33,9 +33,10 @@ Nothing to install: the workflow file is already in the repo.
    selected (it is by default on personal repositories).
 2. Push any commit, or open the **Actions** tab → **CI** → **Run workflow**.
 3. Each run:
-   - runs the unit and API tests (`npm test`) on Node 20 and Node 22;
+   - installs dependencies (`npm ci`) and runs the unit and API tests (`npm test`) on Node 20 and Node 22;
    - starts the real server with an admin token and sensor key, feeds it simulated sensor data, and checks
-     that the dashboard API reports all 125 desks and that the dashboard and check-in pages load.
+     that the dashboard API reports all 125 desks, that the dashboard and check-in pages load, and that the
+     label page produces 125 QR codes.
 4. A green tick next to the commit means everything passed. Click a red cross to see the failing step's log.
 
 Optional: require CI to pass before merging under **Settings → Branches → Add branch ruleset** (target `main`,
@@ -50,7 +51,7 @@ enable **Require status checks to pass**, add the `test` checks).
 
    Codespaces makes these available to the app as environment variables automatically.
 2. On the repository page click **Code → Codespaces → Create codespace on main**.
-   The first start takes a minute or two. The tests run once when it has been built.
+   The first start takes a minute or two. Dependencies are installed and the tests run once when it has been built.
 3. In the Codespace terminal, start the server:
    ```bash
    npm start
@@ -77,12 +78,13 @@ For round-the-clock use, the sensors need a server that is always on. Any host t
 
 ```bash
 git clone https://github.com/yyuetmeng/hotdesk.git && cd hotdesk
-ADMIN_TOKEN=... SENSOR_API_KEY=... PORT=3000 npm start
+npm ci
+ADMIN_TOKEN=... SENSOR_API_KEY=... PUBLIC_URL=https://<host> PORT=3000 npm start
 ```
 
 - Keep `data/` on persistent storage (or set `STATE_FILE` to a path that survives restarts).
 - Put it behind HTTPS (your corporate reverse proxy or the host's built-in TLS).
 - Point the floor sensor gateways at `https://<host>/api/sensors/events` with the `X-Api-Key` header.
-- Encode `https://<host>/checkin?seat=<desk id>` in each desk's QR sticker.
+- Print the desk QR labels from the dashboard (**Print desk labels**) once the app is on its permanent address.
 
 GitHub Actions can deploy there automatically after CI passes. The steps depend on the host you choose.

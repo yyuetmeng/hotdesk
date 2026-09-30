@@ -5,5 +5,5 @@
   "portsAttributes": {
     "3000": { "label": "Hot Desk dashboard", "onAutoForward": "openBrowser" }
   },
-  "postCreateCommand": "npm test"
+  "postCreateCommand": "npm ci && npm test"
 }

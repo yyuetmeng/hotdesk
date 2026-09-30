@@ -53,8 +53,14 @@ test('check-in flow and privacy of public views', async () => {
   assert.equal(seat.status, 'occupied');
   assert.equal(seat.checkedInBy, undefined, 'public view must not reveal who sits there');
 
+  assert.equal(seat.checkedInUntil - Date.now() > 179 * 60_000, true, 'default 3-hour check-in');
+
   res = await post('/api/seats/L1-A-02/checkin', { user: 'bob' });
   assert.equal(res.status, 409);
+  assert.equal((await post('/api/seats/L1-A-01/checkin', { user: 'bob', minutes: 9999 })).status, 400);
+  res = await post('/api/seats/L1-A-01/checkin', { user: 'bob', minutes: 60 });
+  assert.equal(res.status, 200);
+  assert.ok(Math.abs((await res.json()).checkedInUntil - Date.now() - 60 * 60_000) < 5_000);
 
   const seats = await (await fetch(`${base}/api/seats`, { headers: admin })).json();
   assert.equal(seats.find((s) => s.id === 'L1-A-02').checkedInBy, 'alice');
@@ -94,4 +100,24 @@ test('shipped building layout loads and matches the seat assignment deck', async
   const byZone = {};
   for (const s of seats) byZone[`${s.floor}-${s.zone}`] = (byZone[`${s.floor}-${s.zone}`] ?? 0) + 1;
   assert.deepEqual(byZone, { 'L1-DF': 36, 'L1-DA': 16, 'L1-AI': 30, 'L2-GO': 43 });
+});
+
+test('desk labels page is admin-only and encodes each desk check-in URL', async () => {
+  assert.equal((await fetch(`${base}/labels`)).status, 401);
+  const res = await fetch(`${base}/labels?base=https://desks.example.org/`, { headers: admin });
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.equal((html.match(/<svg /g) ?? []).length, 2);
+  assert.match(html, /aria-label="QR code for https:\/\/desks\.example\.org\/checkin\?seat=L1-A-01"/);
+  assert.match(html, /aria-label="QR code for https:\/\/desks\.example\.org\/checkin\?seat=L1-A-02"/);
+
+  const proxied = await fetch(`${base}/labels?floor=L1`, {
+    headers: { ...admin, 'x-forwarded-host': 'demo.app.github.dev', 'x-forwarded-proto': 'https' },
+  });
+  assert.match(await proxied.text(), /https:\/\/demo\.app\.github\.dev\/checkin\?seat=L1-A-01/);
+});
+
+test('check-in options expose the default and maximum duration', async () => {
+  const res = await fetch(`${base}/api/checkin-options`);
+  assert.deepEqual(await res.json(), { checkinDurationMinutes: 180, checkinMaxMinutes: 480 });
 });

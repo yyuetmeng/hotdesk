@@ -18,9 +18,10 @@ The full proposal (sensor options, state rules, architecture, rollout) is in [do
 
 ## Quick start
 
-Requires Node.js 20.11 or newer. There are no npm dependencies.
+Requires Node.js 20.11 or newer. Run `npm install` once (one small dependency, used to draw the QR codes).
 
 ```bash
+npm install
 npm start                    # http://localhost:3000  (admin dashboard)
 npm run simulate             # in a second terminal: fake sensors + check-ins
 npm test
@@ -44,7 +45,9 @@ in the QR sticker on each desk.
 | `SENSOR_API_KEY` | *(unset → open)* | Gateways send it as `X-Api-Key` |
 | `AWAY_GRACE_MINUTES` | 20 | How long a desk is held after the person leaves |
 | `CHECKIN_CONFIRM_MINUTES` | 15 | A check-in on a sensor desk must be confirmed by presence within this time |
-| `CHECKIN_TTL_MINUTES` | 240 | How long a check-in lasts on a desk with no working sensor |
+| `CHECKIN_DURATION_MINUTES` | 180 | How long each check-in lasts by default (3 hours). Users can pick another length, and scanning again renews it |
+| `CHECKIN_MAX_MINUTES` | 480 | Longest check-in a user can choose |
+| `PUBLIC_URL` | *(address the page was opened at)* | Base URL encoded in the desk QR labels, e.g. `https://hotdesk.example.com` |
 | `SENSOR_OFFLINE_MINUTES` | 15 | Silence after which a sensor counts as offline |
 | `BUILDING_FILE` | `config/building.json` | Floors, zones and desk grid |
 | `STATE_FILE` | `data/state.json` | Persisted state |
@@ -83,6 +86,35 @@ and use the team's letter in the map instead of `.`. When a layout has teams, th
 
 The deck's blue arrows and "OSN" label are ignored. The latest revision of the deck blanks out the Level 2
 UAT Stations block, so it is no longer part of the layout. Level 2 now has only the General Office.
+
+## Check-in duration
+
+Every check-in holds the desk for **3 hours by default**. On the check-in page the user can choose another
+length, from 1 hour up to `CHECKIN_MAX_MINUTES` (8 hours). When the time is up the check-in expires and the
+activity feed records it:
+
+- On a desk **without a sensor**, the desk becomes available.
+- On a desk **with a sensor**, the desk stays occupied while someone is still detected there. It is freed
+  by the normal away grace once they leave.
+- Scanning the desk's QR code again before the end extends the check-in by another 3 hours (or the chosen
+  length) from that moment.
+- A check-in on a sensor desk is still dropped after 15 minutes if nobody sits down, and checking out
+  frees the desk immediately.
+
+## Desk labels (QR codes)
+
+Each desk gets a printable label with a QR code that opens its check-in page, plus the desk ID and location.
+Labels are laid out for **A4 sheets of 21 labels (3 × 7, 63.5 × 38.1 mm, e.g. Avery L7160)**. Plain paper
+works too (cut along the dashed guides shown on screen).
+
+- **From the running app:** click **Print desk labels** on the dashboard, or open `/labels` (admin only).
+  Filter with `/labels?floor=L1` or `/labels?floor=L1&zone=DF`. The QR codes use `PUBLIC_URL` if set,
+  otherwise the address you opened the page at (in Codespaces that is the forwarded URL).
+- **Without a server:** `PUBLIC_URL=https://hotdesk.example.com npm run labels` writes
+  `labels/desk-labels.html`. Open it in a browser and print at 100% scale (no "fit to page").
+
+Print the labels only once the app has its permanent address. The QR codes contain that address, so a
+Codespaces URL on a sticker stops working when the Codespace is deleted.
 
 ## Sending sensor data
 

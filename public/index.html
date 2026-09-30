@@ -69,6 +69,8 @@
   .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--offline); }
   .live.on::before { background: var(--available); }
   .spacer { flex: 1; }
+  .btn { font-size: 13px; font-weight: 600; color: var(--text-primary); text-decoration: none; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; }
+  .btn:hover { background: var(--grid); }
   main { padding: 20px 24px 40px; max-width: 1280px; margin: 0 auto; display: grid; gap: 20px; }
   .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
   .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
@@ -133,6 +135,7 @@
   <span id="live" class="live">Connecting…</span>
   <span class="spacer"></span>
   <span class="muted" id="rules"></span>
+  <a id="labelsLink" class="btn" href="/labels" target="_blank" rel="noopener">Print desk labels</a>
 </header>
 
 <main>
@@ -290,7 +293,7 @@ function seatButton(s) {
 function seatTip(s) {
   const lines = [`<b>${esc(s.id)} — ${STATUS[s.status].label}</b>`];
   if (hasTeams()) lines.push(s.teamName ? `Assigned to: ${esc(s.teamName)}` : 'Unassigned (open hot desk)');
-  if (s.checkedInBy) lines.push(`Checked in: ${esc(s.checkedInBy)} at ${fmtTime(s.checkedInAt)}`);
+  if (s.checkedInBy) lines.push(`Checked in: ${esc(s.checkedInBy)}, ${fmtTime(s.checkedInAt)}–${fmtTime(s.checkedInUntil)}`);
   if (s.hasSensor) lines.push(`Sensor: ${s.sensorOnline ? (s.presence ? 'presence detected' : 'no presence') : 'offline'}`);
   else lines.push('No sensor — QR check-in only');
   if (s.status === 'away') lines.push(`Last seen ${fmtTime(s.lastPresenceAt)}`);
@@ -383,6 +386,8 @@ const ACT = {
   checkin: (a) => `${esc(a.detail)} checked in at <b>${esc(a.seatId)}</b>`,
   checkout: (a) => `${esc(a.detail)} checked out of <b>${esc(a.seatId)}</b>`,
   moved: (a) => `${esc(a.detail)} moved away from <b>${esc(a.seatId)}</b>`,
+  renew: (a) => `${esc(a.detail)} extended their check-in at <b>${esc(a.seatId)}</b>`,
+  expired: (a) => `${esc(a.detail)}'s check-in at <b>${esc(a.seatId)}</b> expired`,
   'auto-release': (a) => `<b>${esc(a.seatId)}</b> auto-released${a.detail ? ` (was ${esc(a.detail)})` : ''}`,
   status: (a) => `<b>${esc(a.seatId)}</b> ${esc(a.detail)}`,
 };
@@ -473,6 +478,7 @@ function connect() {
 async function start() {
   try {
     await api('/api/summary'); // triggers the token prompt before opening the stream
+    $('labelsLink').href = withToken('/labels');
     connect();
     renderFeed();
     const loadHistory = async () => { history = await api('/api/history'); renderChart(); };

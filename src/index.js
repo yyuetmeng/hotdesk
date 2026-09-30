@@ -16,7 +16,8 @@ const rules = Object.fromEntries(
   Object.entries({
     awayGraceMinutes: num(env.AWAY_GRACE_MINUTES),
     checkinConfirmMinutes: num(env.CHECKIN_CONFIRM_MINUTES),
-    checkinTtlMinutes: num(env.CHECKIN_TTL_MINUTES),
+    checkinDurationMinutes: num(env.CHECKIN_DURATION_MINUTES ?? env.CHECKIN_TTL_MINUTES),
+    checkinMaxMinutes: num(env.CHECKIN_MAX_MINUTES),
     sensorOfflineMinutes: num(env.SENSOR_OFFLINE_MINUTES),
   }).filter(([, v]) => v !== undefined),
 );
@@ -29,6 +30,8 @@ const server = createApp({
   publicDir: resolve(root, 'public'),
   sensorApiKey: env.SENSOR_API_KEY,
   adminToken: env.ADMIN_TOKEN,
+  publicUrl: env.PUBLIC_URL,
+  buildingName: building.name,
 });
 
 const sweep = setInterval(() => engine.sweep(), 15_000);

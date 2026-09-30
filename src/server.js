@@ -2,7 +2,8 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
-import { ConflictError, NotFoundError } from './occupancy.js';
+import { ConflictError, NotFoundError, ValidationError } from './occupancy.js';
+import { renderLabelsPage } from './labels.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -46,6 +47,14 @@ async function readJson(req) {
   }
 }
 
+/** The origin the client used, honouring the proxy headers set by Codespaces and reverse proxies. */
+function requestOrigin(req) {
+  const first = (h) => String(h ?? '').split(',')[0].trim();
+  const host = first(req.headers['x-forwarded-host']) || req.headers.host || 'localhost';
+  const proto = first(req.headers['x-forwarded-proto']) || (req.socket.encrypted ? 'https' : 'http');
+  return `${proto}://${host}`;
+}
+
 /** What employees may see: status only, never who is sitting where. */
 function publicView(v) {
   const { checkedInBy, checkedInAt, presence, lastPresenceAt, ...rest } = v;
@@ -58,8 +67,10 @@ function publicView(v) {
  * @param {string} opts.publicDir
  * @param {string} [opts.sensorApiKey]  required in X-Api-Key for sensor ingestion when set
  * @param {string} [opts.adminToken]    required for admin endpoints when set
+ * @param {string} [opts.publicUrl]     base URL printed in desk QR codes (default: the URL the page was opened at)
+ * @param {string} [opts.buildingName]
  */
-export function createApp({ engine, publicDir, sensorApiKey, adminToken }) {
+export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicUrl, buildingName = 'Desk labels' }) {
   const streams = new Set();
 
   engine.on('change', (seat) => {
@@ -116,6 +127,14 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken }) {
     if (method === 'GET' && url.pathname === '/checkin') return serveStatic(res, 'checkin.html');
     if (method === 'GET' && parts[0] === 'static') return serveStatic(res, parts.slice(1).join('/'));
     if (method === 'GET' && url.pathname === '/healthz') return send(res, 200, { ok: true });
+    if (method === 'GET' && url.pathname === '/labels') {
+      requireAdmin(req, url);
+      const floor = url.searchParams.get('floor') ?? undefined;
+      const zone = url.searchParams.get('zone') ?? undefined;
+      const baseUrl = publicUrl || url.searchParams.get('base') || requestOrigin(req);
+      res.writeHead(200, { 'content-type': MIME['.html'], 'cache-control': 'no-store' });
+      return res.end(renderLabelsPage({ seats: engine.list({ floor, zone }), baseUrl, buildingName }));
+    }
 
     if (parts[0] !== 'api') throw new HttpError(404, 'Not found');
 
@@ -137,6 +156,10 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken }) {
     }
 
     // --- Employee endpoints (QR code on each desk opens /checkin?seat=ID) ---
+    if (method === 'GET' && url.pathname === '/api/checkin-options') {
+      const { checkinDurationMinutes, checkinMaxMinutes } = engine.rules;
+      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes });
+    }
     if (method === 'GET' && url.pathname === '/api/availability') {
       return send(res, 200, engine.list({ floor: url.searchParams.get('floor') ?? undefined }).map(publicView));
     }
@@ -145,7 +168,8 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken }) {
       const user = typeof body.user === 'string' ? body.user.trim().slice(0, 100) : '';
       if (parts[3] === 'checkin') {
         if (!user) throw new HttpError(400, 'user is required');
-        return send(res, 200, publicView(engine.checkIn(parts[2], user)));
+        const minutes = body.minutes === undefined ? undefined : Number(body.minutes);
+        return send(res, 200, publicView(engine.checkIn(parts[2], user, { minutes })));
       }
       if (parts[3] === 'checkout') return send(res, 200, publicView(engine.checkOut(parts[2], user || undefined)));
     }
@@ -179,6 +203,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken }) {
       if (err instanceof HttpError) return send(res, err.status, { error: err.message });
       if (err instanceof NotFoundError) return send(res, 404, { error: err.message });
       if (err instanceof ConflictError) return send(res, 409, { error: err.message });
+      if (err instanceof ValidationError) return send(res, 400, { error: err.message });
       console.error(err);
       send(res, 500, { error: 'Internal error' });
     });
