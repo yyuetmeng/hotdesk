@@ -1,0 +1,26 @@
+# systemd unit for running without Docker.
+# Install: copy the repo to /opt/hotdesk, run `npm ci --omit=dev`, put settings in /etc/hotdesk.env,
+# then:  sudo cp deploy/hotdesk.service /etc/systemd/system/ && sudo systemctl enable --now hotdesk
+[Unit]
+Description=Hot Desk Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hotdesk
+WorkingDirectory=/opt/hotdesk
+EnvironmentFile=/etc/hotdesk.env
+Environment=NODE_ENV=production
+Environment=STATE_FILE=/var/lib/hotdesk/state.json
+StateDirectory=hotdesk
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

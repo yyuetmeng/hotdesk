@@ -45,3 +45,19 @@ jobs:
             -d '{"end_device_ids":{"device_id":"s-l2-go-43","dev_eui":"0011223344556677"},"uplink_message":{"decoded_payload":{"occupancy":"occupied"}}}' \
             | grep -q '"seat":"L2-GO-43"'
           curl -fs -H "Authorization: Bearer $ADMIN_TOKEN" localhost:3000/sensors -o /dev/null
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the container image
+        run: docker build -t hotdesk:ci .
+      - name: Container starts and reports healthy
+        run: |
+          docker run -d --name hd -e ADMIN_TOKEN=ci -e SENSOR_API_KEY=ci hotdesk:ci
+          for i in $(seq 1 30); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' hd)" = healthy ] && exit 0
+            sleep 2
+          done
+          docker logs hd; exit 1
+

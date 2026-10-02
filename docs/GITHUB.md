@@ -71,20 +71,7 @@ enable **Require status checks to pass**, add the `test` checks).
 A Codespace stops after 30 minutes of inactivity and its data (`data/state.json`) lasts only as long as the
 Codespace. It suits demos and pilots, not a 24/7 production service.
 
-## 4. Permanent deployment (beyond GitHub)
+## 4. Permanent deployment
 
-For round-the-clock use, the sensors need a server that is always on. Any host that runs Node.js 20+ works
-(an internal VM, Azure App Service, AWS, Render, Fly.io and so on):
-
-```bash
-git clone https://github.com/yyuetmeng/hotdesk.git && cd hotdesk
-npm ci
-ADMIN_TOKEN=... SENSOR_API_KEY=... PUBLIC_URL=https://<host> PORT=3000 npm start
-```
-
-- Keep `data/` on persistent storage (or set `STATE_FILE` to a path that survives restarts).
-- Put it behind HTTPS (your corporate reverse proxy or the host's built-in TLS).
-- Point the floor sensor gateways at `https://<host>/api/sensors/events` with the `X-Api-Key` header.
-- Print the desk QR labels from the dashboard (**Print desk labels**) once the app is on its permanent address.
-
-GitHub Actions can deploy there automatically after CI passes. The steps depend on the host you choose.
+For round-the-clock use, GitHub Actions builds the app's container image on every merge to `main` and
+updates your server over SSH. Step-by-step: **[DEPLOY.md](DEPLOY.md)**.

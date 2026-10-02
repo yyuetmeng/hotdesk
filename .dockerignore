@@ -1,0 +1,10 @@
+.git
+.github
+.devcontainer
+node_modules
+data
+labels
+docs
+test
+deploy
+*.md

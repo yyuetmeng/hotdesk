@@ -1,0 +1,106 @@
+name: Build and deploy
+
+# On every push to main: build the container image and publish it to GitHub
+# Container Registry (ghcr.io/<owner>/hotdesk). If the DEPLOY_HOST secret is
+# set, also update the running app on your server over SSH.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/hotdesk
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: name
+        run: echo "image=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:latest
+            ${{ steps.name.outputs.image }}:${{ github.sha }}
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/hotdesk' }}
+    steps:
+      - name: Skip when no server is configured
+        if: env.DEPLOY_HOST == ''
+        run: echo "::notice::Image published. Set the DEPLOY_HOST, DEPLOY_USER and DEPLOY_SSH_KEY secrets to also deploy to a server."
+      - uses: actions/checkout@v4
+        if: env.DEPLOY_HOST != ''
+      - name: Set up SSH
+        if: env.DEPLOY_HOST != ''
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          if [ -n "$DEPLOY_KNOWN_HOSTS" ]; then printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else ssh-keyscan -H "$DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+      - name: Copy compose files and restart on the server
+        if: env.DEPLOY_HOST != ''
+        env:
+          IMAGE_REF: ${{ needs.image.outputs.image }}:${{ github.sha }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SSH="ssh -i ~/.ssh/id_deploy $DEPLOY_USER@$DEPLOY_HOST"
+          $SSH "mkdir -p '$DEPLOY_PATH'"
+          scp -i ~/.ssh/id_deploy deploy/docker-compose.yml deploy/Caddyfile "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+          # The workflow token can pull this private image only while the job runs; it is never stored on the server.
+          echo "$GHCR_TOKEN" | $SSH "docker login ghcr.io -u '${{ github.actor }}' --password-stdin >/dev/null \
+            && cd '$DEPLOY_PATH' && test -f .env \
+            && HOTDESK_IMAGE='$IMAGE_REF' docker compose pull hotdesk \
+            && HOTDESK_IMAGE='$IMAGE_REF' docker compose up -d --remove-orphans \
+            ; status=\$?; docker logout ghcr.io >/dev/null; exit \$status"
+      - name: Wait until the app reports healthy
+        if: env.DEPLOY_HOST != ''
+        run: |
+          for i in $(seq 1 30); do
+            state=$(ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" \
+              "cd '$DEPLOY_PATH' && docker inspect --format '{{.State.Health.Status}}' \$(docker compose ps -q hotdesk)")
+            echo "hotdesk: $state"
+            [ "$state" = healthy ] && exit 0
+            sleep 4
+          done
+          echo "::error::The hotdesk container did not become healthy. On the server run: cd $DEPLOY_PATH && docker compose logs hotdesk"
+          exit 1
