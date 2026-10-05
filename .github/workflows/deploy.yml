@@ -1,8 +1,8 @@
-name: Build and deploy
+name: Deploy to AWS
 
-# On every push to main: build the container image and publish it to GitHub
-# Container Registry (ghcr.io/<owner>/hotdesk). If the DEPLOY_HOST secret is
-# set, also update the running app on your server over SSH.
+# On every push to main: test, build the container image, push it to Amazon ECR,
+# and update the CloudFormation stack (ECS Fargate + HTTPS load balancer + EFS).
+# One-time AWS and GitHub setup: docs/DEPLOY.md.
 on:
   push:
     branches: [main]
@@ -10,14 +10,16 @@ on:
 
 permissions:
   contents: read
-  packages: write
+  id-token: write # lets the job sign in to AWS with OIDC; no AWS keys are stored in GitHub
 
 concurrency:
-  group: deploy
+  group: deploy-aws
   cancel-in-progress: false
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/hotdesk
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  STACK_NAME: ${{ vars.STACK_NAME || 'hotdesk' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'hotdesk' }}
 
 jobs:
   test:
@@ -31,76 +33,73 @@ jobs:
       - run: npm ci
       - run: npm test
 
-  image:
+  deploy:
     needs: test
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.name.outputs.image }}
+    environment: production # must match GitHubEnvironment in deploy/aws/github-access.yml
     steps:
-      - uses: actions/checkout@v4
-      - id: name
-        run: echo "image=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ steps.name.outputs.image }}:latest
-            ${{ steps.name.outputs.image }}:${{ github.sha }}
+      - name: Check AWS is configured
+        id: configured
+        run: |
+          if [ -z "${{ vars.AWS_ROLE_ARN }}" ] || [ -z "$AWS_REGION" ] || [ -z "${{ vars.DOMAIN_NAME }}" ]; then
+            echo "::notice::Not deploying: set the AWS_REGION, AWS_ROLE_ARN, AWS_CFN_ROLE_ARN and DOMAIN_NAME variables (docs/DEPLOY.md)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
 
-  deploy:
-    needs: image
-    runs-on: ubuntu-latest
-    environment: production
-    env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/hotdesk' }}
-    steps:
-      - name: Skip when no server is configured
-        if: env.DEPLOY_HOST == ''
-        run: echo "::notice::Image published. Set the DEPLOY_HOST, DEPLOY_USER and DEPLOY_SSH_KEY secrets to also deploy to a server."
       - uses: actions/checkout@v4
-        if: env.DEPLOY_HOST != ''
-      - name: Set up SSH
-        if: env.DEPLOY_HOST != ''
+        if: steps.configured.outputs.ok == 'true'
+
+      - name: Sign in to AWS
+        if: steps.configured.outputs.ok == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Sign in to Amazon ECR
+        if: steps.configured.outputs.ok == 'true'
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the image
+        if: steps.configured.outputs.ok == 'true'
+        id: image
         env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
-          if [ -n "$DEPLOY_KNOWN_HOSTS" ]; then printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          else ssh-keyscan -H "$DEPLOY_HOST" > ~/.ssh/known_hosts; fi
-      - name: Copy compose files and restart on the server
-        if: env.DEPLOY_HOST != ''
-        env:
-          IMAGE_REF: ${{ needs.image.outputs.image }}:${{ github.sha }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE="$REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "uri=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Update the CloudFormation stack
+        if: steps.configured.outputs.ok == 'true'
         run: |
-          SSH="ssh -i ~/.ssh/id_deploy $DEPLOY_USER@$DEPLOY_HOST"
-          $SSH "mkdir -p '$DEPLOY_PATH'"
-          scp -i ~/.ssh/id_deploy deploy/docker-compose.yml deploy/Caddyfile "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
-          # The workflow token can pull this private image only while the job runs; it is never stored on the server.
-          echo "$GHCR_TOKEN" | $SSH "docker login ghcr.io -u '${{ github.actor }}' --password-stdin >/dev/null \
-            && cd '$DEPLOY_PATH' && test -f .env \
-            && HOTDESK_IMAGE='$IMAGE_REF' docker compose pull hotdesk \
-            && HOTDESK_IMAGE='$IMAGE_REF' docker compose up -d --remove-orphans \
-            ; status=\$?; docker logout ghcr.io >/dev/null; exit \$status"
-      - name: Wait until the app reports healthy
-        if: env.DEPLOY_HOST != ''
+          aws cloudformation deploy \
+            --stack-name "$STACK_NAME" \
+            --template-file deploy/aws/hotdesk.yml \
+            --role-arn "${{ vars.AWS_CFN_ROLE_ARN }}" \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              "ImageUri=${{ steps.image.outputs.uri }}" \
+              "DomainName=${{ vars.DOMAIN_NAME }}" \
+              "HostedZoneId=${{ vars.HOSTED_ZONE_ID }}" \
+              "CertificateArn=${{ vars.CERTIFICATE_ARN }}" \
+              "TimeZone=${{ vars.TIME_ZONE || 'Asia/Singapore' }}"
+
+      - name: Wait for the new version to be running
+        if: steps.configured.outputs.ok == 'true'
         run: |
-          for i in $(seq 1 30); do
-            state=$(ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" \
-              "cd '$DEPLOY_PATH' && docker inspect --format '{{.State.Health.Status}}' \$(docker compose ps -q hotdesk)")
-            echo "hotdesk: $state"
-            [ "$state" = healthy ] && exit 0
-            sleep 4
+          out() { aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
+          aws ecs wait services-stable --cluster "$(out ClusterName)" --services "$(out ServiceName)"
+          URL="$(out Url)"
+          echo "### Deployed ${GITHUB_SHA::7} to $URL" >> "$GITHUB_STEP_SUMMARY"
+          for i in $(seq 1 20); do
+            if curl -fsS "$URL/healthz"; then echo; exit 0; fi
+            sleep 6
           done
-          echo "::error::The hotdesk container did not become healthy. On the server run: cd $DEPLOY_PATH && docker compose logs hotdesk"
-          exit 1
+          echo "::warning::$URL/healthz did not answer from GitHub. If DNS is not in Route 53, point $URL at $(out LoadBalancerDnsName)."

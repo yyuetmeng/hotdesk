@@ -73,5 +73,5 @@ Codespace. It suits demos and pilots, not a 24/7 production service.
 
 ## 4. Permanent deployment
 
-For round-the-clock use, GitHub Actions builds the app's container image on every merge to `main` and
-updates your server over SSH. Step-by-step: **[DEPLOY.md](DEPLOY.md)**.
+For round-the-clock use, GitHub Actions deploys every merge to `main` to AWS (ECS Fargate behind an HTTPS
+load balancer). Step-by-step: **[DEPLOY.md](DEPLOY.md)**.

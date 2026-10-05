@@ -61,3 +61,15 @@ jobs:
           done
           docker logs hd; exit 1
 
+  aws-templates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Lint CloudFormation templates
+        run: |
+          pip install cfn-lint
+          cfn-lint --regions ap-southeast-1 us-east-1 -- deploy/aws/*.yml
+

@@ -12,7 +12,7 @@ and gives administrators a live dashboard of seat availability.
 
 The current desk layout is in [docs/seat-layout.png](docs/seat-layout.png).
 
-**To deploy it (GitHub Actions → your server, with HTTPS), follow [docs/DEPLOY.md](docs/DEPLOY.md).**
+**To deploy it to AWS from GitHub (ECS Fargate, HTTPS load balancer, EFS), follow [docs/DEPLOY.md](docs/DEPLOY.md).**
 To try it on GitHub Codespaces and set up CI, follow [docs/GITHUB.md](docs/GITHUB.md).
 To connect real desk sensors, follow [docs/SENSORS.md](docs/SENSORS.md).
 
@@ -148,7 +148,7 @@ scripts/simulate.js sensor/check-in simulator
 docs/DESIGN.md     proposal & design
 docs/SENSORS.md    connecting and linking sensors
 docs/GITHUB.md     running on GitHub (CI, Codespaces)
-docs/DEPLOY.md     production deployment (GitHub Actions → GHCR → server)
+docs/DEPLOY.md     production deployment to AWS from GitHub Actions
 Dockerfile         container image
-deploy/            docker-compose.yml + Caddyfile (HTTPS), .env.example, systemd unit
+deploy/aws/        CloudFormation: hotdesk.yml (the app) and github-access.yml (one-time GitHub → AWS access)
 ```

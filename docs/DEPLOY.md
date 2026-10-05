@@ -1,163 +1,139 @@
-# Deploying Hot Desk Monitor (with GitHub)
+# Deploying Hot Desk Monitor to AWS (from GitHub)
 
-GitHub can't host this app by itself: GitHub Pages only serves static files, and Codespaces stop when idle.
-The app is a server that must run 24/7 so sensors can report to it. So the setup is:
+Every merge to `main` deploys automatically. GitHub Actions tests the code, builds the container image,
+pushes it to Amazon ECR and updates a CloudFormation stack that runs the app.
 
 ```
- push to main ──▶ GitHub Actions ──▶ tests ──▶ builds image ──▶ ghcr.io/yyuetmeng/hotdesk
-                                                                     │
-                                                    SSH: pull + restart
-                                                                     ▼
-                                     your server:  Caddy (HTTPS) ──▶ hotdesk container ──▶ /data volume
+ push to main ─▶ GitHub Actions ─▶ tests ─▶ image ─▶ Amazon ECR
+                       │ (OIDC: short-lived AWS credentials, no keys stored in GitHub)
+                       ▼
+                 CloudFormation stack "hotdesk"
+                       │
+ users, phones,        ▼
+ TTN/ChirpStack ─https─▶ Application Load Balancer ─▶ ECS Fargate task ─▶ EFS (desk state, daily backup)
+                       (ACM certificate,              (the app container)
+                        HTTP → HTTPS)                       ▲
+                                     Secrets Manager: ADMIN_TOKEN, SENSOR_API_KEY
 ```
 
-- **GitHub** keeps the code, runs the tests, builds the container image, stores it in GitHub Container
-  Registry (GHCR), and updates your server on every merge to `main`.
-- **Your server** (a company VM or a small cloud VM) runs the app and Caddy, which provides HTTPS with
-  automatic certificates.
+| AWS service | What it does here |
+|---|---|
+| **ECS Fargate** | Runs the app container (one copy, 0.25 vCPU / 0.5 GB). No servers to patch |
+| **Application Load Balancer + ACM** | Serves HTTPS with a free, auto-renewing certificate and redirects HTTP to HTTPS |
+| **EFS** | Network disk holding the desk state file. Survives redeploys, encrypted, backed up daily by AWS Backup |
+| **Secrets Manager** | Generates and stores the dashboard password and the sensor webhook key |
+| **CloudWatch Logs** | App logs, kept 30 days |
+| **Route 53** *(optional)* | DNS record and automatic certificate validation |
+| **ECR** | Stores the container images (last 30 kept) |
 
-You set this up once (about 30 minutes). After that, deploying is just merging to `main`.
+Everything is defined in two templates: `deploy/aws/github-access.yml` (one-time access setup) and
+`deploy/aws/hotdesk.yml` (the app).
+
+**Rough cost** (Singapore region): load balancer ~US$20, Fargate ~US$10, EFS/Secrets/logs/ECR ~US$2–3,
+so about **US$30–35 per month**.
 
 ---
 
-## 1. Get a server
+## 1. Decide the address
 
-Any Linux VM works. The app is light: **1 vCPU, 1 GB RAM, 10 GB disk** is plenty for 125 desks.
+Pick the name people will use, e.g. `hotdesk.yourcompany.com`, and the AWS region (e.g. `ap-southeast-1`).
 
-| Option | Notes |
-|---|---|
-| Company VM (on-prem / private cloud) | Best fit if sensors and users are on the corporate network. Ask IT for Ubuntu 22.04/24.04 |
-| Azure VM (B1s/B1ms), AWS EC2 (t3.micro/small), Google Compute (e2-small) | A few dollars to ~US$15 a month |
+- **DNS in Route 53:** note the **hosted zone ID** (Route 53 → Hosted zones). The stack then creates the DNS
+  record and the HTTPS certificate for you.
+- **DNS elsewhere** (e.g. corporate DNS): request a certificate first in **AWS Certificate Manager** (same
+  region) → *Request public certificate* → your domain → DNS validation. Ask whoever runs DNS to add the
+  validation CNAME, then wait until it says *Issued*. Note its **ARN**. After the first deploy you'll also
+  add a CNAME for the app itself (step 5).
 
-You need:
-- **A DNS name** pointing at the server, e.g. `hotdesk.yourcompany.com`.
-- **Open ports:** 443 (HTTPS) and 80 (certificate issuance and redirect to HTTPS) from users and from
-  your LoRaWAN network server. Port 22 (SSH) open to GitHub Actions; see the note in step 4.
+## 2. Give GitHub access to AWS (once, about 5 minutes)
 
-## 2. Prepare the server (once)
+In the AWS console, in your chosen region:
 
-SSH in and run:
+1. **CloudFormation → Create stack → With new resources**, then **Upload a template file**: choose
+   `deploy/aws/github-access.yml` from this repo.
+2. Stack name: `hotdesk-github-access`. Keep the defaults (`GitHubOwner` = `yyuetmeng`, `GitHubRepo` = `hotdesk`,
+   `GitHubEnvironment` = `production`, `AppStackName` = `hotdesk`).
+   If your account already has a GitHub identity provider (IAM → Identity providers →
+   `token.actions.githubusercontent.com`), set `CreateOidcProvider` = `false`.
+3. Tick *I acknowledge that AWS CloudFormation might create IAM resources*, then **Submit**.
+4. When it shows `CREATE_COMPLETE`, open the **Outputs** tab. You need `AwsRoleArn`, `CloudFormationRoleArn`
+   and `EcrRepository`.
 
-```bash
-# Docker + Compose plugin
-curl -fsSL https://get.docker.com | sudo sh
-
-# A deploy user that GitHub Actions logs in as
-sudo useradd -m -s /bin/bash -G docker deploy
-sudo mkdir -p /opt/hotdesk && sudo chown deploy:deploy /opt/hotdesk
-
-# Settings for the app (secrets stay on the server, never in GitHub)
-sudo -u deploy tee /opt/hotdesk/.env > /dev/null <<EOF
-DOMAIN=hotdesk.yourcompany.com
-ADMIN_TOKEN=$(openssl rand -hex 24)
-SENSOR_API_KEY=$(openssl rand -hex 24)
-TZ=Asia/Singapore
-EOF
-sudo chmod 600 /opt/hotdesk/.env
-sudo cat /opt/hotdesk/.env      # note ADMIN_TOKEN (dashboard) and SENSOR_API_KEY (sensor webhooks)
-```
-
-Then create an SSH key just for deployments:
-
-```bash
-ssh-keygen -t ed25519 -N '' -C github-deploy -f ~/hotdesk-deploy
-sudo -u deploy mkdir -p ~deploy/.ssh
-cat ~/hotdesk-deploy.pub | sudo -u deploy tee -a ~deploy/.ssh/authorized_keys
-cat ~/hotdesk-deploy          # private key: goes into the GitHub secret below, then delete this file
-```
-
-From your own computer, `ssh-keyscan -H hotdesk.yourcompany.com` prints the server's host key for the
-optional `DEPLOY_KNOWN_HOSTS` secret.
+This creates the ECR repository and two roles:
+- **The role GitHub signs in as.** Only jobs from this repository's `production` environment can use it,
+  and it can only push images and update the `hotdesk` stack.
+- **The role CloudFormation uses to build the app.** It can't create IAM roles beyond the app's own.
 
 ## 3. Configure the GitHub repository (once)
 
 In `github.com/yyuetmeng/hotdesk`:
 
-1. **Settings → Secrets and variables → Actions → New repository secret**:
+1. **Settings → Environments → New environment** named `production`. Optionally add yourself as a
+   **required reviewer** so each deploy waits for your approval.
+2. **Settings → Secrets and variables → Actions → Variables tab → New repository variable**:
 
-   | Secret | Value |
+   | Variable | Value |
    |---|---|
-   | `DEPLOY_HOST` | the server's DNS name or IP |
-   | `DEPLOY_USER` | `deploy` |
-   | `DEPLOY_SSH_KEY` | the whole private key from `~/hotdesk-deploy`, including the BEGIN/END lines |
-   | `DEPLOY_KNOWN_HOSTS` | *(recommended)* output of `ssh-keyscan -H <server>`. If left out, the workflow trusts the key it sees on first connect |
+   | `AWS_REGION` | e.g. `ap-southeast-1` |
+   | `AWS_ROLE_ARN` | `AwsRoleArn` from step 2 |
+   | `AWS_CFN_ROLE_ARN` | `CloudFormationRoleArn` from step 2 |
+   | `DOMAIN_NAME` | e.g. `hotdesk.yourcompany.com` |
+   | `HOSTED_ZONE_ID` | Route 53 hosted zone ID (**or** leave unset and use the next one) |
+   | `CERTIFICATE_ARN` | ACM certificate ARN, only if your DNS is not in Route 53 |
+   | `TIME_ZONE` | *(optional)* default `Asia/Singapore` |
 
-   Optional variable (**Variables** tab): `DEPLOY_PATH` if you used a folder other than `/opt/hotdesk`.
-2. **Settings → Environments → New environment → `production`** (optional but recommended). Add yourself
-   under **Required reviewers** if every deployment should wait for a click to approve.
-3. **Settings → Actions → General → Workflow permissions**: leave **Read repository contents and packages
-   permissions**. The workflow asks for `packages: write` itself to publish the image.
+   None of these are secret, so they are variables rather than secrets. There are no AWS keys anywhere.
 
 ## 4. Deploy
 
-1. Create the `main` branch from the work branch: **Code → Branches → New branch**, name `main`, source
-   `claude/seat-occupancy-monitoring-n192gb`. Or open a pull request into `main` and merge it.
-2. The push to `main` starts **Actions → Build and deploy**:
-   - **test**: runs the full test suite.
-   - **image**: builds the container image and pushes `ghcr.io/yyuetmeng/hotdesk:latest` and `:<commit>`.
-   - **deploy**: copies `deploy/docker-compose.yml` and `deploy/Caddyfile` to the server, pulls the new
-     image, restarts with `docker compose up -d`, and waits until the app reports healthy.
-3. Open `https://hotdesk.yourcompany.com` and enter the `ADMIN_TOKEN`.
+1. Create `main` from the work branch: **Code → Branches → New branch**, name `main`, source
+   `claude/seat-occupancy-monitoring-n192gb`. Or merge a pull request into `main`.
+2. **Actions → Deploy to AWS** runs. The first run takes **10–15 minutes** while AWS creates the network, load
+   balancer, certificate, file system and service. Later runs take about 3–5 minutes.
+3. When it's green, the run summary shows the URL.
 
-The first start takes a minute while Caddy obtains the HTTPS certificate.
-
-From then on, **every merge to `main` deploys automatically**. To redeploy without a code change, go to
-**Actions → Build and deploy → Run workflow**.
-
-> **Server not reachable from the internet?** GitHub's hosted runners connect over the internet, so they can't
-> SSH into a VM on a private network. Either install a **self-hosted runner** on a machine inside the
-> network (**Settings → Actions → Runners → New self-hosted runner**) and change the deploy job to
-> `runs-on: self-hosted`, or leave the `DEPLOY_*` secrets unset. The workflow then only publishes the image,
-> and you update the server by hand (step 6).
->
-> On an internal-only host, Caddy can't get a public certificate. Add `tls internal` (or your company
-> certificate) in `deploy/Caddyfile`, as described in the comments there.
+Every later merge to `main` redeploys. **Actions → Deploy to AWS → Run workflow** redeploys without a change.
+During a deploy the old copy stops before the new one starts (the app keeps desk state in one place), so
+expect about a minute of downtime. If the new version doesn't come up healthy, ECS rolls back automatically.
 
 ## 5. After the first deploy
 
-1. **Point the sensors at it.** Set up the TTN or ChirpStack webhook with `SENSOR_API_KEY`, then link the
-   sensors to desks. See [SENSORS.md](SENSORS.md).
-2. **Print the desk labels.** On the dashboard click **Print desk labels**. The QR codes now contain the
-   permanent `https://` address. See the README's "Desk labels" section.
-3. **Back up the data.** All state (check-ins, sensor links, 24 h history) is one small JSON file in the
-   `hotdesk-data` Docker volume. A nightly copy is enough:
-   ```bash
-   docker compose -f /opt/hotdesk/docker-compose.yml cp hotdesk:/data/state.json /opt/hotdesk/backup-$(date +%F).json
-   ```
+1. **DNS (only if not in Route 53):** in **CloudFormation → hotdesk → Outputs**, copy `LoadBalancerDnsName` and
+   create a **CNAME** from your domain to it.
+2. **Get the passwords:** **Secrets Manager → `hotdesk/admin-token` → Retrieve secret value** is the dashboard
+   password. **`hotdesk/sensor-api-key`** is the `X-Api-Key` for the sensor webhooks.
+3. Open `https://hotdesk.yourcompany.com` and sign in with the admin token.
+4. **Connect sensors.** Set up the TTN or ChirpStack webhook to `https://<domain>/api/integrations/...` with the
+   sensor key, then link sensors to desks. See [SENSORS.md](SENSORS.md).
+5. **Print the desk labels** from the dashboard (**Print desk labels**). The QR codes contain the permanent
+   `https://` address.
 
-## 6. Day-to-day operations
+## Day-to-day
 
-Run these on the server, in `/opt/hotdesk`:
-
-| Task | Command |
+| Task | Where |
 |---|---|
-| Status | `docker compose ps` |
-| Logs | `docker compose logs -f hotdesk` (Caddy: `docker compose logs caddy`) |
-| Restart | `docker compose restart hotdesk` |
-| Manual update (no SSH deploy) | `docker compose pull && docker compose up -d` |
-| Roll back to an earlier version | `HOTDESK_IMAGE=ghcr.io/yyuetmeng/hotdesk:<commit-sha> docker compose up -d` |
-| Change settings | edit `.env`, then `docker compose up -d` |
-| Change the floor plan | edit `config/building.json` in the repo and merge to `main` |
+| Is it up? | **ECS → Clusters → hotdesk-… → Services** (1/1 running), or open `/healthz` |
+| Logs | **CloudWatch → Log groups → `/ecs/hotdesk`** |
+| Restart | **ECS → service → Update service → Force new deployment** |
+| Change settings (grace period, check-in length) | Edit the parameters in `deploy/aws/hotdesk.yml` and merge to `main` |
+| Change the floor plan | Edit `config/building.json` and merge to `main` |
+| Roll back | **Actions → Deploy to AWS** → open an older successful run → **Re-run all jobs** |
+| Rotate the admin token | **Secrets Manager** → change the value, then force a new deployment |
+| Restore desk state | **AWS Backup → Protected resources → the EFS file system** → restore |
+| Restrict who can reach it | Set the `AllowedCidr` parameter (cloud LoRaWAN servers like TTN must still reach the webhooks) |
 
-If the repository is private, a manual `docker compose pull` needs a login first:
-`docker login ghcr.io -u <github-user>`, with a personal access token that has `read:packages` as the
-password. The automated deploy logs in and out by itself.
+## Removing it
 
-## Without Docker (alternative)
+Delete the `hotdesk` stack, then `hotdesk-github-access`. The EFS file system and the two secrets are
+**kept on purpose** so desk data and passwords aren't lost by accident. Delete them by hand if you're sure.
 
-On a server with Node.js 20.11+:
+## Troubleshooting
 
-```bash
-sudo useradd -r -s /usr/sbin/nologin hotdesk
-sudo git clone https://github.com/yyuetmeng/hotdesk.git /opt/hotdesk && cd /opt/hotdesk
-sudo npm ci --omit=dev
-sudo tee /etc/hotdesk.env > /dev/null <<EOF
-ADMIN_TOKEN=...
-SENSOR_API_KEY=...
-PUBLIC_URL=https://hotdesk.yourcompany.com
-EOF
-sudo cp deploy/hotdesk.service /etc/systemd/system/ && sudo systemctl enable --now hotdesk
-```
-
-Then put your usual reverse proxy (nginx, IIS, Caddy) in front of port 3000 with HTTPS. Make sure the
-proxy doesn't buffer `/api/stream`, which carries the dashboard's live updates.
+- **The workflow says "Not deploying":** one of the variables in step 3 is missing.
+- **"Not authorized to perform sts:AssumeRoleWithWebIdentity":** the job must run in the `production`
+  environment, the repository name must match the `github-access` stack parameters, and the GitHub identity
+  provider must exist in IAM.
+- **The stack is stuck creating the certificate:** the DNS validation record isn't in place. With Route 53, check
+  that `HOSTED_ZONE_ID` is the zone for `DOMAIN_NAME`.
+- **The service keeps restarting:** open the CloudWatch logs. Under ECS → service → **Deployments and events**
+  you'll see why tasks stopped (for example, an EFS mount error or failing health checks).
