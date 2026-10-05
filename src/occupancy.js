@@ -23,6 +23,35 @@ export const DEFAULT_RULES = Object.freeze({
 /** Project teams requesters choose from when they check in or out (config/building.json "projectTeams"). */
 export const DEFAULT_PROJECT_TEAMS = Object.freeze(['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP']);
 
+/** Short label shown on a desk: the name if short, else initials, else the first three letters. */
+export function teamCode(name) {
+  if (name.length <= 4) return name;
+  const words = name.split(/\s+/).filter(Boolean);
+  return words.length > 1 ? words.map((w) => w[0]).join('').toUpperCase().slice(0, 4) : name.slice(0, 3).toUpperCase();
+}
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/**
+ * Normalise the configured teams: each entry is a name or { name, code?, color? }.
+ * `slot` is the team's position, which the dashboard maps to its colour palette
+ * unless an explicit color is configured.
+ */
+function parseProjectTeams(list) {
+  const seen = new Set();
+  const teams = [];
+  for (const entry of list) {
+    const t = typeof entry === 'string' ? { name: entry } : entry ?? {};
+    const name = String(t.name ?? '').trim();
+    if (!name || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    const code = String(t.code ?? '').trim().slice(0, 4) || teamCode(name);
+    if (t.color !== undefined && !HEX.test(t.color)) throw new Error(`Project team ${name}: color must look like #1a2b3c`);
+    teams.push({ name, code, color: t.color ?? null, slot: teams.length });
+  }
+  return teams;
+}
+
 const MINUTE = 60_000;
 const TEAM_DAYS_KEPT = 62;
 const HISTORY_LIMIT = 24 * 60; // one sample per minute, 24h
@@ -128,13 +157,15 @@ export class OccupancyEngine extends EventEmitter {
    * @param {object} [opts.rules]  overrides for DEFAULT_RULES
    * @param {object} [opts.state]  persisted snapshot from snapshot(); its `sensorLinks`
    *   (desk id -> sensor id, or null for none) override the layout's default sensor ids
-   * @param {string[]} [opts.projectTeams]  teams requesters must pick from (default DEFAULT_PROJECT_TEAMS)
+   * @param {(string|{name: string, code?: string, color?: string})[]} [opts.projectTeams]
+   *   teams requesters must pick from (default DEFAULT_PROJECT_TEAMS)
    * @param {() => number} [opts.clock]
    */
   constructor({ seats, rules = {}, state = {}, clock = Date.now, projectTeams = DEFAULT_PROJECT_TEAMS }) {
     super();
     this.rules = { ...DEFAULT_RULES, ...rules };
-    this.projectTeams = [...new Set(projectTeams.map((t) => String(t).trim()).filter(Boolean))];
+    this.projectTeamInfo = parseProjectTeams(projectTeams);
+    this.projectTeams = this.projectTeamInfo.map((t) => t.name);
     if (!this.projectTeams.length) throw new Error('At least one project team is required');
     // Everyone who has checked in, by lower-cased name: their project team and last desk.
     this.requesters = new Map(Object.entries(state.requesters ?? {}));
@@ -430,9 +461,13 @@ export class OccupancyEngine extends EventEmitter {
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name));
+      const info = this.projectTeamInfo.find((t) => t.name === name);
       return {
         name,
-        configured: this.projectTeams.includes(name),
+        code: info?.code ?? teamCode(name),
+        color: info?.color ?? null,
+        slot: info?.slot ?? null, // null: no longer offered, shown in a neutral colour
+        configured: Boolean(info),
         checkedInNow: [...current.values()].filter((s) => s.checkedInTeam === name).length,
         checkinsToday: today[name]?.checkins ?? 0,
         checkoutsToday: today[name]?.checkouts ?? 0,

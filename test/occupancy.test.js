@@ -371,3 +371,18 @@ test('automatic releases keep the project team in the activity log', () => {
   );
   assert.equal(engine.getSeat('L1-Q-01').checkedInTeam, null);
 });
+
+test('project teams can carry a short code and a colour', () => {
+  const engine = new OccupancyEngine({
+    seats: expandLayout(building),
+    projectTeams: ['Bolt On', { name: 'eWorkplace', code: 'eWP', color: '#123abc' }, 'Information Security'],
+  });
+  assert.deepEqual(engine.projectTeams, ['Bolt On', 'eWorkplace', 'Information Security']);
+  const byName = Object.fromEntries(engine.projectTeamSummary().map((t) => [t.name, [t.code, t.color, t.slot]]));
+  assert.deepEqual(byName, {
+    'Bolt On': ['BO', null, 0],
+    eWorkplace: ['eWP', '#123abc', 1],
+    'Information Security': ['IS', null, 2],
+  });
+  assert.throws(() => new OccupancyEngine({ seats: [], projectTeams: [{ name: 'X', color: 'red' }] }), /color must look like/);
+});

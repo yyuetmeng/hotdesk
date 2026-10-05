@@ -116,6 +116,15 @@ SAP, ITGC, DDAP**. Change them in `config/building.json` → `"projectTeams"` an
 - **Admin dashboard → Project teams:** per team, the number checked in now, check-ins and check-outs today, and
   its requesters (expand to see who is at which desk until when). A *project team* filter on the floor plan
   highlights that team's desks, and tooltips and the activity feed show each person's team.
+- **Colour by project team (default floor-plan view):** each occupied desk is filled with its team's colour and
+  shows the team's short code (EXT, BO, eWP, G&C, STR, SAP, ITGC, DDAP). The code means colour is never the only
+  cue, which matters because eight colours can't all be told apart at a glance, especially with colour blindness.
+  A desk whose person has stepped away is a dashed outline in the team's colour. Desks occupied without a
+  check-in are grey, available desks are a green outline with ✓, and offline sensors are dotted. **Status**
+  switches back to colouring by availability.
+  Each team's code and colour can be set in `config/building.json`, e.g.
+  `{ "name": "SAP", "code": "SAP", "color": "#0a6ebd" }`. Without `color`, teams take the dashboard's
+  8-colour palette in list order, with separate light- and dark-mode shades.
 - **Download requesters (CSV):** every requester with their project team, current desk, last desk, last
   check-in/out and totals (`/api/requesters.csv`, admin only).
 - A requester's team is the one they gave most recently, so someone who moves to another team is re-grouped at

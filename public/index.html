@@ -23,6 +23,10 @@
     --on-away: #0b0b0b;
     --on-offline: #0b0b0b;
     --line: #2a78d6;
+    /* Project team colours: the validated 8-slot categorical palette, assigned in team order. */
+    --team-1: #2a78d6; --team-2: #eb6834; --team-3: #1baf7a; --team-4: #eda100;
+    --team-5: #e87ba4; --team-6: #008300; --team-7: #4a3aa7; --team-8: #e34948;
+    --anon: #7a7974;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -38,6 +42,9 @@
       --offline: #5c5b56;
       --on-offline: #ffffff;
       --line: #3987e5;
+      --team-1: #3987e5; --team-2: #d95926; --team-3: #199e70; --team-4: #c98500;
+      --team-5: #d55181; --team-6: #008300; --team-7: #9085e9; --team-8: #e66767;
+      --anon: #8f8e86;
     }
   }
   :root[data-theme="dark"] {
@@ -53,6 +60,9 @@
     --offline: #5c5b56;
     --on-offline: #ffffff;
     --line: #3987e5;
+    --team-1: #3987e5; --team-2: #d95926; --team-3: #199e70; --team-4: #c98500;
+    --team-5: #d55181; --team-6: #008300; --team-7: #9085e9; --team-8: #e66767;
+    --anon: #8f8e86;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -104,10 +114,18 @@
   .s-occupied { background: var(--occupied); color: var(--on-occupied); }
   .s-away { background: var(--away); color: var(--on-away); }
   .s-offline { background: var(--offline); color: var(--on-offline); }
+  /* Project team view: occupied desks are filled with the team colour and carry the team code;
+     other states become outlines so they never compete with the team colours. */
+  .seat.code { font-size: 9.5px; letter-spacing: -0.02em; }
+  .seat.p-anon { background: var(--anon); color: #ffffff; }
+  .seat.p-available { background: transparent; color: var(--text-secondary); box-shadow: inset 0 0 0 2px var(--available); }
+  .seat.p-away { background: transparent; color: var(--text-primary); border: 2px dashed var(--ring, var(--anon)); }
+  .seat.p-offline { background: transparent; color: var(--text-muted); border: 2px dotted var(--offline); }
   .seat.unassigned { background: transparent; color: var(--text-secondary); box-shadow: inset 0 0 0 1.5px var(--text-muted); }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--text-secondary); font-size: 12px; margin-top: 12px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .legend .seat { width: 18px; height: 18px; font-size: 10px; cursor: default; border-radius: 4px; }
+  .legend .seat.code { width: auto !important; min-width: 30px; padding: 0 5px; font-size: 9.5px; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--grid); }
   th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
@@ -150,8 +168,9 @@
       <h2 style="margin:0">Floor plan</h2>
       <div class="filters">
         <div class="seg" id="viewMode" role="group" aria-label="Colour desks by">
-          <button type="button" data-mode="status" aria-pressed="true">Status</button>
-          <button type="button" data-mode="team" aria-pressed="false">Team assignment</button>
+          <button type="button" data-mode="project" aria-pressed="true">Project team</button>
+          <button type="button" data-mode="status" aria-pressed="false">Status</button>
+          <button type="button" data-mode="team" aria-pressed="false" id="layoutTeamMode">Team assignment</button>
         </div>
         <div class="seg" id="floorFilter" role="group" aria-label="Floor"></div>
         <select id="teamFilter" aria-label="Team filter"><option value="">All teams</option></select>
@@ -213,7 +232,7 @@ let token = params.get('token') || safeGet('hotdesk.token') || '';
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
-const state = { seats: new Map(), summary: null, projects: [], floor: safeGet('hotdesk.floor') || '', status: '', team: '', project: '', mode: 'status' };
+const state = { seats: new Map(), summary: null, projects: [], floor: safeGet('hotdesk.floor') || '', status: '', team: '', project: '', mode: safeGet('hotdesk.mode') || 'project' };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -289,19 +308,53 @@ function inkFor(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? '#0b0b0b' : '#ffffff';
 }
 
+// ---------- Project team colours ----------
+const rootStyle = () => getComputedStyle(document.documentElement);
+function projectInfo(name) { return name ? state.projects.find((t) => t.name === name) : undefined; }
+/** The team's colour as a hex for the current light/dark mode. */
+function projectColor(t) {
+  if (t.color) return t.color;
+  const v = t.slot === null || t.slot === undefined ? '--anon' : `--team-${(t.slot % 8) + 1}`;
+  return rootStyle().getPropertyValue(v).trim() || '#7a7974';
+}
+function luminance(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+/** Black or white text, whichever contrasts more with the fill. */
+function inkOn(hex) {
+  const l = luminance(hex);
+  return (l + 0.05) / (luminance('#0b0b0b') + 0.05) >= 1.05 / (l + 0.05) ? '#0b0b0b' : '#ffffff';
+}
+
+function projectSeat(s) {
+  const t = projectInfo(s.projectTeam);
+  if (s.status === 'occupied') {
+    if (!t) return { cls: 'p-anon', style: '', text: '●' };
+    const c = projectColor(t);
+    return { cls: 'code', style: `background:${c};color:${inkOn(c)};`, text: esc(t.code) };
+  }
+  if (s.status === 'away') return t ? { cls: 'p-away code', style: `--ring:${projectColor(t)};`, text: esc(t.code) } : { cls: 'p-away', style: '', text: '…' };
+  if (s.status === 'available') return { cls: 'p-available', style: '', text: '✓' };
+  return { cls: 'p-offline', style: '', text: '!' };
+}
+
 function seatButton(s) {
   const dim = (state.status && s.status !== state.status) || (state.team && teamKey(s.team) !== state.team)
     || (state.project && s.projectTeam !== state.project) ? ' dim' : '';
-  let cls = `s-${s.status}`, style = '';
+  let cls = `s-${s.status}`, style = '', text = STATUS[s.status].glyph;
+  if (state.mode === 'project') ({ cls, style, text } = projectSeat(s));
   if (state.mode === 'team') {
     const color = teamInfo(s.team)?.color;
     if (color) { cls = ''; style = `background:${color};color:${inkFor(color)};`; }
     else cls = 'unassigned';
   }
   const team = !hasTeams() ? '' : s.teamName ? `, ${esc(s.teamName)}` : ', unassigned';
+  const project = s.projectTeam ? `, ${esc(s.projectTeam)}` : '';
   return `<button type="button" class="seat ${cls}${dim}" data-seat="${esc(s.id)}"
     style="${style}grid-column:${s.col + 1};grid-row:${s.row + 1}"
-    aria-label="${esc(s.id)}: ${STATUS[s.status].label}${team}">${STATUS[s.status].glyph}</button>`;
+    aria-label="${esc(s.id)}: ${STATUS[s.status].label}${project}${team}">${text}</button>`;
 }
 
 function seatTip(s) {
@@ -319,6 +372,19 @@ function renderLegend() {
   const status = Object.entries(STATUS).map(([k, v]) =>
     `<span><span class="seat s-${k}">${v.glyph}</span>${v.label}</span>`).join('');
   if (state.mode === 'status') { $('legend').innerHTML = status; return; }
+  if (state.mode === 'project') {
+    const teams = state.projects.filter((t) => t.configured).map((t) => {
+      const c = projectColor(t);
+      return `<span><span class="seat code" style="background:${c};color:${inkOn(c)}">${esc(t.code)}</span>${esc(t.name)}</span>`;
+    }).join('');
+    $('legend').innerHTML = teams
+      + `<span><span class="seat p-anon">●</span>Occupied, not checked in</span>`
+      + `<span><span class="seat p-away code" style="--ring:${projectColor(state.projects[0] ?? { slot: 0 })}">${esc(state.projects[0]?.code ?? '')}</span>Away, desk held (dashed outline in the team's colour)</span>`
+      + `<span><span class="seat p-away">…</span>Away, not checked in</span>`
+      + `<span><span class="seat p-available">✓</span>Available</span>`
+      + `<span><span class="seat p-offline">!</span>Sensor offline</span>`;
+    return;
+  }
   const teams = (state.summary?.teams ?? []).map((t) => t.color
     ? `<span><span class="seat" style="background:${t.color}"></span>${esc(t.name)}</span>`
     : `<span><span class="seat unassigned"></span>${esc(t.name)}</span>`).join('');
@@ -330,20 +396,25 @@ const hasTeams = () => (state.summary?.teams ?? []).some((t) => t.id !== null);
 function renderTeamFilter() {
   // Team features only make sense when the building layout assigns desks to teams.
   const show = hasTeams();
-  for (const id of ['viewMode', 'teamFilter', 'teamSection']) $(id).hidden = !show;
-  if (!show) { state.mode = 'status'; state.team = ''; }
+  for (const id of ['layoutTeamMode', 'teamFilter', 'teamSection']) $(id).hidden = !show;
+  if (!show) { state.team = ''; if (state.mode === 'team') state.mode = 'project'; }
+  syncModeButtons();
   const sel = $('teamFilter');
   const opts = (state.summary?.teams ?? []).map((t) => `<option value="${esc(teamKey(t.id))}">${esc(t.name)}</option>`).join('');
   sel.innerHTML = `<option value="">All teams</option>${opts}`;
   sel.value = state.team;
 }
 
+function syncModeButtons() {
+  for (const x of $('viewMode').children) x.setAttribute('aria-pressed', String(x.dataset.mode === state.mode));
+}
 $('viewMode').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
-  state.mode = b.dataset.mode;
-  for (const x of $('viewMode').children) x.setAttribute('aria-pressed', String(x === b));
-  renderLegend(); renderPlan();
+  state.mode = b.dataset.mode; safeSet('hotdesk.mode', state.mode);
+  syncModeButtons(); renderLegend(); renderPlan();
 });
+// Team colours have separate light and dark steps: redraw when the theme changes.
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { renderLegend(); renderPlan(); renderProjects(); });
 $('teamFilter').addEventListener('change', (e) => { state.team = e.target.value; renderPlan(); });
 
 $('floorFilter').addEventListener('click', (e) => {
@@ -414,7 +485,7 @@ function renderProjects() {
   $('projects').innerHTML = `<thead><tr><th>Project team</th><th class="num">Checked in now</th><th class="num">Check-ins today</th>
     <th class="num">Check-outs today</th><th>Requesters</th></tr></thead>
     <tbody>${rows.map((t) => `<tr>
-      <td>${esc(t.name)}${t.configured ? '' : ' <span class="muted">(no longer offered)</span>'}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:8px"><span class="seat code" style="width:34px;height:22px;cursor:default;background:${projectColor(t)};color:${inkOn(projectColor(t))}">${esc(t.code)}</span>${esc(t.name)}${t.configured ? '' : ' <span class="muted">(no longer offered)</span>'}</span></td>
       <td class="num">${t.checkedInNow}</td><td class="num">${t.checkinsToday}</td><td class="num">${t.checkoutsToday}</td>
       <td>${t.requesters.length
         ? `<details class="reqs"><summary>${t.requesters.length} requester${t.requesters.length === 1 ? '' : 's'}</summary><ul>${t.requesters.map(person).join('')}</ul></details>`
@@ -426,8 +497,11 @@ function renderProjects() {
 async function loadProjects() {
   // Keep open requester lists open across refreshes.
   const open = new Set([...document.querySelectorAll('#projects details[open]')].map((d) => d.closest('tr').firstElementChild.textContent));
+  const before = JSON.stringify(state.projects.map((t) => [t.name, t.code, t.color, t.slot]));
   state.projects = await api('/api/project-teams/summary');
   renderProjectFilter(); renderProjects();
+  // Codes and colours arrive with the summary: redraw the plan once they're known or change.
+  if (before !== JSON.stringify(state.projects.map((t) => [t.name, t.code, t.color, t.slot]))) { renderLegend(); renderPlan(); }
   document.querySelectorAll('#projects details').forEach((d) => { if (open.has(d.closest('tr').firstElementChild.textContent)) d.open = true; });
 }
 

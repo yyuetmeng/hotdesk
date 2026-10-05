@@ -16,7 +16,8 @@ const present = new Map(sensored.map((s) => [s.sensorId, Math.random() < 0.35]))
 const broken = new Set(sensored.slice(-2).map((s) => s.sensorId));
 
 // 40 simulated requesters, each in one of the building's project teams.
-const teams = building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'];
+const teams = (building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'])
+  .map((t) => (typeof t === 'string' ? t : t.name));
 const people = Array.from({ length: 40 }, (_, i) => ({ name: `employee${i + 1}`, team: teams[i % teams.length], seat: null }));
 
 const headers = { 'content-type': 'application/json' };
