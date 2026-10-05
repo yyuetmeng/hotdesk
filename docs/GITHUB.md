@@ -44,32 +44,64 @@ enable **Require status checks to pass**, add the `test` checks).
 
 ## 3. Run the app in GitHub Codespaces
 
-1. **Set the secrets (recommended, so the dashboard isn't open to anyone):**
-   **Settings → Secrets and variables → Codespaces → New repository secret**, and add:
-   - `ADMIN_TOKEN`: the password administrators enter to open the dashboard
-   - `SENSOR_API_KEY`: the key sensor gateways send in the `X-Api-Key` header
+A Codespace starts the whole app by itself. There's nothing to install or type.
 
-   Codespaces makes these available to the app as environment variables automatically.
-2. On the repository page click **Code → Codespaces → Create codespace on main**.
-   The first start takes a minute or two. Dependencies are installed and the tests run once when it has been built.
-3. In the Codespace terminal, start the server:
-   ```bash
-   npm start
-   ```
-   Port 3000 opens in a new browser tab with the admin dashboard. If it doesn't, open the **Ports** tab and
-   click the globe icon next to port 3000.
-4. To see live data without real sensors, open a second terminal (**+** in the terminal panel) and run:
-   ```bash
-   SENSOR_API_KEY=$SENSOR_API_KEY npm run simulate
-   ```
-   Add `AWAY_GRACE_MINUTES=1` in front of `npm start` to watch desks free themselves within a minute.
-5. **Sharing:** forwarded ports are private by default (only you, signed in to GitHub). To let colleagues or a
-   test sensor gateway reach it, right-click port 3000 in the **Ports** tab → **Port Visibility** →
-   **Private to Organization** or **Public**. Only do this with `ADMIN_TOKEN` and `SENSOR_API_KEY` set.
-6. The employee check-in page for a desk is `<forwarded URL>/checkin?seat=L1-DF-01`.
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/yyuetmeng/hotdesk?quickstart=1)
 
-A Codespace stops after 30 minutes of inactivity and its data (`data/state.json`) lasts only as long as the
-Codespace. It suits demos and pilots, not a 24/7 production service.
+1. **Optional settings first:** **Settings → Secrets and variables → Codespaces → New repository secret**
+   (or your personal Codespaces secrets at github.com/settings/codespaces):
+
+   | Secret | Effect |
+   |---|---|
+   | `ADMIN_TOKEN` | Dashboard password. If not set, one is generated and shown when the Codespace starts |
+   | `SENSOR_API_KEY` | Key for sensor webhooks. Generated if not set |
+   | `HOTDESK_DEMO` = `1` | Also runs the sensor simulator, so the dashboard has live demo data |
+   | `HOTDESK_PUBLIC` = `1` | Makes the app's address public, which phones scanning QR labels and sensor webhooks need |
+
+2. Click the button above, or **Code → Codespaces → Create codespace on main**.
+   The first build takes 2–3 minutes: dependencies are installed and the tests run.
+3. The app then **starts automatically** and the dashboard opens in a new tab, already signed in. The terminal
+   shows the addresses and passwords:
+
+   ```
+   Hot Desk Monitor (running)
+   Dashboard     https://<codespace>-3000.app.github.dev/?token=...
+   Admin token   ...
+   Sensors page  https://<codespace>-3000.app.github.dev/sensors
+   Desk labels   https://<codespace>-3000.app.github.dev/labels
+   Sensor key    ...   (X-Api-Key for .../api/integrations/ttn)
+   ```
+
+   If no tab opens, use the **Ports** tab → port 3000 → globe icon.
+
+Commands inside the Codespace:
+
+| Command | What it does |
+|---|---|
+| `npm run codespace:status` | Show the addresses and passwords again |
+| `npm run codespace` | Restart the app (after editing code or `config/building.json`) |
+| `npm run codespace:stop` | Stop it |
+| `bash scripts/codespace.sh logs` | Follow the app log |
+| `HOTDESK_DEMO=1 npm run codespace` | Restart with demo sensor data |
+| `AWAY_GRACE_MINUTES=1 HOTDESK_DEMO=1 npm run codespace` | Demo where desks free themselves within a minute |
+
+**Who can open it.** A Codespace's forwarded address is **private** by default: only you, signed in to GitHub,
+can open it. To let colleagues, phones (QR check-in) or a sensor network server (TTN/ChirpStack webhook) reach
+it, set `HOTDESK_PUBLIC=1`, or right-click port 3000 in the **Ports** tab → **Port Visibility** →
+**Public** (or **Private to Organization** for colleagues in your GitHub organization). The dashboard and
+sensor endpoints still need the admin token / sensor key.
+
+**What a Codespace is good for.** Demos, trials and a short pilot. It is **not** a 24/7 service:
+- **It stops when idle,** after 30 minutes by default. You can raise this to 4 hours at
+  github.com/settings/codespaces → *Default idle timeout*. While it's stopped, nobody can check in and sensor
+  readings are lost.
+- **It restarts the app by itself** when you reopen it. Desk data in `data/` is kept for the life of the Codespace.
+- **Its address changes** if you create a new Codespace, which breaks printed QR labels and webhook settings.
+  Print labels only from the permanent deployment.
+- **Unused Codespaces are deleted** after 30 days by default, and with them their data.
+- **Usage counts against your GitHub Codespaces quota** (personal accounts include a free monthly allowance).
+
+For permanent use, deploy to AWS (next section).
 
 ## 4. Permanent deployment
 

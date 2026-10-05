@@ -1,9 +1,26 @@
 {
   "name": "Hot Desk Monitor",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
   "forwardPorts": [3000],
   "portsAttributes": {
-    "3000": { "label": "Hot Desk dashboard", "onAutoForward": "openBrowser" }
+    "3000": { "label": "Hot Desk dashboard", "onAutoForward": "openBrowser", "protocol": "http" }
   },
-  "postCreateCommand": "npm ci && npm test"
+  // Install and test once when the Codespace is built.
+  "postCreateCommand": "npm ci && npm test",
+  // Start the app (in the background) every time the Codespace starts or resumes.
+  "postStartCommand": "bash scripts/codespace.sh start",
+  // Show the address and passwords whenever you open the Codespace.
+  "postAttachCommand": "cat data/codespace-info.txt 2>/dev/null || true",
+  "secrets": {
+    "ADMIN_TOKEN": { "description": "Dashboard password. Leave empty to have one generated (see data/.admin-token)." },
+    "SENSOR_API_KEY": { "description": "Key sensor webhooks send in X-Api-Key. Leave empty to have one generated." },
+    "HOTDESK_DEMO": { "description": "Set to 1 to run the sensor simulator so the dashboard shows live demo data." },
+    "HOTDESK_PUBLIC": { "description": "Set to 1 to make the app's port public (needed for phones scanning QR labels and for sensor webhooks)." }
+  },
+  "customizations": {
+    "codespaces": { "openFiles": ["docs/GITHUB.md"] }
+  }
 }

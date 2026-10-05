@@ -11,7 +11,10 @@
     "start": "node src/index.js",
     "simulate": "node scripts/simulate.js",
     "test": "node --test",
-    "labels": "node scripts/labels.js"
+    "labels": "node scripts/labels.js",
+    "codespace": "bash scripts/codespace.sh start",
+    "codespace:stop": "bash scripts/codespace.sh stop",
+    "codespace:status": "bash scripts/codespace.sh status"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4"
