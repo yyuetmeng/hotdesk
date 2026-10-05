@@ -1,6 +1,16 @@
 {
   "name": "DIC Annex @ Depot Road",
   "source": "CIO_DF_Seat_Assignment.pptx",
+  "projectTeams": [
+    "External",
+    "Bolt On",
+    "eWorkplace",
+    "G&C",
+    "STREAM",
+    "SAP",
+    "ITGC",
+    "DDAP"
+  ],
   "floors": [
     {
       "id": "L1",

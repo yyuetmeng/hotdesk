@@ -129,8 +129,11 @@ Other rules:
 | `PUT /api/seats/:id/sensor` | Admin | Link one desk: `{sensorId}` |
 | `GET /api/availability?floor=` | Employees | Seat statuses, with no personal data |
 | `GET /api/seats/:id` | Employees | One seat's status |
-| `POST /api/seats/:id/checkin` | Employees | `{user}` |
-| `POST /api/seats/:id/checkout` | Employees | `{user}` |
+| `POST /api/seats/:id/checkin` | Employees | `{user, projectTeam, minutes?}`. The project team is required |
+| `POST /api/seats/:id/checkout` | Employees | `{user, projectTeam}`. The project team is required |
+| `GET /api/project-teams` | Employees | The project teams to choose from |
+| `GET /api/project-teams/summary` | Admin | Per project team: checked in now, today's check-ins/outs, requesters |
+| `GET /api/requesters.csv` | Admin | Requesters with project team, desk and check-in history |
 | `GET /api/summary` | Admin | Totals per building / floor / zone |
 | `GET /api/seats?floor=&zone=&status=` | Admin | Full seat details including who checked in |
 | `GET /api/history` | Admin | Per-minute occupancy samples, 24 h |

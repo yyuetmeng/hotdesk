@@ -121,7 +121,7 @@ test('returning within grace keeps the seat', () => {
 test('checked-in user is auto-released after leaving for longer than the grace', () => {
   const { engine, clock } = setup({ awayGraceMinutes: 20 });
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
-  engine.checkIn('L1-A-01', 'alice');
+  engine.checkIn('L1-A-01', 'alice', { team: 'SAP' });
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
   clock.advance(120);
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
@@ -137,7 +137,7 @@ test('checked-in user is auto-released after leaving for longer than the grace',
 test('check-in on a sensor seat with no presence is released after the confirm window', () => {
   const { engine, clock } = setup({ checkinConfirmMinutes: 15 });
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01' });
-  engine.checkIn('L1-A-01', 'bob');
+  engine.checkIn('L1-A-01', 'bob', { team: 'SAP' });
   assert.equal(status(engine, 'L1-A-01'), Status.OCCUPIED);
   clock.advance(14);
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01' });
@@ -153,7 +153,7 @@ test('check-in on a sensor seat with no presence is released after the confirm w
 test('check-in lasts 3 hours by default, then expires; checkout frees immediately', () => {
   const { engine, clock } = setup();
   assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
-  const v = engine.checkIn('L1-Q-01', 'carol');
+  const v = engine.checkIn('L1-Q-01', 'carol', { team: 'SAP' });
   assert.equal(v.checkedInUntil, clock.now() + 180 * MIN);
   assert.equal(v.holdExpiresAt, v.checkedInUntil);
   clock.advance(179);
@@ -165,16 +165,16 @@ test('check-in lasts 3 hours by default, then expires; checkout frees immediatel
   assert.equal(engine.getSeat('L1-Q-01').checkedInBy, null);
   assert.ok(engine.activity.some((a) => a.type === 'expired' && a.detail === 'carol'));
 
-  engine.checkIn('L1-Q-01', 'carol');
-  engine.checkOut('L1-Q-01', 'carol');
+  engine.checkIn('L1-Q-01', 'carol', { team: 'SAP' });
+  engine.checkOut('L1-Q-01', 'carol', { team: 'SAP' });
   assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
 });
 
 test('user-chosen duration, renewal, and validation', () => {
   const { engine, clock } = setup();
-  engine.checkIn('L1-Q-01', 'dora', { minutes: 60 });
+  engine.checkIn('L1-Q-01', 'dora', { minutes: 60, team: 'SAP' });
   clock.advance(50);
-  const renewed = engine.checkIn('L1-Q-01', 'dora'); // scan again: another 3 hours from now
+  const renewed = engine.checkIn('L1-Q-01', 'dora', { team: 'SAP' }); // scan again: another 3 hours from now
   assert.equal(renewed.checkedInUntil, clock.now() + 180 * MIN);
   assert.ok(engine.activity.some((a) => a.type === 'renew'));
   clock.advance(100);
@@ -182,7 +182,7 @@ test('user-chosen duration, renewal, and validation', () => {
   assert.equal(status(engine, 'L1-Q-01'), Status.OCCUPIED);
 
   for (const minutes of [0, 481, 1.5, NaN]) {
-    assert.throws(() => engine.checkIn('L1-Q-01', 'dora', { minutes }), ValidationError);
+    assert.throws(() => engine.checkIn('L1-Q-01', 'dora', { minutes, team: 'SAP' }), ValidationError);
   }
   assert.throws(() => engine.checkIn('L1-Q-01', ''), ValidationError);
 });
@@ -190,7 +190,7 @@ test('user-chosen duration, renewal, and validation', () => {
 test('on a sensor desk the check-in still expires after 3 hours, but presence keeps it occupied', () => {
   const { engine, clock } = setup();
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
-  engine.checkIn('L1-A-01', 'erik');
+  engine.checkIn('L1-A-01', 'erik', { team: 'SAP' });
   clock.advance(181);
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
   engine.sweep();
@@ -215,22 +215,22 @@ test('state saved before check-ins had an end time gets the default duration', (
 
 test('checkout on a sensor seat skips the away hold', () => {
   const { engine } = setup();
-  engine.checkIn('L1-A-01', 'dan');
+  engine.checkIn('L1-A-01', 'dan', { team: 'SAP' });
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
   assert.equal(status(engine, 'L1-A-01'), Status.AWAY);
-  engine.checkOut('L1-A-01', 'dan');
+  engine.checkOut('L1-A-01', 'dan', { team: 'SAP' });
   assert.equal(status(engine, 'L1-A-01'), Status.AVAILABLE);
 });
 
 test('cannot take a seat held by someone else; one seat per person', () => {
   const { engine } = setup();
-  engine.checkIn('L1-Q-01', 'erin');
-  assert.throws(() => engine.checkIn('L1-Q-01', 'frank'), ConflictError);
-  assert.throws(() => engine.checkOut('L1-Q-01', 'frank'), ConflictError);
+  engine.checkIn('L1-Q-01', 'erin', { team: 'SAP' });
+  assert.throws(() => engine.checkIn('L1-Q-01', 'frank', { team: 'SAP' }), ConflictError);
+  assert.throws(() => engine.checkOut('L1-Q-01', 'frank', { team: 'SAP' }), ConflictError);
 
   engine.recordSensorEvent({ sensorId: 'S-L1-A-02' });
-  engine.checkIn('L1-A-02', 'erin');
+  engine.checkIn('L1-A-02', 'erin', { team: 'SAP' });
   assert.equal(engine.getSeat('L1-Q-01').checkedInBy, null);
   assert.equal(status(engine, 'L1-Q-01'), Status.AVAILABLE);
   assert.equal(engine.getSeat('L1-A-02').checkedInBy, 'erin');
@@ -241,7 +241,7 @@ test('sensor going silent falls back to check-in, else offline', () => {
   engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
   clock.advance(16);
   assert.equal(status(engine, 'L1-A-01'), Status.OFFLINE);
-  engine.checkIn('L1-A-01', 'gus');
+  engine.checkIn('L1-A-01', 'gus', { team: 'SAP' });
   assert.equal(status(engine, 'L1-A-01'), Status.OCCUPIED);
 });
 
@@ -305,3 +305,69 @@ test('linking a real sensor to a desk, moving it, and unlinking', () => {
   assert.equal(copy.getSeat('L1-Q-01').sensorId, null);
 });
 
+
+test('project team is required on check-in and check-out and must be one of the list', () => {
+  const { engine } = setup();
+  assert.throws(() => engine.checkIn('L1-Q-01', 'hana'), /Project team is required/);
+  assert.throws(() => engine.checkIn('L1-Q-01', 'hana', { team: 'Marketing' }), /Unknown project team "Marketing"/);
+  const v = engine.checkIn('L1-Q-01', 'hana', { team: 'g&c' }); // case-insensitive, stored canonically
+  assert.equal(v.projectTeam, 'G&C');
+  assert.throws(() => engine.checkOut('L1-Q-01', 'hana'), ValidationError);
+  assert.equal(engine.getSeat('L1-Q-01').checkedInBy, 'hana', 'a rejected check-out keeps the desk');
+  engine.checkOut('L1-Q-01', 'hana', { team: 'G&C' });
+  assert.equal(engine.getSeat('L1-Q-01').checkedInBy, null);
+  const log = engine.activity.filter((a) => a.type === 'checkin' || a.type === 'checkout');
+  assert.deepEqual(log.map((a) => [a.type, a.detail, a.team]), [['checkin', 'hana', 'G&C'], ['checkout', 'hana', 'G&C']]);
+});
+
+test('custom project team list', () => {
+  const engine = new OccupancyEngine({ seats: expandLayout(building), projectTeams: ['Alpha', ' Beta ', 'Alpha'] });
+  assert.deepEqual(engine.projectTeams, ['Alpha', 'Beta']);
+  assert.throws(() => engine.checkIn('L1-Q-01', 'x', { team: 'SAP' }), ValidationError);
+  assert.equal(engine.checkIn('L1-Q-01', 'x', { team: 'beta' }).projectTeam, 'Beta');
+  assert.throws(() => new OccupancyEngine({ seats: [], projectTeams: [] }), /At least one project team/);
+});
+
+test('requesters are grouped by project team with today\'s counts', () => {
+  const { engine, clock } = setup();
+  engine.checkIn('L1-Q-01', 'Ivan', { team: 'SAP' });
+  engine.checkIn('L1-A-01', 'Jo', { team: 'SAP' });
+  engine.checkIn('L1-A-02', 'Kim', { team: 'DDAP' });
+  engine.checkOut('L1-A-01', 'Jo', { team: 'SAP' });
+  engine.checkIn('L1-Q-01', 'Ivan', { team: 'SAP' }); // renewal: not a new check-in
+  clock.advance(1);
+  // Kim moves to another team: the requester follows the latest team given.
+  engine.checkOut('L1-A-02', 'Kim', { team: 'ITGC' });
+
+  const byName = Object.fromEntries(engine.projectTeamSummary().map((t) => [t.name, t]));
+  assert.deepEqual(Object.keys(byName), ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP']);
+  assert.equal(byName.SAP.checkedInNow, 1);
+  assert.equal(byName.SAP.checkinsToday, 2);
+  assert.equal(byName.SAP.checkoutsToday, 1);
+  assert.deepEqual(byName.SAP.requesters.map((r) => [r.name, r.checkedInAt, r.lastSeatId]), [
+    ['Ivan', 'L1-Q-01', 'L1-Q-01'],
+    ['Jo', null, 'L1-A-01'],
+  ]);
+  assert.equal(byName.DDAP.checkinsToday, 1);
+  assert.equal(byName.DDAP.requesters.length, 0);
+  assert.deepEqual(byName.ITGC.requesters.map((r) => r.name), ['Kim']);
+  assert.equal(byName.ITGC.checkoutsToday, 1);
+
+  // Survives a restart; a team removed from the list still shows up in reports.
+  const copy = new OccupancyEngine({ seats: expandLayout(building), state: engine.snapshot(), clock: clock.now, projectTeams: ['SAP'] });
+  const names = copy.projectTeamSummary().map((t) => [t.name, t.configured]);
+  assert.deepEqual(names, [['SAP', true], ['ITGC', false]]);
+  assert.equal(copy.view(copy.getSeat('L1-Q-01')).projectTeam, 'SAP');
+});
+
+test('automatic releases keep the project team in the activity log', () => {
+  const { engine, clock } = setup();
+  engine.checkIn('L1-Q-01', 'lee', { team: 'STREAM' });
+  clock.advance(181);
+  engine.sweep();
+  assert.deepEqual(
+    engine.activity.filter((a) => a.type === 'expired').map((a) => [a.detail, a.team]),
+    [['lee', 'STREAM']],
+  );
+  assert.equal(engine.getSeat('L1-Q-01').checkedInTeam, null);
+});

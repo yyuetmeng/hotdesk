@@ -20,7 +20,11 @@ export const DEFAULT_RULES = Object.freeze({
   sensorOfflineMinutes: 15,
 });
 
+/** Project teams requesters choose from when they check in or out (config/building.json "projectTeams"). */
+export const DEFAULT_PROJECT_TEAMS = Object.freeze(['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP']);
+
 const MINUTE = 60_000;
+const TEAM_DAYS_KEPT = 62;
 const HISTORY_LIMIT = 24 * 60; // one sample per minute, 24h
 const ACTIVITY_LIMIT = 200;
 const UNLINKED_LIMIT = 500;
@@ -112,7 +116,10 @@ export function expandLayout(building) {
   return seats;
 }
 
-const STATE_FIELDS = ['presence', 'lastPresenceAt', 'lastSensorSeenAt', 'checkedInBy', 'checkedInAt', 'checkedInUntil'];
+const STATE_FIELDS = ['presence', 'lastPresenceAt', 'lastSensorSeenAt', 'checkedInBy', 'checkedInAt', 'checkedInUntil', 'checkedInTeam'];
+
+/** Calendar day in the server's time zone (TZ), e.g. 2026-10-05. */
+const dayKey = (t) => new Date(t).toLocaleDateString('en-CA');
 
 export class OccupancyEngine extends EventEmitter {
   /**
@@ -121,11 +128,18 @@ export class OccupancyEngine extends EventEmitter {
    * @param {object} [opts.rules]  overrides for DEFAULT_RULES
    * @param {object} [opts.state]  persisted snapshot from snapshot(); its `sensorLinks`
    *   (desk id -> sensor id, or null for none) override the layout's default sensor ids
+   * @param {string[]} [opts.projectTeams]  teams requesters must pick from (default DEFAULT_PROJECT_TEAMS)
    * @param {() => number} [opts.clock]
    */
-  constructor({ seats, rules = {}, state = {}, clock = Date.now }) {
+  constructor({ seats, rules = {}, state = {}, clock = Date.now, projectTeams = DEFAULT_PROJECT_TEAMS }) {
     super();
     this.rules = { ...DEFAULT_RULES, ...rules };
+    this.projectTeams = [...new Set(projectTeams.map((t) => String(t).trim()).filter(Boolean))];
+    if (!this.projectTeams.length) throw new Error('At least one project team is required');
+    // Everyone who has checked in, by lower-cased name: their project team and last desk.
+    this.requesters = new Map(Object.entries(state.requesters ?? {}));
+    // Check-ins and check-outs per project team per day: { '2026-10-05': { 'SAP': { checkins, checkouts } } }
+    this.teamDays = state.teamDays ?? {};
     this.clock = clock;
     this.seats = new Map();
     this.bySensor = new Map();
@@ -139,7 +153,7 @@ export class OccupancyEngine extends EventEmitter {
     const saved = state.seats ?? {};
     for (const def of seats) {
       const linked = def.id in this.sensorLinks ? this.sensorLinks[def.id] : def.sensorId;
-      const seat = { ...def, sensorId: normalizeSensorId(linked), placeholderSensor: !(def.id in this.sensorLinks) && Boolean(def.sensorId), presence: false, lastPresenceAt: null, lastSensorSeenAt: null, checkedInBy: null, checkedInAt: null, checkedInUntil: null };
+      const seat = { ...def, sensorId: normalizeSensorId(linked), placeholderSensor: !(def.id in this.sensorLinks) && Boolean(def.sensorId), presence: false, lastPresenceAt: null, lastSensorSeenAt: null, checkedInBy: null, checkedInAt: null, checkedInUntil: null, checkedInTeam: null };
       for (const f of STATE_FIELDS) if (saved[def.id]?.[f] !== undefined) seat[f] = saved[def.id][f];
       // State saved before check-ins had an end time: give them the default duration.
       if (seat.checkedInAt && !seat.checkedInUntil) seat.checkedInUntil = seat.checkedInAt + this.rules.checkinDurationMinutes * MINUTE;
@@ -264,8 +278,18 @@ export class OccupancyEngine extends EventEmitter {
     };
   }
 
-  checkIn(seatId, user, { minutes = this.rules.checkinDurationMinutes } = {}) {
+  /** The canonical spelling of a project team, or a ValidationError listing the choices. */
+  projectTeam(name) {
+    const wanted = String(name ?? '').trim().toLowerCase();
+    if (!wanted) throw new ValidationError(`Project team is required (one of: ${this.projectTeams.join(', ')})`);
+    const team = this.projectTeams.find((t) => t.toLowerCase() === wanted);
+    if (!team) throw new ValidationError(`Unknown project team "${name}" (choose one of: ${this.projectTeams.join(', ')})`);
+    return team;
+  }
+
+  checkIn(seatId, user, { minutes = this.rules.checkinDurationMinutes, team } = {}) {
     if (!user) throw new ValidationError('user is required');
+    team = this.projectTeam(team);
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > this.rules.checkinMaxMinutes) {
       throw new ValidationError(`Check-in duration must be between 1 and ${this.rules.checkinMaxMinutes} minutes`);
     }
@@ -287,17 +311,25 @@ export class OccupancyEngine extends EventEmitter {
     seat.checkedInBy = user;
     seat.checkedInAt = now;
     seat.checkedInUntil = now + minutes * MINUTE;
-    this.#log(now, seat, renewing ? 'renew' : 'checkin', user);
+    seat.checkedInTeam = team;
+    this.#log(now, seat, renewing ? 'renew' : 'checkin', user, team);
+    if (!renewing) this.#countTeam(now, team, 'checkins');
+    this.#noteRequester(user, team, now, { seatId: seat.id, checkin: !renewing });
     this.#refresh(seat, now);
     return this.view(seat);
   }
 
-  checkOut(seatId, user) {
+  checkOut(seatId, user, { team } = {}) {
+    team = this.projectTeam(team);
     const seat = this.getSeat(seatId);
     if (!seat.checkedInBy) return this.view(seat);
     if (user && seat.checkedInBy !== user) throw new ConflictError(`Seat ${seatId} is held by someone else`);
     const now = this.clock();
+    const who = seat.checkedInBy;
+    seat.checkedInTeam = team; // the team given at check-out is the one recorded
     this.#release(seat, now, 'checkout');
+    this.#countTeam(now, team, 'checkouts');
+    this.#noteRequester(who, team, now, { checkout: true });
     // The person said they're leaving; don't hold the seat for the away grace.
     if (!seat.presence) seat.lastPresenceAt = null;
     this.#refresh(seat, now);
@@ -332,15 +364,87 @@ export class OccupancyEngine extends EventEmitter {
 
   #release(seat, now, reason) {
     const user = seat.checkedInBy;
+    const team = seat.checkedInTeam;
     seat.checkedInBy = null;
     seat.checkedInAt = null;
     seat.checkedInUntil = null;
-    this.#log(now, seat, reason, user);
+    seat.checkedInTeam = null;
+    this.#log(now, seat, reason, user, team);
     this.emit('change', this.view(seat, now));
   }
 
-  #log(at, seat, type, detail) {
-    this.activity.push({ at, seatId: seat.id, type, detail: detail ?? null });
+  #countTeam(now, team, field) {
+    const day = (this.teamDays[dayKey(now)] ??= {});
+    const counts = (day[team] ??= { checkins: 0, checkouts: 0 });
+    counts[field]++;
+    const days = Object.keys(this.teamDays).sort();
+    for (const old of days.slice(0, Math.max(0, days.length - TEAM_DAYS_KEPT))) delete this.teamDays[old];
+  }
+
+  #noteRequester(name, team, now, { seatId, checkin, checkout } = {}) {
+    const key = name.trim().toLowerCase();
+    const r = this.requesters.get(key) ?? { name, team, checkins: 0, checkouts: 0, firstSeenAt: now };
+    r.name = name;
+    r.team = team;
+    if (seatId) r.lastSeatId = seatId;
+    if (checkin) {
+      r.checkins++;
+      r.lastCheckInAt = now;
+    }
+    if (checkout) {
+      r.checkouts++;
+      r.lastCheckOutAt = now;
+    }
+    this.requesters.set(key, r);
+  }
+
+  /**
+   * Requesters grouped by project team, with today's check-in/out counts and
+   * who is checked in right now. Teams no longer in the list but still in the
+   * data are added at the end so nothing disappears from reports.
+   */
+  projectTeamSummary() {
+    const now = this.clock();
+    const today = this.teamDays[dayKey(now)] ?? {};
+    const current = new Map(); // lower-cased name -> seat
+    for (const seat of this.seats.values()) {
+      if (seat.checkedInBy) current.set(seat.checkedInBy.trim().toLowerCase(), seat);
+    }
+    const names = [...this.projectTeams];
+    for (const r of this.requesters.values()) if (!names.includes(r.team)) names.push(r.team);
+    for (const seat of current.values()) if (seat.checkedInTeam && !names.includes(seat.checkedInTeam)) names.push(seat.checkedInTeam);
+    return names.map((name) => {
+      const requesters = [...this.requesters.entries()]
+        .filter(([, r]) => r.team === name)
+        .map(([key, r]) => {
+          const seat = current.get(key);
+          return {
+            name: r.name,
+            checkedInAt: seat ? seat.id : null,
+            checkedInUntil: seat ? seat.checkedInUntil : null,
+            lastSeatId: r.lastSeatId ?? null,
+            lastCheckInAt: r.lastCheckInAt ?? null,
+            lastCheckOutAt: r.lastCheckOutAt ?? null,
+            checkins: r.checkins,
+            checkouts: r.checkouts,
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return {
+        name,
+        configured: this.projectTeams.includes(name),
+        checkedInNow: [...current.values()].filter((s) => s.checkedInTeam === name).length,
+        checkinsToday: today[name]?.checkins ?? 0,
+        checkoutsToday: today[name]?.checkouts ?? 0,
+        requesters,
+      };
+    });
+  }
+
+  #log(at, seat, type, detail, team) {
+    const entry = { at, seatId: seat.id, type, detail: detail ?? null };
+    if (team) entry.team = team;
+    this.activity.push(entry);
     if (this.activity.length > ACTIVITY_LIMIT) this.activity.splice(0, this.activity.length - ACTIVITY_LIMIT);
   }
 
@@ -376,6 +480,7 @@ export class OccupancyEngine extends EventEmitter {
       checkedInBy: seat.checkedInBy,
       checkedInAt: seat.checkedInAt,
       checkedInUntil: seat.checkedInUntil,
+      projectTeam: seat.checkedInTeam,
       lastPresenceAt: seat.lastPresenceAt,
       holdExpiresAt,
     };
@@ -447,6 +552,8 @@ export class OccupancyEngine extends EventEmitter {
       activity: this.activity,
       sensorLinks: this.sensorLinks,
       unlinkedSensors: Object.fromEntries(this.unlinked),
+      requesters: Object.fromEntries(this.requesters),
+      teamDays: this.teamDays,
     };
   }
 }

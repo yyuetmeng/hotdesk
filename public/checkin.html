@@ -42,6 +42,8 @@
     <div class="muted" id="hint"></div>
     <label for="user">Your name or employee ID</label>
     <input id="user" autocomplete="username">
+    <label for="team">Your project team</label>
+    <select id="team" required aria-required="true"><option value="">Choose your project team…</option></select>
     <label for="duration">How long will you use this desk?</label>
     <select id="duration"></select>
     <div class="row">
@@ -58,6 +60,7 @@ const $ = (id) => document.getElementById(id);
 const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const fmtDuration = (m) => (m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)} h ` : ''}${m % 60} min` : `${m / 60} hour${m === 60 ? '' : 's'}`);
 try { $('user').value = localStorage.getItem('hotdesk.user') || ''; } catch {}
+const savedTeam = (() => { try { return localStorage.getItem('hotdesk.team') || ''; } catch { return ''; } })();
 
 function render(s) {
   $('title').textContent = `Desk ${s.id}`;
@@ -70,7 +73,10 @@ function render(s) {
 }
 
 async function loadDurations() {
-  const { checkinDurationMinutes: def, checkinMaxMinutes: max } = await call('/api/checkin-options');
+  const { checkinDurationMinutes: def, checkinMaxMinutes: max, projectTeams = [] } = await call('/api/checkin-options');
+  const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  $('team').innerHTML = '<option value="">Choose your project team…</option>' +
+    projectTeams.map((t) => `<option${t === savedTeam ? ' selected' : ''}>${esc(t)}</option>`).join('');
   const opts = new Set([def]);
   for (let m = 60; m <= max; m += 60) opts.add(m);
   $('duration').innerHTML = [...opts].sort((a, b) => a - b)
@@ -87,14 +93,16 @@ async function call(path, body) {
 async function act(kind) {
   const user = $('user').value.trim();
   $('msg').className = '';
-  if (!user) { $('msg').className = 'err'; $('msg').textContent = 'Enter your name first.'; return; }
-  try { localStorage.setItem('hotdesk.user', user); } catch {}
+  const projectTeam = $('team').value;
+  if (!user) { $('msg').className = 'err'; $('msg').textContent = 'Enter your name first.'; $('user').focus(); return; }
+  if (!projectTeam) { $('msg').className = 'err'; $('msg').textContent = 'Choose your project team.'; $('team').focus(); return; }
+  try { localStorage.setItem('hotdesk.user', user); localStorage.setItem('hotdesk.team', projectTeam); } catch {}
   try {
-    const body = kind === 'checkin' ? { user, minutes: Number($('duration').value) } : { user };
+    const body = kind === 'checkin' ? { user, projectTeam, minutes: Number($('duration').value) } : { user, projectTeam };
     const seat = await call(`/api/seats/${encodeURIComponent(seatId)}/${kind}`, body);
     render(seat);
     $('msg').textContent = kind === 'checkin'
-      ? `You are checked in until ${fmtTime(seat.checkedInUntil)}. Scan again before then to extend.`
+      ? `You are checked in (${projectTeam}) until ${fmtTime(seat.checkedInUntil)}. Scan again before then to extend.`
       : 'Thanks — the desk is free for others.';
   } catch (e) { $('msg').className = 'err'; $('msg').textContent = e.message; }
 }

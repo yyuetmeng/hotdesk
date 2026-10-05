@@ -15,6 +15,10 @@ const present = new Map(sensored.map((s) => [s.sensorId, Math.random() < 0.35]))
 // A couple of sensors are "broken" and never report, so the dashboard shows offline seats.
 const broken = new Set(sensored.slice(-2).map((s) => s.sensorId));
 
+// 40 simulated requesters, each in one of the building's project teams.
+const teams = building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'];
+const people = Array.from({ length: 40 }, (_, i) => ({ name: `employee${i + 1}`, team: teams[i % teams.length], seat: null }));
+
 const headers = { 'content-type': 'application/json' };
 if (process.env.SENSOR_API_KEY) headers['x-api-key'] = process.env.SENSOR_API_KEY;
 
@@ -35,13 +39,24 @@ async function tick() {
   }
   await post('/api/sensors/events', events);
 
-  if (qrOnly.length && Math.random() < 0.3) {
-    const seat = qrOnly[Math.floor(Math.random() * qrOnly.length)];
-    const user = `employee${Math.floor(Math.random() * 40) + 1}`;
-    await post(`/api/seats/${seat.id}/${Math.random() < 0.7 ? 'checkin' : 'checkout'}`, { user });
+  // People check in at desks where someone is sitting, and some check out again.
+  if (Math.random() < 0.3) {
+    const person = people[Math.floor(Math.random() * people.length)];
+    if (person.seat && Math.random() < 0.4) {
+      await post(`/api/seats/${person.seat}/checkout`, { user: person.name, projectTeam: person.team });
+      person.seat = null;
+    } else if (!person.seat) {
+      const taken = new Set(people.map((p) => p.seat));
+      const free = seats.filter((s) => !taken.has(s.id) && (!s.sensorId || present.get(s.sensorId)));
+      if (free.length) {
+        const seat = free[Math.floor(Math.random() * free.length)];
+        await post(`/api/seats/${seat.id}/checkin`, { user: person.name, projectTeam: person.team });
+        person.seat = seat.id;
+      }
+    }
   }
 }
 
-console.log(`Simulating ${sensored.length} sensors (${broken.size} broken) + ${qrOnly.length} QR-only desks against ${base}`);
+console.log(`Simulating ${sensored.length} sensors (${broken.size} broken), ${qrOnly.length} QR-only desks and ${people.length} requesters in ${teams.length} project teams against ${base}`);
 await tick();
 setInterval(() => tick().catch((e) => console.error(e.message)), interval);

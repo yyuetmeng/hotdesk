@@ -114,6 +114,9 @@
   td.num, th.num { text-align: right; }
   .bar { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; min-width: 60px; }
   .bar > i { display: block; height: 100%; background: var(--occupied); border-radius: 0 3px 3px 0; }
+  .reqs summary { cursor: pointer; color: var(--text-secondary); }
+  .reqs ul { list-style: none; margin: 6px 0 2px; padding: 0; display: grid; gap: 2px; }
+  .reqs li { display: flex; gap: 8px; justify-content: space-between; font-size: 13px; }
   .feed { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto; font-size: 13px; }
   .feed li { padding: 6px 0; border-bottom: 1px solid var(--grid); display: flex; gap: 8px; }
   .feed time { color: var(--text-muted); font-variant-numeric: tabular-nums; flex: none; }
@@ -152,6 +155,7 @@
         </div>
         <div class="seg" id="floorFilter" role="group" aria-label="Floor"></div>
         <select id="teamFilter" aria-label="Team filter"><option value="">All teams</option></select>
+        <select id="projectFilter" aria-label="Project team filter"><option value="">All project teams</option></select>
         <select id="statusFilter" aria-label="Status filter">
           <option value="">All statuses</option>
           <option value="available">Available</option>
@@ -163,6 +167,14 @@
     </div>
     <div id="plan"></div>
     <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="card">
+    <div class="filters" style="justify-content: space-between; margin-bottom: 12px;">
+      <h2 style="margin:0">Project teams</h2>
+      <a class="btn" id="requestersCsv" href="/api/requesters.csv">Download requesters (CSV)</a>
+    </div>
+    <div style="overflow-x:auto"><table id="projects"></table></div>
   </section>
 
   <div class="two">
@@ -201,7 +213,7 @@ let token = params.get('token') || safeGet('hotdesk.token') || '';
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
-const state = { seats: new Map(), summary: null, floor: safeGet('hotdesk.floor') || '', status: '', team: '', mode: 'status' };
+const state = { seats: new Map(), summary: null, projects: [], floor: safeGet('hotdesk.floor') || '', status: '', team: '', project: '', mode: 'status' };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -278,7 +290,8 @@ function inkFor(hex) {
 }
 
 function seatButton(s) {
-  const dim = (state.status && s.status !== state.status) || (state.team && teamKey(s.team) !== state.team) ? ' dim' : '';
+  const dim = (state.status && s.status !== state.status) || (state.team && teamKey(s.team) !== state.team)
+    || (state.project && s.projectTeam !== state.project) ? ' dim' : '';
   let cls = `s-${s.status}`, style = '';
   if (state.mode === 'team') {
     const color = teamInfo(s.team)?.color;
@@ -294,7 +307,7 @@ function seatButton(s) {
 function seatTip(s) {
   const lines = [`<b>${esc(s.id)} — ${STATUS[s.status].label}</b>`];
   if (hasTeams()) lines.push(s.teamName ? `Assigned to: ${esc(s.teamName)}` : 'Unassigned (open hot desk)');
-  if (s.checkedInBy) lines.push(`Checked in: ${esc(s.checkedInBy)}, ${fmtTime(s.checkedInAt)}–${fmtTime(s.checkedInUntil)}`);
+  if (s.checkedInBy) lines.push(`Checked in: ${esc(s.checkedInBy)} (${esc(s.projectTeam ?? 'no team')}), ${fmtTime(s.checkedInAt)}–${fmtTime(s.checkedInUntil)}`);
   if (s.hasSensor) lines.push(`Sensor ${esc(s.sensorId)}: ${s.sensorOnline ? (s.presence ? 'presence detected' : 'no presence') : 'offline'}`);
   else lines.push('No sensor — QR check-in only');
   if (s.status === 'away') lines.push(`Last seen ${fmtTime(s.lastPresenceAt)}`);
@@ -382,13 +395,50 @@ function renderTeams() {
       <span style="width:3em;text-align:right">${pct(t.occupancyRate)}</span></div></td></tr>`).join('')}</tbody>`;
 }
 
+// ---------- Project teams ----------
+function renderProjectFilter() {
+  const sel = $('projectFilter');
+  sel.innerHTML = '<option value="">All project teams</option>' +
+    state.projects.map((t) => `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join('');
+  if (!state.projects.some((t) => t.name === state.project)) state.project = '';
+  sel.value = state.project;
+}
+$('projectFilter').addEventListener('change', (e) => { state.project = e.target.value; renderPlan(); });
+
+function renderProjects() {
+  const rows = state.projects;
+  const total = (k) => rows.reduce((n, t) => n + t[k], 0);
+  const person = (r) => `<li><span>${esc(r.name)}</span><span class="muted">${r.checkedInAt
+    ? `at <b>${esc(r.checkedInAt)}</b> until ${fmtTime(r.checkedInUntil)}`
+    : r.lastCheckInAt ? `last in ${new Date(r.lastCheckInAt).toLocaleDateString()} (${esc(r.lastSeatId ?? '')})` : ''}</span></li>`;
+  $('projects').innerHTML = `<thead><tr><th>Project team</th><th class="num">Checked in now</th><th class="num">Check-ins today</th>
+    <th class="num">Check-outs today</th><th>Requesters</th></tr></thead>
+    <tbody>${rows.map((t) => `<tr>
+      <td>${esc(t.name)}${t.configured ? '' : ' <span class="muted">(no longer offered)</span>'}</td>
+      <td class="num">${t.checkedInNow}</td><td class="num">${t.checkinsToday}</td><td class="num">${t.checkoutsToday}</td>
+      <td>${t.requesters.length
+        ? `<details class="reqs"><summary>${t.requesters.length} requester${t.requesters.length === 1 ? '' : 's'}</summary><ul>${t.requesters.map(person).join('')}</ul></details>`
+        : '<span class="muted">none yet</span>'}</td></tr>`).join('')}
+      <tr><td><b>Total</b></td><td class="num"><b>${total('checkedInNow')}</b></td><td class="num"><b>${total('checkinsToday')}</b></td>
+      <td class="num"><b>${total('checkoutsToday')}</b></td><td class="muted">${rows.reduce((n, t) => n + t.requesters.length, 0)} requesters</td></tr></tbody>`;
+}
+
+async function loadProjects() {
+  // Keep open requester lists open across refreshes.
+  const open = new Set([...document.querySelectorAll('#projects details[open]')].map((d) => d.closest('tr').firstElementChild.textContent));
+  state.projects = await api('/api/project-teams/summary');
+  renderProjectFilter(); renderProjects();
+  document.querySelectorAll('#projects details').forEach((d) => { if (open.has(d.closest('tr').firstElementChild.textContent)) d.open = true; });
+}
+
 // ---------- Activity ----------
+const who = (a) => `${esc(a.detail)}${a.team ? ` <span class="muted">(${esc(a.team)})</span>` : ''}`;
 const ACT = {
-  checkin: (a) => `${esc(a.detail)} checked in at <b>${esc(a.seatId)}</b>`,
-  checkout: (a) => `${esc(a.detail)} checked out of <b>${esc(a.seatId)}</b>`,
-  moved: (a) => `${esc(a.detail)} moved away from <b>${esc(a.seatId)}</b>`,
-  renew: (a) => `${esc(a.detail)} extended their check-in at <b>${esc(a.seatId)}</b>`,
-  expired: (a) => `${esc(a.detail)}'s check-in at <b>${esc(a.seatId)}</b> expired`,
+  checkin: (a) => `${who(a)} checked in at <b>${esc(a.seatId)}</b>`,
+  checkout: (a) => `${who(a)} checked out of <b>${esc(a.seatId)}</b>`,
+  moved: (a) => `${who(a)} moved away from <b>${esc(a.seatId)}</b>`,
+  renew: (a) => `${who(a)} extended their check-in at <b>${esc(a.seatId)}</b>`,
+  expired: (a) => `${who(a)}: check-in at <b>${esc(a.seatId)}</b> expired`,
   'auto-release': (a) => `<b>${esc(a.seatId)}</b> auto-released${a.detail ? ` (was ${esc(a.detail)})` : ''}`,
   status: (a) => `<b>${esc(a.seatId)}</b> ${esc(a.detail)}`,
 };
@@ -452,7 +502,7 @@ function refreshSummarySoon() {
     summaryTimer = null;
     try {
       state.summary = await api('/api/summary');
-      renderKpis(); renderPlan(); renderZones(); renderTeams(); renderFeed();
+      renderKpis(); renderPlan(); renderZones(); renderTeams(); renderFeed(); loadProjects();
     } catch (e) { console.error(e); }
   }, 400);
 }
@@ -481,6 +531,8 @@ async function start() {
     await api('/api/summary'); // triggers the token prompt before opening the stream
     $('labelsLink').href = withToken('/labels');
     $('sensorsLink').href = withToken('/sensors');
+    $('requestersCsv').href = withToken('/api/requesters.csv');
+    loadProjects();
     connect();
     renderFeed();
     const loadHistory = async () => { history = await api('/api/history'); renderChart(); };

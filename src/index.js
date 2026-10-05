@@ -22,7 +22,12 @@ const rules = Object.fromEntries(
   }).filter(([, v]) => v !== undefined),
 );
 
-const engine = new OccupancyEngine({ seats: expandLayout(building), rules, state: await store.load() });
+const engine = new OccupancyEngine({
+  seats: expandLayout(building),
+  rules,
+  state: await store.load(),
+  projectTeams: building.projectTeams,
+});
 engine.on('change', () => store.scheduleSave(() => engine.snapshot()));
 engine.on('unlinked', (u) => {
   store.scheduleSave(() => engine.snapshot());

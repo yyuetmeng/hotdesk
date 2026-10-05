@@ -47,7 +47,7 @@ test('admin endpoints require the token', async () => {
 });
 
 test('check-in flow and privacy of public views', async () => {
-  let res = await post('/api/seats/L1-A-02/checkin', { user: 'alice' });
+  let res = await post('/api/seats/L1-A-02/checkin', { user: 'alice', projectTeam: 'G&C' });
   assert.equal(res.status, 200);
   const seat = await res.json();
   assert.equal(seat.status, 'occupied');
@@ -55,20 +55,20 @@ test('check-in flow and privacy of public views', async () => {
 
   assert.equal(seat.checkedInUntil - Date.now() > 179 * 60_000, true, 'default 3-hour check-in');
 
-  res = await post('/api/seats/L1-A-02/checkin', { user: 'bob' });
+  res = await post('/api/seats/L1-A-02/checkin', { user: 'bob', projectTeam: 'G&C' });
   assert.equal(res.status, 409);
-  assert.equal((await post('/api/seats/L1-A-01/checkin', { user: 'bob', minutes: 9999 })).status, 400);
-  res = await post('/api/seats/L1-A-01/checkin', { user: 'bob', minutes: 60 });
+  assert.equal((await post('/api/seats/L1-A-01/checkin', { user: 'bob', projectTeam: 'G&C', minutes: 9999 })).status, 400);
+  res = await post('/api/seats/L1-A-01/checkin', { user: 'bob', projectTeam: 'G&C', minutes: 60 });
   assert.equal(res.status, 200);
   assert.ok(Math.abs((await res.json()).checkedInUntil - Date.now() - 60 * 60_000) < 5_000);
 
   const seats = await (await fetch(`${base}/api/seats`, { headers: admin })).json();
   assert.equal(seats.find((s) => s.id === 'L1-A-02').checkedInBy, 'alice');
 
-  res = await post('/api/seats/L1-A-02/checkout', { user: 'alice' });
+  res = await post('/api/seats/L1-A-02/checkout', { user: 'alice', projectTeam: 'G&C' });
   assert.equal((await res.json()).status, 'available'); // no sensor has reported: follows check-ins
   assert.equal((await post('/api/seats/L1-A-02/checkin', {})).status, 400);
-  assert.equal((await post('/api/seats/ZZ/checkin', { user: 'x' })).status, 404);
+  assert.equal((await post('/api/seats/ZZ/checkin', { user: 'x', projectTeam: 'G&C' })).status, 404);
 });
 
 test('serves dashboard and check-in pages; blocks traversal', async () => {
@@ -119,7 +119,11 @@ test('desk labels page is admin-only and encodes each desk check-in URL', async 
 
 test('check-in options expose the default and maximum duration', async () => {
   const res = await fetch(`${base}/api/checkin-options`);
-  assert.deepEqual(await res.json(), { checkinDurationMinutes: 180, checkinMaxMinutes: 480 });
+  assert.deepEqual(await res.json(), {
+    checkinDurationMinutes: 180,
+    checkinMaxMinutes: 480,
+    projectTeams: ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'],
+  });
 });
 
 test('LoRaWAN webhooks feed readings; unknown sensors are listed for linking', async () => {
@@ -162,3 +166,43 @@ test('LoRaWAN webhooks feed readings; unknown sensors are listed for linking', a
   assert.equal((await fetch(`${base}/sensors`)).status, 200);
 });
 
+
+test('project teams: required at check-in/out, listed publicly, summarised and exported for admins', async () => {
+  assert.deepEqual(await (await fetch(`${base}/api/project-teams`)).json(),
+    ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP']);
+
+  let res = await post('/api/seats/L1-A-02/checkin', { user: 'maya' });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /Project team is required/);
+  res = await post('/api/seats/L1-A-02/checkin', { user: 'maya', projectTeam: 'Finance' });
+  assert.equal(res.status, 400);
+
+  res = await post('/api/seats/L1-A-02/checkin', { user: 'maya', projectTeam: 'eWorkplace' });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).projectTeam, undefined, 'team is not shown on the public desk view');
+  assert.equal((await post('/api/seats/L1-A-02/checkout', { user: 'maya' })).status, 400);
+  assert.equal((await post('/api/seats/L1-A-02/checkout', { projectTeam: 'eWorkplace' })).status, 400);
+
+  assert.equal((await fetch(`${base}/api/project-teams/summary`)).status, 401);
+  let summary = await (await fetch(`${base}/api/project-teams/summary`, { headers: admin })).json();
+  const ew = summary.find((t) => t.name === 'eWorkplace');
+  assert.equal(ew.checkedInNow, 1);
+  assert.deepEqual(ew.requesters.map((r) => [r.name, r.checkedInAt]), [['maya', 'L1-A-02']]);
+
+  res = await post('/api/seats/L1-A-02/checkout', { user: 'maya', projectTeam: 'eWorkplace' });
+  assert.equal(res.status, 200);
+  summary = await (await fetch(`${base}/api/project-teams/summary`, { headers: admin })).json();
+  assert.equal(summary.find((t) => t.name === 'eWorkplace').checkoutsToday, 1);
+
+  assert.equal((await fetch(`${base}/api/requesters.csv`)).status, 401);
+  res = await fetch(`${base}/api/requesters.csv`, { headers: admin });
+  assert.match(res.headers.get('content-type'), /text\/csv/);
+  const csv = await res.text();
+  assert.match(csv, /^"project_team","requester",/);
+  assert.match(csv, /"eWorkplace","maya","","L1-A-02",/);
+
+  // Spreadsheet formula injection through a requester name is neutralised.
+  await post('/api/seats/L1-A-02/checkin', { user: '=HYPERLINK("x")', projectTeam: 'SAP' });
+  const csv2 = await (await fetch(`${base}/api/requesters.csv`, { headers: admin })).text();
+  assert.match(csv2, /"'=HYPERLINK\(""x""\)"/);
+});

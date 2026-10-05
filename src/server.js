@@ -58,7 +58,7 @@ function requestOrigin(req) {
 
 /** What employees may see: status only, never who is sitting where. */
 function publicView(v) {
-  const { checkedInBy, checkedInAt, presence, lastPresenceAt, sensorId, lastSensorSeenAt, ...rest } = v;
+  const { checkedInBy, checkedInAt, presence, lastPresenceAt, sensorId, lastSensorSeenAt, projectTeam, ...rest } = v;
   return rest;
 }
 
@@ -205,7 +205,10 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     // --- Employee endpoints (QR code on each desk opens /checkin?seat=ID) ---
     if (method === 'GET' && url.pathname === '/api/checkin-options') {
       const { checkinDurationMinutes, checkinMaxMinutes } = engine.rules;
-      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes });
+      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams });
+    }
+    if (method === 'GET' && url.pathname === '/api/project-teams') {
+      return send(res, 200, engine.projectTeams);
     }
     if (method === 'GET' && url.pathname === '/api/availability') {
       return send(res, 200, engine.list({ floor: url.searchParams.get('floor') ?? undefined }).map(publicView));
@@ -213,12 +216,16 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     if (parts[1] === 'seats' && parts[2] && parts.length === 4 && method === 'POST') {
       const body = await readJson(req);
       const user = typeof body.user === 'string' ? body.user.trim().slice(0, 100) : '';
+      const team = typeof body.projectTeam === 'string' ? body.projectTeam : undefined;
       if (parts[3] === 'checkin') {
         if (!user) throw new HttpError(400, 'user is required');
         const minutes = body.minutes === undefined ? undefined : Number(body.minutes);
-        return send(res, 200, publicView(engine.checkIn(parts[2], user, { minutes })));
+        return send(res, 200, publicView(engine.checkIn(parts[2], user, { minutes, team })));
       }
-      if (parts[3] === 'checkout') return send(res, 200, publicView(engine.checkOut(parts[2], user || undefined)));
+      if (parts[3] === 'checkout') {
+        if (!user) throw new HttpError(400, 'user is required');
+        return send(res, 200, publicView(engine.checkOut(parts[2], user, { team })));
+      }
     }
     if (method === 'GET' && parts[1] === 'seats' && parts[2] && parts.length === 3) {
       return send(res, 200, publicView(engine.view(engine.getSeat(parts[2]))));
@@ -237,6 +244,28 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
           return send(res, 200, engine.history);
         case '/api/activity':
           return send(res, 200, engine.activity.slice(-100).reverse());
+        case '/api/project-teams/summary':
+          return send(res, 200, engine.projectTeamSummary());
+        case '/api/requesters.csv': {
+          const cell = (v) => {
+            const t = v === null || v === undefined ? '' : String(v);
+            // Quote, and neutralise leading = + - @ so spreadsheets don't run it as a formula.
+            return `"${(/^[=+\-@]/.test(t) ? `'${t}` : t).replace(/"/g, '""')}"`;
+          };
+          const iso = (t) => (t ? new Date(t).toISOString() : '');
+          const rows = [['project_team', 'requester', 'checked_in_at_desk', 'last_desk', 'last_check_in', 'last_check_out', 'check_ins', 'check_outs']];
+          for (const team of engine.projectTeamSummary()) {
+            for (const r of team.requesters) {
+              rows.push([team.name, r.name, r.checkedInAt, r.lastSeatId, iso(r.lastCheckInAt), iso(r.lastCheckOutAt), r.checkins, r.checkouts]);
+            }
+          }
+          res.writeHead(200, {
+            'content-type': 'text/csv; charset=utf-8',
+            'content-disposition': 'attachment; filename="requesters-by-project-team.csv"',
+            'cache-control': 'no-store',
+          });
+          return res.end(rows.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n');
+        }
         case '/api/stream':
           return openStream(req, res);
       }

@@ -106,6 +106,22 @@ activity feed records it:
 - A check-in on a sensor desk is still dropped after 15 minutes if nobody sits down, and checking out
   frees the desk immediately.
 
+## Project teams
+
+Every requester belongs to a **project team**, which they choose when they **check in and when they check out**
+(both refuse to continue without one). The default teams are **External, Bolt On, eWorkplace, G&C, STREAM,
+SAP, ITGC, DDAP**. Change them in `config/building.json` → `"projectTeams"` and restart.
+
+- **Check-in page:** a required *Your project team* dropdown. The phone remembers the person's team for next time.
+- **Admin dashboard → Project teams:** per team, the number checked in now, check-ins and check-outs today, and
+  its requesters (expand to see who is at which desk until when). A *project team* filter on the floor plan
+  highlights that team's desks, and tooltips and the activity feed show each person's team.
+- **Download requesters (CSV):** every requester with their project team, current desk, last desk, last
+  check-in/out and totals (`/api/requesters.csv`, admin only).
+- A requester's team is the one they gave most recently, so someone who moves to another team is re-grouped at
+  their next check-in or check-out. A team removed from the list still appears in reports, marked
+  *no longer offered*.
+
 ## Desk labels (QR codes)
 
 Each desk gets a printable label with a QR code that opens its check-in page, plus the desk ID and location.
