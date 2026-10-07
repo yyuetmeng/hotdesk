@@ -627,6 +627,11 @@ $('panel').addEventListener('change', (e) => {
 });
 $('panel').addEventListener('click', (e) => {
   if (state.view !== 'live') return;
+  if (e.target.closest('[data-change-team]')) {
+    $('projectField').outerHTML = `<label>Project team<select name="team" required>${teamOptions(state.bookingFor)}</select></label>`;
+    $('panel').querySelector('form select[name=team]').focus();
+    return;
+  }
   const go = e.target.closest('[data-goto]'), aw = e.target.closest('[data-aw]');
   if (go) { select(go.dataset.goto); return; }
   if (!aw) return;
@@ -687,12 +692,28 @@ function checkinForm(s) {
     <p class="lead">${lead}</p>
     <div class="alloc-warn" id="allocWarn" role="alert" hidden></div>
     <label>Name or employee ID<input name="user" autocomplete="off" maxlength="100" required></label>
-    <label>Project team<select name="team" required>${teamOptions(state.bookingFor)}</select></label>
+    ${projectField()}
     <label>Duration<select name="minutes">${durationOptions()}</select></label>
     <div class="form-msg" role="alert"></div>
     <button type="submit" class="btn btn-primary btn-block" value="checkin">Check in to this seat</button>
     <p class="note">${ICON.info}<span>One seat per person: checking in releases any other seat held under the same name.</span></p>
   </form>`;
+}
+
+/**
+ * The check-in form's project: already chosen under "Booking for project", so shown as
+ * a line with a Change link; a dropdown only when no project was chosen there.
+ */
+function projectField() {
+  const team = state.bookingFor;
+  if (!team || !(state.options?.projectTeams ?? []).includes(team)) {
+    return `<label>Project team<select name="team" required>${teamOptions('')}</select></label>`;
+  }
+  const t = projectInfo(team);
+  return `<div class="book-line" id="projectField"><input type="hidden" name="team" value="${esc(team)}">
+    <span class="muted">Project</span>
+    <span class="book-line-name"><span class="book-sw" style="background:${t ? projectColor(t) : 'var(--accent)'}"></span>${esc(team)}</span>
+    <button type="button" class="link-btn" data-change-team>Change</button></div>`;
 }
 
 function manageForm(s) {

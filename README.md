@@ -194,7 +194,7 @@ seats:
 
 - **Dashboard:** choose the project under **Booking for project** in the side panel. Its pre-allocated seats are
   highlighted on the plan in the project's colour, with how many are free. Selecting a seat starts its check-in
-  form with that project. If the seat isn't one of the project's, the panel says so, lists the project's free
+  form with that project already filled in (shown as one line, with **Change** to pick another). If the seat isn't one of the project's, the panel says so, lists the project's free
   pre-allocated seats (click one to switch), and offers **Choose another seat** or **Continue with this seat**.
   Check-in is held until one of them is chosen. Changing the project in the form updates the highlight and the
   warning.
