@@ -699,7 +699,7 @@ function checkinForm(s) {
     <label>Name or employee ID<input name="user" autocomplete="off" maxlength="100" required></label>
     <label>Duration<select name="minutes">${durationOptions()}</select></label>
     <div class="form-msg" role="alert"></div>
-    <button type="submit" class="btn btn-primary btn-block" value="checkin"><span class="step step-inv">4</span>Check in to this seat</button>
+    <button type="submit" class="btn btn-primary btn-block" value="checkin">Check in to this seat</button>
     <p class="note">${ICON.info}<span>One seat per person: checking in releases any other seat held under the same name.</span></p>
   </form>`;
 }
