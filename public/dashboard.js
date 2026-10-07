@@ -1108,11 +1108,14 @@ const meterCell = (rate) => `<td><div style="display:flex;gap:8px;align-items:ce
   <span style="width:3em;text-align:right">${pct(rate)}</span></div></td>`;
 function renderZones() {
   const rows = (state.summary?.floors ?? []).flatMap((f) => f.zones.map((z) => ({ floor: f.name, ...z })));
-  $('zones').innerHTML = `<thead><tr><th>Floor</th><th>Zone</th><th class="num">Seats</th><th class="num">Available</th>
-    <th class="num">Occupied</th><th class="num">Away</th><th class="num">Offline</th><th>Occupancy</th></tr></thead>
-    <tbody>${rows.map((z) => `<tr><td>${esc(z.floor)}</td><td>${esc(z.name)}</td><td class="num">${z.total}</td>
-      <td class="num">${z.available}</td><td class="num">${z.occupied}</td><td class="num">${z.away}</td><td class="num">${z.offline}</td>
-      ${meterCell(z.occupancyRate)}</tr>`).join('')}</tbody>`;
+  const seg = (cls, n, total, label) => n ? `<i class="${cls}" style="width:${(100 * n) / total}%" title="${n} ${label}"></i>` : '';
+  $('zones').innerHTML = `<thead><tr><th>Zone</th><th class="num">Free</th><th>In use</th></tr></thead>
+    <tbody>${rows.map((z) => `<tr>
+      <td><div class="zcell"><span>${esc(z.name)}</span><span class="muted">${esc(z.floor)}</span></div></td>
+      <td class="num zfree"><b>${z.available}</b> <span class="muted">/ ${z.total}</span></td>
+      <td><div class="zmeter" title="${z.occupied} occupied · ${z.away} away · ${z.offline} sensor offline">
+        <div class="zbar">${seg('z-occ', z.occupied, z.total, 'occupied')}${seg('z-away', z.away, z.total, 'away')}${seg('z-off', z.offline, z.total, 'sensor offline')}</div>
+        <span>${pct(z.occupancyRate)}</span></div></td></tr>`).join('')}</tbody>`;
 }
 
 function renderTeams() {
@@ -1132,16 +1135,16 @@ function renderProjects() {
   const person = (r) => `<li><span>${esc(r.name)}</span><span class="muted">${r.checkedInAt
     ? `at <b>${esc(r.checkedInAt)}</b> until ${fmtTime(r.checkedInUntil)}`
     : r.lastCheckInAt ? `last in ${new Date(r.lastCheckInAt).toLocaleDateString()} (${esc(r.lastSeatId ?? '')})` : ''}</span></li>`;
-  $('projects').innerHTML = `<thead><tr><th>Project team</th><th class="num">Checked in now</th><th class="num">Check-ins today</th>
-    <th class="num">Check-outs today</th><th>Requesters</th></tr></thead>
+  $('projects').innerHTML = `<thead><tr><th>Project team</th><th class="num" title="Checked in now">In now</th><th class="num" title="Check-ins today">Check-ins</th>
+    <th class="num" title="Check-outs today">Check-outs</th><th>Requesters</th></tr></thead>
     <tbody>${rows.map((t) => `<tr>
       <td><span style="display:inline-flex;align-items:center;gap:10px"><span class="chip" style="--c:${projectColor(t)}">${esc(t.code)}</span>${esc(t.name)}${t.configured ? '' : ' <span class="muted">(no longer offered)</span>'}</span></td>
       <td class="num">${t.checkedInNow}</td><td class="num">${t.checkinsToday}</td><td class="num">${t.checkoutsToday}</td>
       <td>${t.requesters.length
-        ? `<details class="reqs"><summary>${t.requesters.length} requester${t.requesters.length === 1 ? '' : 's'}</summary><ul>${t.requesters.map(person).join('')}</ul></details>`
+        ? `<details class="reqs"><summary>${t.requesters.length} ${t.requesters.length === 1 ? 'person' : 'people'}</summary><ul>${t.requesters.map(person).join('')}</ul></details>`
         : '<span class="muted">none yet</span>'}</td></tr>`).join('')}
       <tr><td><b>Total</b></td><td class="num"><b>${total('checkedInNow')}</b></td><td class="num"><b>${total('checkinsToday')}</b></td>
-      <td class="num"><b>${total('checkoutsToday')}</b></td><td class="muted">${rows.reduce((n, t) => n + t.requesters.length, 0)} requesters</td></tr></tbody>`;
+      <td class="num"><b>${total('checkoutsToday')}</b></td><td class="muted">${rows.reduce((n, t) => n + t.requesters.length, 0)} people</td></tr></tbody>`;
 }
 
 async function loadProjects() {

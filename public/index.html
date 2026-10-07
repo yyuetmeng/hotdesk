@@ -512,6 +512,19 @@
 
   /* ---------- Tables and other sections ---------- */
   .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  /* Zone utilisation: free seats, then one stacked bar for occupied, away and offline. */
+  #projects summary { white-space: nowrap; }
+  .zcell { display: flex; flex-direction: column; gap: 1px; }
+  .zcell .muted { font-size: 12px; }
+  .zfree b { font-weight: 600; color: var(--seat-available); }
+  .zbar { display: flex; height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; min-width: 80px; flex: 1; }
+  .zbar > i { display: block; height: 100%; }
+  .zbar .z-occ { background: var(--occupied); } .zbar .z-away { background: var(--seat-away); } .zbar .z-off { background: var(--seat-offline); }
+  .zmeter { display: flex; gap: 8px; align-items: center; }
+  .zmeter span { width: 3em; text-align: right; }
+  .zkey { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--text-muted); }
+  .zkey i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--grid); }
   th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -570,7 +583,7 @@
     .nav a { white-space: nowrap; padding: 7px 10px; }
     .nav a .ext { display: none; }
     .main { padding: 16px; }
-    .two { grid-template-columns: minmax(0, 1fr); }
+    .two, .pair { grid-template-columns: minmax(0, 1fr); }
     .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .card { padding: 16px; }
   }
@@ -591,8 +604,8 @@
       <div class="nav-label">Workspace</div>
       <a href="#floorplan" data-section="floorplan" aria-current="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 10h8M11 3v18M15 14h6"/></svg>Floor plan</a>
       <a href="#floorplan" id="allocLink"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg>Seat allocation</a>
-      <a href="#teams" data-section="teams"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>Project teams</a>
       <a href="#trends" data-section="trends"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>Occupancy &amp; activity</a>
+      <a href="#teams" data-section="teams"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>Project teams</a>
       <a href="#utilisation" data-section="utilisation"><svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Utilisation</a>
       <div class="nav-label">Administration</div>
       <a id="sensorsLink" href="/sensors"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/><path d="M1.5 9a15 15 0 0 1 21 0"/></svg>Sensors</a>
@@ -665,14 +678,6 @@
       </div>
     </section>
 
-    <section class="card" id="teams">
-      <div class="card-head">
-        <div><h2>Project teams</h2><p class="sub">Who is checked in now, and today's check-ins and check-outs.</p></div>
-        <a class="btn" id="requestersCsv" href="/api/requesters.csv"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Download requesters (CSV)</a>
-      </div>
-      <div style="overflow-x:auto"><table id="projects"></table></div>
-    </section>
-
     <div class="two" id="trends">
       <section class="card">
         <div class="card-head"><div><h2>Occupancy, last 24 hours</h2><p class="sub">Share of seats in use (occupied or away).</p></div></div>
@@ -684,10 +689,20 @@
       </section>
     </div>
 
-    <section class="card" id="utilisation">
-      <div class="card-head"><h2>Utilisation by zone</h2></div>
-      <div style="overflow-x:auto"><table id="zones"></table></div>
-    </section>
+    <div class="pair">
+      <section class="card" id="teams">
+        <div class="card-head">
+          <div><h2>Project teams</h2><p class="sub">Who is in now, and today's check-ins and check-outs.</p></div>
+          <a class="btn" id="requestersCsv" title="Download requesters (CSV)" aria-label="Download requesters (CSV)" href="/api/requesters.csv"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>CSV</a>
+        </div>
+        <div style="overflow-x:auto"><table id="projects"></table></div>
+      </section>
+      <section class="card" id="utilisation">
+        <div class="card-head"><div><h2>Utilisation by zone</h2><p class="sub">Free seats and how the rest are used, per zone.</p></div></div>
+        <div style="overflow-x:auto"><table id="zones"></table></div>
+        <div class="zkey"><span><i style="background:var(--occupied)"></i>Occupied</span><span><i style="background:var(--seat-away)"></i>Away (held)</span><span><i style="background:var(--seat-offline)"></i>Sensor offline</span></div>
+      </section>
+    </div>
 
     <section class="card" id="teamSection">
       <div class="card-head"><h2>Utilisation by team</h2></div>

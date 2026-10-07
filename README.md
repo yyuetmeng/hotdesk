@@ -197,7 +197,7 @@ ignored.
   status light, take their team's colour. Desks occupied without a check-in use the plain occupied blue.
   **Status** switches back to colouring by availability only. Without a chosen colour, teams take the dashboard's
   8-colour palette (no greens, so a team can't be mistaken for a free seat), with separate light and dark shades.
-- **Download requesters (CSV):** every requester with their project team, current desk, last desk, last
+- **Download requesters (the CSV button on Project teams):** every requester with their project team, current desk, last desk, last
   check-in/out and totals (`/api/requesters.csv`, admin only).
 - A requester's team is the one they gave most recently, so someone who moves to another team is re-grouped at
   their next check-in or check-out. A team removed from the list still appears in reports, marked
