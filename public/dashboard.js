@@ -530,32 +530,34 @@ function renderPanel() {
   if (panelKey.startsWith('alloc')) { panel.innerHTML = ''; panelKey = ''; }
   const s = state.selected && state.seats.get(state.selected);
   panel.classList.toggle('open', Boolean(s));
+  // Step 1, choosing the project, stays at the top; live updates only refresh its counts.
+  if (!$('panelBody')) {
+    panel.innerHTML = `<div class="book-bar" id="bookBar"><label for="bookFor"><span class="step">1</span>Choose a project</label>
+      <select id="bookFor">${bookingOptions()}</select><div class="book-sum" id="bookSum"></div></div><div id="panelBody"></div>`;
+    panelKey = '';
+  } else if (document.activeElement?.id !== 'bookFor') $('bookFor').innerHTML = bookingOptions();
+  $('bookBar').classList.toggle('attn', Boolean(s) && !s.checkedInBy && !state.bookingFor);
+  renderBookingSummary();
+  const body = $('panelBody');
   if (!s) {
     const html = idlePanel();
-    if (panelKey === 'idle') {
-      panel.querySelector('.panel-empty').outerHTML = html;
-      if (document.activeElement?.id !== 'bookFor') panel.querySelector('#bookFor').innerHTML = bookingOptions();
-    } else {
-      panel.innerHTML = `<div class="book-bar"><label for="bookFor">Booking for project</label>
-        <select id="bookFor">${bookingOptions()}</select><div class="book-sum" id="bookSum"></div></div>${html}`;
-    }
+    if (panelKey === 'idle') body.querySelector('.panel-empty').outerHTML = html;
+    else body.innerHTML = html;
     panelKey = 'idle';
-    renderBookingSummary();
     return;
   }
   // The form only re-renders when what it does changes, so live updates never wipe typed input.
-  const mode = s.checkedInBy ? `manage:${s.checkedInBy}` : 'checkin';
+  const mode = s.checkedInBy ? `manage:${s.checkedInBy}` : `checkin:${state.bookingFor ? 'project' : 'none'}`;
   const key = `${s.id}|${mode}`;
   const details = panelDetails(s);
-  if (key === panelKey && panel.querySelector('[data-details]')) {
-    panel.querySelector('[data-details]').innerHTML = details;
+  if (key === panelKey && body.querySelector('[data-details]')) {
+    body.querySelector('[data-details]').innerHTML = details;
     updateAllocWarning();
     return;
   }
   panelKey = key;
-  panel.innerHTML = `<div class="panel-inner"><div data-details>${details}</div>${s.checkedInBy ? manageForm(s) : checkinForm(s)}</div>`;
-  const form = panel.querySelector('form');
-  form?.addEventListener('submit', onPanelSubmit);
+  body.innerHTML = `<div class="panel-inner"><div data-details>${details}</div>${s.checkedInBy ? manageForm(s) : checkinForm(s)}</div>`;
+  body.querySelector('form')?.addEventListener('submit', onPanelSubmit);
   updateAllocWarning();
 }
 
@@ -565,7 +567,7 @@ const freeOf = (list) => list.filter((x) => x.status === 'available' || x.status
 
 function bookingOptions() {
   const teams = state.options?.projectTeams ?? [];
-  return `<option value="">Any project</option>` + teams.map((t) => {
+  return `<option value="">Choose a project…</option>` + teams.map((t) => {
     const n = allocatedTo(t).length;
     return `<option value="${esc(t)}"${t === state.bookingFor ? ' selected' : ''}>${esc(t)}${n ? ` (${n} pre-allocated)` : ''}</option>`;
   }).join('');
@@ -579,13 +581,13 @@ function renderBookingSummary() {
   const t = projectInfo(team);
   el.innerHTML = mine.length
     ? `<span class="book-sw" style="background:${t ? projectColor(t) : 'var(--accent)'}"></span><span><b>${mine.length}</b> seat${mine.length === 1 ? '' : 's'} pre-allocated to ${esc(team)} are highlighted · <b>${free.length}</b> free now</span>`
-    : `<span>${esc(team)} has no pre-allocated seats. Any free seat can be chosen.</span>`;
+    : `<span>${esc(team)} has no pre-allocated seats, so any free seat can be used.</span>`;
 }
 
 function setBookingFor(team) {
   state.bookingFor = team; state.allocAck = '';
   if (team) safeSet('hotdesk.bookingFor', team); else { try { localStorage.removeItem('hotdesk.bookingFor'); } catch {} }
-  patchAllSeats(); renderBookingSummary(); updateAllocWarning();
+  patchAllSeats(); renderPanel();
 }
 
 /**
@@ -595,10 +597,15 @@ function setBookingFor(team) {
 function updateAllocWarning() {
   const box = $('allocWarn'), form = box?.closest('form');
   if (!box || !form) return;
-  const s = state.seats.get(state.selected), team = form.elements.team.value;
+  const s = state.seats.get(state.selected), team = state.bookingFor;
   const submit = form.querySelector('button[type=submit]');
-  const mine = team ? allocatedTo(team) : [];
-  if (!s || !mine.length || s.allocatedTo === team) { box.hidden = true; box.innerHTML = ''; submit.disabled = false; return; }
+  const note = (cls, icon, text) => { box.hidden = false; box.className = `alloc-warn ${cls}`; box.innerHTML = `${icon}<span>${text}</span>`; submit.disabled = false; };
+  if (!s || !team) { box.hidden = true; box.innerHTML = ''; submit.disabled = false; return; }
+  const mine = allocatedTo(team);
+  if (s.allocatedTo === team) return note('ok', ICON.okCircle, `${esc(s.id)} is pre-allocated to ${esc(team)}.`);
+  if (!mine.length) {
+    return note('ack', ICON.info, `${esc(team)} has no pre-allocated seats, so any free seat can be used.${s.allocatedTo ? ` Note: ${esc(s.id)} is pre-allocated to ${esc(s.allocatedTo)}.` : ''}`);
+  }
   box.hidden = false;
   if (state.allocAck === `${s.id}|${team}`) {
     box.className = 'alloc-warn ack';
@@ -623,15 +630,9 @@ function updateAllocWarning() {
 $('panel').addEventListener('change', (e) => {
   if (state.view !== 'live') return;
   if (e.target.id === 'bookFor') setBookingFor(e.target.value);
-  else if (e.target.name === 'team' && e.target.closest('form[data-kind="checkin"]')) setBookingFor(e.target.value);
 });
 $('panel').addEventListener('click', (e) => {
   if (state.view !== 'live') return;
-  if (e.target.closest('[data-change-team]')) {
-    $('projectField').outerHTML = `<label>Project team<select name="team" required>${teamOptions(state.bookingFor)}</select></label>`;
-    $('panel').querySelector('form select[name=team]').focus();
-    return;
-  }
   const go = e.target.closest('[data-goto]'), aw = e.target.closest('[data-aw]');
   if (go) { select(go.dataset.goto); return; }
   if (!aw) return;
@@ -649,8 +650,8 @@ function idlePanel() {
   })).filter((z) => z.total);
   return `<div class="panel-empty">
     <div class="big">${ICON.pointer}</div>
-    <h3>Select a seat</h3>
-    <p>Click a chair on the plan to see its details and check someone in.</p>
+    <h3><span class="step">2</span>Choose a seat</h3>
+    <p>${state.bookingFor ? `Click a chair on the plan. Seats pre-allocated to ${esc(state.bookingFor)} are highlighted.` : 'Choose a project first, then click a chair on the plan.'}</p>
     <div class="stat"><b>${c.available}</b>of ${c.total} seats available${state.floor ? ' on this floor' : ''}</div>
     ${zones.length ? `<ul class="zone-avail">${zones.map((z) => `<li><span>${esc(z.label)}</span><span><b>${z.available}</b> / ${z.total}</span>
       <div class="bar"><i style="width:${pct(z.total ? z.available / z.total : 0)}"></i></div></li>`).join('')}</ul>` : ''}
@@ -687,33 +688,20 @@ function checkinForm(s) {
   const lead = s.status === 'available' ? 'Starts now and lasts for the chosen time.'
     : s.status === 'offline' ? 'The sensor is offline, so a check-in is the only way to show this desk as taken.'
     : 'Someone is at this desk but nobody has checked in. You can check in the person sitting here.';
+  if (!state.bookingFor) {
+    return `<div class="pform need-project"><h3><span class="step">3</span>Check in to this seat</h3>
+      <p class="lead">Choose a project in step 1 above first. Its pre-allocated seats will be highlighted.</p></div>`;
+  }
   return `<form class="pform" data-kind="checkin" novalidate>
-    <h3>Check in to this seat</h3>
+    <h3><span class="step">3</span>Check-in details</h3>
     <p class="lead">${lead}</p>
     <div class="alloc-warn" id="allocWarn" role="alert" hidden></div>
     <label>Name or employee ID<input name="user" autocomplete="off" maxlength="100" required></label>
-    ${projectField()}
     <label>Duration<select name="minutes">${durationOptions()}</select></label>
     <div class="form-msg" role="alert"></div>
-    <button type="submit" class="btn btn-primary btn-block" value="checkin">Check in to this seat</button>
+    <button type="submit" class="btn btn-primary btn-block" value="checkin"><span class="step step-inv">4</span>Check in to this seat</button>
     <p class="note">${ICON.info}<span>One seat per person: checking in releases any other seat held under the same name.</span></p>
   </form>`;
-}
-
-/**
- * The check-in form's project: already chosen under "Booking for project", so shown as
- * a line with a Change link; a dropdown only when no project was chosen there.
- */
-function projectField() {
-  const team = state.bookingFor;
-  if (!team || !(state.options?.projectTeams ?? []).includes(team)) {
-    return `<label>Project team<select name="team" required>${teamOptions('')}</select></label>`;
-  }
-  const t = projectInfo(team);
-  return `<div class="book-line" id="projectField"><input type="hidden" name="team" value="${esc(team)}">
-    <span class="muted">Project</span>
-    <span class="book-line-name"><span class="book-sw" style="background:${t ? projectColor(t) : 'var(--accent)'}"></span>${esc(team)}</span>
-    <button type="button" class="link-btn" data-change-team>Change</button></div>`;
 }
 
 /**
@@ -755,9 +743,10 @@ async function onPanelSubmit(e) {
   const fail = (text, field) => { msg.textContent = text; if (field) form.elements[field].focus(); };
   msg.textContent = '';
   const user = action === 'checkin' ? form.elements.user.value.trim() : s.checkedInBy;
-  const projectTeam = form.elements.team.value;
+  // Check-ins use the project from step 1; extend and check-out keep the check-in's own project.
+  const projectTeam = action === 'checkin' ? state.bookingFor : form.elements.team.value;
   if (!user) return fail('Enter the name or employee ID of the person checking in.', 'user');
-  if (!projectTeam) return fail('Choose a project team.', 'team');
+  if (!projectTeam) return fail(action === 'checkin' ? 'Choose a project in step 1.' : 'Choose a project team.', action === 'checkin' ? undefined : 'team');
   const buttons = [...form.querySelectorAll('button')];
   const label = e.submitter?.textContent;
   buttons.forEach((b) => { b.disabled = true; });

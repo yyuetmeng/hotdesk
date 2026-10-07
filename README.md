@@ -192,16 +192,21 @@ Allocations are saved with the app's state (`data/state.json`), and each seat's 
 **Booking against allocations.** Pre-allocation guides people to their project's seats but doesn't block other
 seats:
 
-- **Dashboard:** choose the project under **Booking for project** in the side panel. Its pre-allocated seats are
-  highlighted on the plan in the project's colour, with how many are free. Selecting a seat starts its check-in
-  form with that project already filled in (shown as one line, with **Change** to pick another). If the seat isn't one of the project's, the panel says so, lists the project's free
-  pre-allocated seats (click one to switch), and offers **Choose another seat** or **Continue with this seat**.
-  Check-in is held until one of them is chosen. Changing the project in the form updates the highlight and the
-  warning.
+- **Dashboard:** checking someone in follows four steps in the side panel:
+  1. **Choose a project.** Its pre-allocated seats are highlighted on the plan in its colour, with how many are free.
+  2. **Choose a seat** on the plan.
+  3. **Fill in the details** (name, duration). The project is the one from step 1 and isn't asked for again.
+  4. **Check in.**
+
+  If the seat isn't one of the project's, step 3 says so, names the project it belongs to (if any), lists the
+  project's free pre-allocated seats (click one to switch), and offers **Choose another seat** or **Continue
+  with this seat**. Check-in is held until one of them is chosen. Changing the project in step 1 re-checks the
+  selected seat straight away. A project with no pre-allocated seats gets a note instead of a warning. Selecting
+  a seat before choosing a project points back to step 1.
 - **QR check-in page:** a desk shows which project it's pre-allocated to. If someone checks in for a project that
   has pre-allocated desks elsewhere, the first tap warns them and lists that project's free pre-allocated desks.
   They can go to one of those, or tap **Check in here anyway**.
-- A project with no pre-allocated seats never gets a warning.
+- A project with no pre-allocated seats is never warned about (the dashboard shows a note).
 
 Admin API (token required):
 

@@ -372,6 +372,15 @@
   .alloc-warn.ack { display: flex; gap: 8px; align-items: flex-start; background: var(--surface-2); border-color: var(--border); color: var(--text-secondary); font-size: 12px; padding: 8px 10px; }
   .alloc-warn.ack svg { width: 14px; height: 14px; flex: none; margin-top: 2px; }
   .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .step { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-strong);
+    font: 700 11px var(--font); margin-right: 7px; vertical-align: 1px; flex: none; }
+  .step-inv { background: rgb(255 255 255 / 0.25); color: #fff; }
+  .book-bar label { display: flex; align-items: center; }
+  .book-bar.attn { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent); }
+  .book-bar.attn select { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .need-project .lead { margin: 0; }
+  .alloc-warn.ok { display: flex; gap: 8px; align-items: flex-start; background: var(--available-soft); border-color: color-mix(in srgb, var(--seat-available) 40%, var(--border)); font-size: 12px; padding: 8px 10px; }
+  .alloc-warn.ok svg { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--seat-available); }
   .book-line { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 13px; }
   .book-line-name { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; color: var(--text-primary); flex: 1; min-width: 0; }
   .link-btn { border: 0; background: none; padding: 0; color: var(--accent-strong); font: 600 13px var(--font); cursor: pointer; }
