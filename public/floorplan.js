@@ -22,7 +22,7 @@ const FloorPlan = (() => {
   const SIDE_GAP = 0.8;    // between chairs that sit side by side without a table between
   const COUNTER = 3.0;     // depth of a counter in front of a row of chairs
   const COUNTER_GAP = 0.4;
-  const LABEL = 3.6;       // zone label strip
+  const LABEL = 5.6;       // zone label strip: name, then free count
   const PAD = 2.6;         // padding inside a zone
 
   const r1 = (n) => Math.round(n * 100) / 100;
@@ -257,7 +257,8 @@ const FloorPlan = (() => {
     const zones = fl.zones.map((z) => `
       <g class="fp-zone" role="group" aria-label="${esc(z.name)}" data-zone="${esc(fl.id)}|${esc(z.id)}">
         <rect class="fp-zone-area" x="${z.box.x}" y="${z.box.y}" width="${z.box.w}" height="${z.box.h}" rx="1.4"/>
-        <text class="fp-zone-label" x="${r1(z.box.x + 1.6)}" y="${r1(z.box.y + 2.5)}">${esc(z.name)}<tspan class="fp-zone-count" dx="1.4" data-zone-count="${esc(fl.id)}|${esc(z.id)}"></tspan></text>
+        <text class="fp-zone-label" x="${r1(z.box.x + 1.6)}" y="${r1(z.box.y + 2.7)}">${esc(z.name)}</text>
+        <text class="fp-zone-count" x="${r1(z.box.x + 1.6)}" y="${r1(z.box.y + 4.7)}" data-zone-count="${esc(fl.id)}|${esc(z.id)}"></text>
         <g transform="translate(${z.ox} ${z.oy})">
           ${z.layout.tables.map(tableMarkup).join('')}
           ${z.layout.plants.map((pt) => plantMarkup(pt, 0.6)).join('')}

@@ -168,6 +168,7 @@ function syncModeButtons() {
 /** Filters changed: restyle seats in place (no rebuild), then refresh counts. */
 function onFiltersChanged() {
   syncFilterControls(); patchAllSeats(); renderKpis(); updateCounts();
+  if (!state.selected) renderPanel();
 }
 
 $('viewMode').addEventListener('click', (e) => {
@@ -217,8 +218,8 @@ function inkOn(hex) {
 // ---------- Floor plan ----------
 // Each floor is one SVG (public/floorplan.js). Seats are its only interactive parts; the
 // office around them is context. Scale: fit the card width, but never below TAP_SCALE
-// (px per plan unit) so chairs stay easy to hit; past that the plan scrolls.
-const MIN_SCALE = 4, TAP_SCALE = 6, FIT_CAP = 8, MAX_SCALE = 18;
+// (MOUSE_SCALE with a mouse) px per plan unit so chairs stay easy to hit; past that the plan scrolls.
+const MIN_SCALE = 3.5, MOUSE_SCALE = 4.2, TAP_SCALE = 6, FIT_CAP = 8, MAX_SCALE = 18;
 let layouts = [];
 let zoom = 1;
 
@@ -241,8 +242,10 @@ function renderPlan() {
 }
 
 function baseScale(fl) {
-  const avail = $('floorplan').clientWidth - 42;
-  return Math.min(FIT_CAP, Math.max(TAP_SCALE, avail / (fl.w + 2)));
+  const avail = $('plan').clientWidth - 24;
+  // Touch needs bigger targets than a mouse; below this size the plan scrolls instead.
+  const min = matchMedia('(pointer: coarse)').matches ? TAP_SCALE : MOUSE_SCALE;
+  return Math.min(FIT_CAP, Math.max(min, avail / (fl.w + 2)));
 }
 function applyScale() {
   $('plan').querySelectorAll('svg.fp').forEach((svg, i) => {
@@ -377,8 +380,8 @@ function select(id) {
     if (el) { patchSeat(el); updateRoving(el.closest('.fp-zone')); }
   }
   renderPanel();
-  // The panel narrows the plan as it opens: keep the chosen seat in sight.
-  if (id) setTimeout(() => revealSeat(id), 260);
+  // If the plan is scrolled or zoomed, bring the chosen seat into sight.
+  if (id) revealSeat(id);
 }
 
 $('plan').addEventListener('click', (e) => {
@@ -488,8 +491,13 @@ function renderPanel() {
   const panel = $('panel');
   const s = state.selected && state.seats.get(state.selected);
   panel.classList.toggle('open', Boolean(s));
-  $('planwrap').classList.toggle('has-panel', Boolean(s));
-  if (!s) { panel.innerHTML = ''; panelKey = ''; return; }
+  if (!s) {
+    const html = idlePanel();
+    if (panelKey === 'idle') panel.querySelector('.panel-empty').outerHTML = html;
+    else panel.innerHTML = html;
+    panelKey = 'idle';
+    return;
+  }
   // The form only re-renders when what it does changes, so live updates never wipe typed input.
   const mode = s.checkedInBy ? `manage:${s.checkedInBy}` : 'checkin';
   const key = `${s.id}|${mode}`;
@@ -502,6 +510,24 @@ function renderPanel() {
   panel.innerHTML = `<div class="panel-inner"><div data-details>${details}</div>${s.checkedInBy ? manageForm(s) : checkinForm(s)}</div>`;
   const form = panel.querySelector('form');
   form?.addEventListener('submit', onPanelSubmit);
+}
+
+/** Shown while no seat is selected: what to do, and where seats are free right now. */
+function idlePanel() {
+  const c = countsFor(inScope);
+  const floors = (state.summary?.floors ?? []).filter((f) => !state.floor || f.id === state.floor);
+  const zones = floors.flatMap((f) => f.zones.map((z) => {
+    const zc = countsFor((s) => s.floor === f.id && s.zone === z.id && inScope(s));
+    return { label: floors.length > 1 ? `${f.name} · ${z.name}` : z.name, ...zc };
+  })).filter((z) => z.total);
+  return `<div class="panel-empty">
+    <div class="big">${ICON.pointer}</div>
+    <h3>Select a seat</h3>
+    <p>Click a chair on the plan to see its details and check someone in.</p>
+    <div class="stat"><b>${c.available}</b>of ${c.total} seats available${state.floor ? ' on this floor' : ''}</div>
+    ${zones.length ? `<ul class="zone-avail">${zones.map((z) => `<li><span>${esc(z.label)}</span><span><b>${z.available}</b> / ${z.total}</span>
+      <div class="bar"><i style="width:${pct(z.total ? z.available / z.total : 0)}"></i></div></li>`).join('')}</ul>` : ''}
+  </div>`;
 }
 
 function panelDetails(s) {
@@ -797,7 +823,7 @@ function connect() {
     const el = $('plan').querySelector(`[data-seat="${CSS.escape(s.id)}"]`);
     if (el) { patchSeat(el, s); updateRoving(el.closest('.fp-zone')); }
     updateCounts(); renderKpis();
-    if (state.selected === s.id) renderPanel();
+    if (state.selected === s.id || !state.selected) renderPanel();
     $('noMatch').hidden = [...state.seats.values()].some((x) => inFloor(x) && matches(x));
     refreshSummarySoon();
   });

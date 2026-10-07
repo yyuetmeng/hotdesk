@@ -194,8 +194,7 @@
   .chipbtn .dot { width: 8px; height: 8px; border-radius: 50%; }
 
   /* ---------- Floor plan ---------- */
-  .planwrap { display: grid; grid-template-columns: minmax(0, 1fr) 0; gap: 0; align-items: start; transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), gap 0.24s; }
-  .planwrap.has-panel { grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; }
+  .planwrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
   .fp-tools { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; color: var(--text-muted); font-size: 12px; flex-wrap: wrap; }
   .zoom { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; }
   .zoom button { border: 0; background: transparent; padding: 5px 10px; cursor: pointer; font-size: 14px; line-height: 1; color: var(--text-secondary); transition: background-color 0.15s; }
@@ -227,8 +226,8 @@
   .fp-room-pantry { fill: var(--fp-floor); }
   .fp-room-wc { fill: var(--fp-wc); stroke: var(--fp-floor); stroke-width: 0.3; }
   .fp-room-lift { fill: var(--fp-lift); }
-  .fp-room-label { font: 600 1.5px var(--font); fill: var(--fp-label); text-anchor: middle; letter-spacing: 0.04px; }
-  .fp-room-label-lg { font-size: 1.9px; }
+  .fp-room-label { font: 600 1.8px var(--font); fill: var(--fp-label); text-anchor: middle; letter-spacing: 0.04px; }
+  .fp-room-label-lg { font-size: 2.3px; }
   .fp-fixture, .fp-fixture-dark { fill: var(--fp-fixture); stroke: var(--fp-table-line); stroke-width: 0.2; }
   .fp-fixture-dark { fill: var(--fp-wc); stroke: none; opacity: 0.85; }
   .fp-icon { fill: var(--fp-floor); stroke: var(--fp-floor); }
@@ -237,8 +236,8 @@
   .fp-plant .leaf { fill: var(--fp-plant); }
   .fp-plant .leaf2 { fill: var(--fp-plant-2); }
   .fp-zone-area { fill: var(--fp-zone); stroke: var(--fp-zone-line); stroke-width: 0.22; stroke-dasharray: 0.9 0.6; }
-  .fp-zone-label { font: 700 1.3px var(--font); fill: var(--fp-label); text-transform: uppercase; letter-spacing: 0.08px; }
-  .fp-zone-count { font-weight: 600; fill: var(--seat-available); text-transform: none; letter-spacing: 0; }
+  .fp-zone-label { font: 700 1.75px var(--font); fill: var(--fp-label); }
+  .fp-zone-count { font: 600 1.45px var(--font); fill: var(--seat-available); }
   .fp-table { fill: var(--fp-table); stroke: var(--fp-table-line); stroke-width: 0.2; }
   .fp-table-line { stroke: var(--fp-table-line); stroke-width: 0.15; }
 
@@ -315,6 +314,19 @@
   /* ---------- Seat panel ---------- */
   .panel { position: sticky; top: 16px; padding: 0; overflow: hidden; }
   .panel-inner { padding: 20px; animation: slide-in 0.2s ease; }
+  .panel-empty { padding: 28px 22px 22px; color: var(--text-secondary); animation: fade-in 0.2s ease; }
+  .panel-empty .big { width: 48px; height: 48px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin-bottom: 14px; }
+  .panel-empty .big svg { width: 24px; height: 24px; }
+  .panel-empty h3 { margin: 0 0 4px; font-size: 16px; color: var(--text-primary); }
+  .panel-empty p { margin: 0; font-size: 13px; }
+  .panel-empty .stat { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--grid); font-size: 13px; }
+  .panel-empty .stat b { font-size: 26px; line-height: 1.1; color: var(--seat-available); display: block; font-variant-numeric: tabular-nums; }
+  .zone-avail { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; font-size: 13px; }
+  .zone-avail li { display: grid; grid-template-columns: 1fr auto; gap: 5px 8px; }
+  .zone-avail li > span:nth-child(2) { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .zone-avail li b { color: var(--text-primary); font-weight: 600; }
+  .zone-avail .bar { grid-column: 1 / -1; min-width: 0; }
+  .zone-avail .bar > i { background: var(--seat-available); }
   kbd { font: 600 11px var(--font); padding: 0 5px; margin: 0 1px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2); color: var(--text-secondary); }
   .phead { display: flex; align-items: flex-start; gap: 10px; }
   .phead h2 { font-size: 20px; margin: 0; letter-spacing: -0.02em; }
@@ -383,13 +395,16 @@
   /* ---------- Responsive ---------- */
   @media (max-width: 1180px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   @media (max-width: 1180px) {
-    .planwrap, .planwrap.has-panel { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .planwrap { grid-template-columns: minmax(0, 1fr); gap: 16px; }
     .panel {
       position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 40; max-height: 78vh; overflow: auto;
       border-radius: 16px 16px 0 0; box-shadow: 0 -12px 32px -8px rgb(15 23 42 / 0.3); transform: translateY(105%);
       transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); max-width: 560px; margin: 0 auto;
     }
     .panel.open { transform: none; }
+    /* With nothing selected, the summary sits below the plan instead of as a sheet. */
+    .panel:not(.open) { position: static; transform: none; transition: none; border-radius: 12px; box-shadow: var(--shadow-sm); max-width: none; max-height: none; }
+    .panel:not(.open)::before { display: none; }
     .panel::before { content: ""; display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--border-strong); margin: 10px auto 0; }
   }
   @media (max-width: 900px) {
