@@ -88,6 +88,7 @@ in the QR sticker on each desk.
 | `CHECKIN_DURATION_MINUTES` | 180 | How long each check-in lasts by default (3 hours). Users can pick another length, and scanning again renews it |
 | `CHECKIN_MAX_MINUTES` | 480 | Longest check-in a user can choose |
 | `PUBLIC_URL` | *(address the page was opened at)* | Base URL encoded in the desk QR labels, e.g. `https://hotdesk.example.com` |
+| `TEAM_BOOKING_MAX_SEATS` | `10` | Most desks an employee can book for their team at once on `/book` (admins on the dashboard: 100) |
 | `SENSOR_OFFLINE_MINUTES` | 15 | Silence after which a sensor counts as offline |
 | `BUILDING_FILE` | `config/building.json` | Floors, zones and desk grid |
 | `STATE_FILE` | `data/state.json` | Persisted state |
@@ -277,9 +278,12 @@ Admin API (token required):
 | Scan the QR code on the desk | Anyone | `/checkin?seat=<desk>` opens with the desk chosen |
 | Type the desk ID printed on the label (when a camera won't scan) | Anyone | `/checkin`: enter the ID, e.g. `L1-DF-07`; suggestions show each desk's status |
 | Pick a desk on the floor plan | Anyone | `/book`: choose your project (its pre-allocated desks are highlighted), tap a free chair, enter your name and time |
+| Book several desks for your team | Anyone | `/book` → **Several desks for my team**: tap free chairs (up to 10), enter your name and time; held for the whole time like the dashboard's team bookings |
 | Check someone in, or book several seats for a team | Admin | The dashboard's side panel |
 
-`/book` and `/checkin` need no admin token and show no names. `/book` remembers the person's project and,
+`/book` and `/checkin` need no admin token and show no names. Team bookings from `/book` go through
+`POST /api/team-bookings` (`user`, `projectTeam`, `seats`, `minutes`), capped at `TEAM_BOOKING_MAX_SEATS` desks
+(default 10); desks not pre-allocated to the project get one warning first. **Release these desks** checks them all out. `/book` remembers the person's project and,
 after booking, shows **You are checked in at … until …** with **I'm leaving** to check out. It refreshes every 10 seconds.
 In demo mode (`npm run demo`, or `DEMO_MODE=1`, or `?demo` on the page), `/book` and `/checkin` fill the name with a
 random sample name from a list of 50 Chinese names (`public/demo-names.js`), with **Another sample name** to pick a

@@ -477,7 +477,7 @@ export class OccupancyEngine extends EventEmitter {
    * booker can still check in somewhere for themselves. Seats the same person already holds
    * are renewed.
    */
-  bookSeats(seatIds, user, { minutes = this.rules.checkinDurationMinutes, team } = {}) {
+  bookSeats(seatIds, user, { minutes = this.rules.checkinDurationMinutes, team, maxSeats = MAX_BOOKING_SEATS } = {}) {
     if (!user) throw new ValidationError('user is required');
     team = this.projectTeam(team);
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > this.rules.checkinMaxMinutes) {
@@ -486,7 +486,7 @@ export class OccupancyEngine extends EventEmitter {
     if (!Array.isArray(seatIds)) throw new ValidationError('seats must be a list of seat ids');
     const ids = [...new Set(seatIds.map((id) => String(id ?? '').trim().toUpperCase()).filter(Boolean))];
     if (!ids.length) throw new ValidationError('Choose at least one seat');
-    if (ids.length > MAX_BOOKING_SEATS) throw new ValidationError(`At most ${MAX_BOOKING_SEATS} seats can be booked at once`);
+    if (ids.length > maxSeats) throw new ValidationError(`At most ${maxSeats} seats can be booked at once`);
     const unknown = ids.filter((id) => !this.seats.has(id));
     if (unknown.length) throw new ValidationError(`Unknown seats: ${unknown.join(', ')}`);
     const now = this.clock();

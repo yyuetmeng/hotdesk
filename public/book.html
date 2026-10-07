@@ -33,6 +33,9 @@
     background: var(--available-soft); border: 1px solid color-mix(in srgb, var(--available) 35%, var(--surface)); font-size: 14px; }
   .mine-bar .spacer { flex: 1; }
   .panel .pform:first-of-type { margin-top: 14px; }
+  .warn-flash { background: color-mix(in srgb, var(--seat-away) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--seat-away) 55%, var(--border)); color: var(--text-primary); }
+  .warn-flash svg { color: var(--seat-away-ink); }
+  .bk-steps .seg { height: 38px; align-items: stretch; }
   .demo-name { justify-self: start; padding: 2px 6px; margin-top: -4px; font-size: 12px; color: var(--accent); }
   @media (max-width: 900px) { .bk-main { padding: 14px 12px 40px; } .bk-top-in { padding: 10px 14px; } .bk-steps select { min-width: 0; width: 100%; } .bk-steps label { flex: 1 1 100%; } }
 </style>
@@ -51,12 +54,17 @@
 
   <section class="card">
     <div class="card-head">
-      <div><h2>Find a free desk</h2><p class="sub">Choose your project, then tap a free chair on the plan. You check in from now for the time you choose.</p></div>
+      <div><h2>Find a free desk</h2><p class="sub">Choose your project, then tap a free chair on the plan, or pick several desks for your team. Bookings start now and last for the time you choose.</p></div>
       <span class="live" id="live">Loading…</span>
     </div>
     <div class="bk-steps">
       <label><span><span class="step">1</span>Your project team</span>
         <select id="project"><option value="">Choose your project…</option></select>
+      </label>
+      <label><span>Book</span>
+        <div class="seg" id="mode" role="group" aria-label="What to book">
+          <button type="button" data-mode="one" aria-pressed="true">One desk</button><button type="button" data-mode="multi" aria-pressed="false">Several desks for my team</button>
+        </div>
       </label>
       <label id="floorWrap" hidden><span>Floor</span>
         <div class="seg" id="floors" role="group" aria-label="Floor"></div>
@@ -73,6 +81,7 @@
     </div>
   </section>
 </main>
+<div class="multi-bar" id="multiBar" hidden><span id="multiBarText"></span><button type="button" class="btn btn-primary" id="multiBarGo">Booking details ↓</button></div>
 
 <script src="/static/floorplan.js"></script>
 <script src="/static/demo-names.js"></script>

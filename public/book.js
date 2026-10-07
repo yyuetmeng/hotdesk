@@ -34,8 +34,18 @@ const state = {
   floors: [], seats: new Map(), options: { projects: [], projectTeams: [] },
   project: store.get('hotdesk.team') || '', floor: store.get('hotdesk.bookFloor') || '',
   selected: null, ack: '', flash: null, updatedAt: 0,
-  mine: (() => { try { return JSON.parse(store.get('hotdesk.mine') || 'null'); } catch { return null; } })(),
+  // "Several desks for my team": the picked desks (booked together as a team booking).
+  multi: false, picked: new Set(),
+  // The person's own booking on this device: { seats: [...], user, team, until, teamBooking }.
+  mine: (() => {
+    try {
+      const m = JSON.parse(store.get('hotdesk.mine') || 'null');
+      return m && m.seat && !m.seats ? { ...m, seats: [m.seat] } : m; // older single-desk format
+    } catch { return null; }
+  })(),
 };
+const maxPicks = () => state.options.teamBookingMaxSeats || 10;
+const allocatedTo = (team) => [...state.seats.values()].filter((x) => x.allocatedTo === team);
 
 async function call(path, body) {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
@@ -69,6 +79,14 @@ function renderProjectSummary() {
     : mine.length ? `<span class="book-sw" style="background:${projectColor(state.project)}"></span><span>${mine.length} seat${mine.length === 1 ? ' is' : 's are'} pre-allocated to ${esc(state.project)} and highlighted · <b>${free} free now</b></span>`
     : `<span>${esc(state.project)} has no pre-allocated seats: any free seat is fine.</span>`;
 }
+// One desk, or several desks for the team.
+function setMulti(on) {
+  state.multi = on; state.picked.clear(); state.selected = null; state.ack = ''; state.flash = null;
+  for (const b of $('mode').querySelectorAll('button')) b.setAttribute('aria-pressed', String((b.dataset.mode === 'multi') === on));
+  patchSeats(); renderPanel(); renderMultiBar();
+}
+$('mode').addEventListener('click', (e) => { const b = e.target.closest('button[data-mode]'); if (b) setMulti(b.dataset.mode === 'multi'); });
+
 $('project').addEventListener('change', () => {
   state.project = $('project').value; state.ack = '';
   store.set('hotdesk.team', state.project || null);
@@ -115,7 +133,7 @@ function patchSeats() {
   for (const el of $('plan').querySelectorAll('.seat')) {
     const s = state.seats.get(el.dataset.seat); if (!s) continue;
     const pre = state.project && s.allocatedTo === state.project;
-    const sel = state.selected === s.id;
+    const sel = state.multi ? state.picked.has(s.id) : state.selected === s.id;
     el.setAttribute('class', `seat st-${s.status}${pre ? ' prealloc' : ''}${sel ? ' is-selected' : ''}${BOOKABLE.has(s.status) ? '' : ' is-taken'}`);
     if (pre) el.style.setProperty('--pa', projectColor(state.project)); else el.style.removeProperty('--pa');
     el.setAttribute('aria-pressed', String(sel));
@@ -131,18 +149,37 @@ function updateCounts() {
     if (el) el.textContent = `${free} of ${seats.length} free`;
   }
 }
-$('plan').addEventListener('click', (e) => { const el = e.target.closest('.seat'); if (el) select(el.dataset.seat); });
+$('plan').addEventListener('click', (e) => { const el = e.target.closest('.seat'); if (el) choose(el.dataset.seat); });
 $('plan').addEventListener('keydown', (e) => {
   const el = e.target.closest('.seat');
-  if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(el.dataset.seat); }
+  if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); choose(el.dataset.seat); }
 });
+const choose = (id) => (state.multi ? togglePick(id) : select(id));
+
+function togglePick(id) {
+  const s = state.seats.get(id); if (!s) return;
+  state.flash = null;
+  if (state.picked.has(id)) state.picked.delete(id);
+  else if (!BOOKABLE.has(s.status)) state.flash = { multi: true, err: true, html: `${esc(id)} is taken. Choose a free desk.` };
+  else if (state.picked.size >= maxPicks()) state.flash = { multi: true, err: true, html: `You can book up to ${maxPicks()} desks at once.` };
+  else state.picked.add(id);
+  patchSeats(); renderPanel(); renderMultiBar();
+}
+
+// On narrow screens the panel sits below the plan in team mode; a bar shows the count and jumps to it.
+function renderMultiBar() {
+  const n = state.picked.size;
+  $('multiBar').hidden = !state.multi || !n;
+  $('multiBarText').textContent = `${n} desk${n === 1 ? '' : 's'} picked`;
+}
+$('multiBarGo').addEventListener('click', () => $('panel').scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
 function select(id) {
   state.selected = id; state.ack = ''; state.flash = null;
   patchSeats(); renderPanel();
   if (id && matchMedia('(max-width: 1180px)').matches) $('panel').scrollTop = 0;
 }
-addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.selected) select(null); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.selected && !state.multi) select(null); });
 
 // ---------- Legend ----------
 function renderLegend() {
@@ -157,6 +194,7 @@ function renderLegend() {
 // ---------- Panel ----------
 function renderPanel() {
   const panel = $('panel');
+  if (state.multi) { panel.classList.remove('open'); panel.innerHTML = multiPanel(); fillName(); return; }
   const s = state.selected && state.seats.get(state.selected);
   panel.classList.toggle('open', Boolean(s));
   if (!s) { panel.innerHTML = emptyPanel(); return; }
@@ -168,8 +206,8 @@ function renderPanel() {
   const flash = state.flash && state.flash.seat === s.id
     ? `<div class="flash ok" role="status">${ICON.ok}<span>${state.flash.html}</span></div>` : '';
   let body = '';
-  if (state.mine && state.mine.seat === s.id && state.mine.until > Date.now()) {
-    body = `<div class="pform"><p class="lead" style="margin:0">You are checked in here until <b>${fmtTime(state.mine.until)}</b>.</p>
+  if (state.mine && state.mine.seats.includes(s.id) && state.mine.until > Date.now()) {
+    body = `<div class="pform"><p class="lead" style="margin:0">${state.mine.teamBooking ? `You booked this desk for ${esc(state.mine.team)}` : 'You are checked in here'} until <b>${fmtTime(state.mine.until)}</b>.</p>
       <button type="button" class="btn btn-block" data-act="leave">I'm leaving</button><div class="form-msg" id="formMsg"></div></div>`;
   } else if (!BOOKABLE.has(s.status)) {
     body = `<div class="pform"><p class="lead" style="margin:0">${ICON.clock} This desk is taken${s.checkedInUntil ? ` until about ${fmtTime(s.checkedInUntil)}` : ''}. Choose a free chair on the plan.</p></div>`;
@@ -179,8 +217,62 @@ function renderPanel() {
     body = `${allocationWarning(s)}${bookingForm(s)}`;
   }
   panel.innerHTML = `<div class="panel-inner">${head}${flash}${body}</div>`;
-  const name = panel.querySelector('input[name=user]');
+  fillName();
+}
+function fillName() {
+  const name = $('panel').querySelector('input[name=user]');
   if (name) name.value = demoMode ? (demoName ||= randomName()) : store.get('hotdesk.user') || '';
+}
+
+function durationSelect() {
+  const { checkinDurationMinutes: def = 240, checkinMaxMinutes: max = 600 } = state.options;
+  const opts = new Set([def]);
+  for (let m = 60; m <= max; m += 60) opts.add(m);
+  return `<select name="minutes">${[...opts].sort((a, b) => a - b).map((m) => `<option value="${m}"${m === def ? ' selected' : ''}>${fmtDuration(m)}${m === def ? ' (default)' : ''}</option>`).join('')}</select>`;
+}
+
+// ---------- Several desks for the team ----------
+function multiPanel() {
+  const flash = state.flash && state.flash.multi
+    ? `<div class="flash ${state.flash.err ? 'warn-flash' : 'ok'}" role="status">${state.flash.err ? ICON.warn : ICON.ok}<span>${state.flash.html}</span></div>` : '';
+  const head = `<div class="ptitle"><h2 style="font-size:18px;margin:0">Desks for ${state.project ? esc(state.project) : 'your team'}</h2></div>
+    <p class="lead" style="margin:4px 0 0;color:var(--text-muted);font-size:13px">Tap free chairs on the plan to add them, tap again to remove. Up to ${maxPicks()} desks.</p>`;
+  if (!state.project) {
+    return `<div class="panel-inner">${head}${flash}<div class="pform need-project"><h3><span class="step">2</span>Choose desks</h3><p class="lead">Choose your project in step 1 above first.</p></div></div>`;
+  }
+  const ids = [...state.picked];
+  const chips = ids.length
+    ? `<div class="chips" style="margin-top:12px">${ids.map((id) => `<button type="button" class="chipbtn" data-unpick="${esc(id)}" title="Remove ${esc(id)}">${esc(id)} ✕</button>`).join('')}</div>`
+    : `<p class="lead" style="margin:12px 0 0">No desks picked yet.</p>`;
+  const warn = ids.length ? multiWarning(ids) : '';
+  const blocked = !ids.length || Boolean(warn.blocked);
+  return `<div class="panel-inner">${head}${flash}${chips}${warn.html ?? ''}
+    <form class="pform" id="multiForm">
+      <h3><span class="step">3</span>Your details</h3>
+      <p class="lead">All the desks are booked under your name for ${esc(state.project)}, from now for the time you choose. They stay held for the whole time, even before people arrive.</p>
+      <label>Your name or employee ID<input name="user" autocomplete="username" required></label>
+      ${demoMode ? '<button type="button" class="btn btn-ghost demo-name" data-act="rename">↻ Another sample name</button>' : ''}
+      <label>How long?${durationSelect()}</label>
+      <button class="btn btn-primary btn-block" type="submit"${blocked ? ' disabled' : ''}>Book ${ids.length || ''} desk${ids.length === 1 ? '' : 's'} for ${esc(state.project)}</button>
+      <div class="form-msg" id="formMsg"></div>
+    </form></div>`;
+}
+
+/** Picked desks that aren't pre-allocated to the project: one warning (with the project's free desks) to confirm. */
+function multiWarning(ids) {
+  const mine = allocatedTo(state.project);
+  if (!mine.length) return {};
+  const off = ids.filter((id) => state.seats.get(id)?.allocatedTo !== state.project);
+  if (!off.length) return { html: `<div class="alloc-warn ack" style="margin-top:12px">${ICON.ok}<span>All ${ids.length} desks are pre-allocated to ${esc(state.project)}.</span></div>` };
+  const key = [...ids].sort().join(',');
+  if (state.ack === key) return { html: `<div class="alloc-warn ack" style="margin-top:12px">${ICON.warn}<span>Continuing with ${off.length} desk${off.length === 1 ? '' : 's'} not pre-allocated to ${esc(state.project)}.</span></div>` };
+  const free = mine.filter((x) => BOOKABLE.has(x.status) && !state.picked.has(x.id));
+  return { blocked: true, html: `<div class="alloc-warn" role="alert" style="margin-top:12px">
+    <div class="aw-head">${ICON.warn}<span><b>${off.length} of ${ids.length} desks ${off.length === 1 ? 'is' : 'are'} not pre-allocated to ${esc(state.project)}:</b> ${off.map(esc).join(', ')}</span></div>
+    ${free.length ? `<div class="aw-list"><span>${esc(state.project)}'s free pre-allocated desks (tap to add):</span>${free.slice(0, 12).map((x) => `<button type="button" class="aw-seat" data-add="${esc(x.id)}">${esc(x.id)}</button>`).join('')}</div>`
+      : `<div class="aw-list"><span>All of ${esc(state.project)}'s pre-allocated desks are taken or picked.</span></div>`}
+    <div class="aw-actions"><button type="button" class="btn" data-act="ackmulti" data-key="${esc(key)}">Continue with these desks</button></div>
+  </div>` };
 }
 
 function emptyPanel() {
@@ -211,31 +303,34 @@ function allocationWarning(s) {
 }
 
 function bookingForm(s) {
-  const { checkinDurationMinutes: def = 240, checkinMaxMinutes: max = 600 } = state.options;
-  const opts = new Set([def]);
-  for (let m = 60; m <= max; m += 60) opts.add(m);
   const blocked = state.project && [...state.seats.values()].some((x) => x.allocatedTo === state.project) && s.allocatedTo !== state.project && state.ack !== s.id;
   return `<form class="pform" id="bookForm">
     <h3><span class="step">3</span>Your details</h3>
     <p class="lead">Starts now and lasts for the time you choose.</p>
     <label>Your name or employee ID<input name="user" autocomplete="username" required></label>
     ${demoMode ? '<button type="button" class="btn btn-ghost demo-name" data-act="rename">↻ Another sample name</button>' : ''}
-    <label>How long?<select name="minutes">${[...opts].sort((a, b) => a - b).map((m) => `<option value="${m}"${m === def ? ' selected' : ''}>${fmtDuration(m)}${m === def ? ' (default)' : ''}</option>`).join('')}</select></label>
+    <label>How long?${durationSelect()}</label>
     <button class="btn btn-primary btn-block" type="submit"${blocked ? ' disabled' : ''}>Book desk ${esc(s.id)}</button>
     <div class="form-msg" id="formMsg"></div>
   </form>`;
 }
 
 $('panel').addEventListener('click', async (e) => {
+  const un = e.target.closest('[data-unpick]');
+  if (un) { togglePick(un.dataset.unpick); return; }
+  const add = e.target.closest('[data-add]');
+  if (add) { const s = state.seats.get(add.dataset.add); if (s && s.floor !== state.floor) { state.floor = s.floor; renderFloors(); renderPlan(); } togglePick(add.dataset.add); return; }
   const go = e.target.closest('[data-go]');
   if (go) { const s = state.seats.get(go.dataset.go); if (s && s.floor !== state.floor) { state.floor = s.floor; renderFloors(); renderPlan(); } select(go.dataset.go); return; }
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'close') select(null);
   if (act === 'ack') { state.ack = state.selected; renderPanel(); }
+  if (act === 'ackmulti') { state.ack = e.target.closest('[data-key]').dataset.key; renderPanel(); }
   if (act === 'rename') { demoName = randomName(); const i = $('panel').querySelector('input[name=user]'); if (i) i.value = demoName; }
   if (act === 'leave') await leave();
 });
 $('panel').addEventListener('submit', async (e) => {
+  if (e.target.id === 'multiForm') { e.preventDefault(); await bookMulti(e.target); return; }
   if (e.target.id !== 'bookForm') return;
   e.preventDefault();
   const f = e.target, user = f.elements.user.value.trim(), id = state.selected;
@@ -245,7 +340,7 @@ $('panel').addEventListener('submit', async (e) => {
   try {
     const seat = await call(`/api/seats/${encodeURIComponent(id)}/checkin`, { user, projectTeam: state.project, minutes: Number(f.elements.minutes.value) });
     state.seats.set(seat.id, { ...state.seats.get(seat.id), ...seat });
-    state.mine = { seat: seat.id, user, team: state.project, until: seat.checkedInUntil };
+    state.mine = { seats: [seat.id], user, team: state.project, until: seat.checkedInUntil, teamBooking: false };
     store.set('hotdesk.mine', JSON.stringify(state.mine));
     demoName = ''; // the next booking gets a new sample name
     state.flash = { seat: seat.id, html: `Booked. You are checked in at <b>${esc(seat.id)}</b> until <b>${fmtTime(seat.checkedInUntil)}</b>.` };
@@ -257,31 +352,67 @@ $('panel').addEventListener('submit', async (e) => {
   }
 });
 
+async function bookMulti(f) {
+  const user = f.elements.user.value.trim(), ids = [...state.picked];
+  if (!user) { $('formMsg').textContent = 'Enter your name first.'; f.elements.user.focus(); return; }
+  if (!demoMode) store.set('hotdesk.user', user);
+  f.querySelector('button[type=submit]').disabled = true;
+  try {
+    const seats = await call('/api/team-bookings', { user, projectTeam: state.project, minutes: Number(f.elements.minutes.value), seats: ids });
+    for (const seat of seats) state.seats.set(seat.id, { ...state.seats.get(seat.id), ...seat });
+    const until = seats[0]?.checkedInUntil;
+    state.mine = { seats: seats.map((x) => x.id), user, team: state.project, until, teamBooking: true };
+    store.set('hotdesk.mine', JSON.stringify(state.mine));
+    demoName = '';
+    state.picked.clear(); state.ack = '';
+    state.flash = { multi: true, html: `Booked ${seats.length} desk${seats.length === 1 ? '' : 's'} for <b>${esc(state.project)}</b> under ${esc(user)} until <b>${fmtTime(until)}</b>: ${seats.map((x) => esc(x.id)).join(', ')}.` };
+    patchSeats(); updateCounts(); renderMine(); renderPanel(); renderProjectSummary(); renderMultiBar();
+  } catch (err) {
+    $('formMsg').textContent = err.message;
+    f.querySelector('button[type=submit]').disabled = false;
+    refresh();
+  }
+}
+
+/** Check out of the person's own booking: every desk in it (a team booking releases them all). */
 async function leave() {
   const m = state.mine; if (!m) return;
-  try {
-    const seat = await call(`/api/seats/${encodeURIComponent(m.seat)}/checkout`, { user: m.user, projectTeam: m.team });
-    state.seats.set(seat.id, { ...state.seats.get(seat.id), ...seat });
-    state.mine = null; store.set('hotdesk.mine', null);
-    state.flash = { seat: seat.id, html: 'Checked out. The desk is free for others.' };
-    patchSeats(); updateCounts(); renderMine(); renderPanel(); renderProjectSummary();
-  } catch (err) { const el = $('formMsg'); if (el) el.textContent = err.message; else alert(err.message); }
+  let released = 0, failed = '';
+  for (const id of m.seats) {
+    try {
+      const seat = await call(`/api/seats/${encodeURIComponent(id)}/checkout`, { user: m.user, projectTeam: m.team });
+      state.seats.set(seat.id, { ...state.seats.get(seat.id), ...seat });
+      released++;
+    } catch (err) { failed = err.message; }
+  }
+  state.mine = null; store.set('hotdesk.mine', null);
+  const html = m.seats.length > 1 ? `Released ${released} desk${released === 1 ? '' : 's'}. They are free for others.` : 'Checked out. The desk is free for others.';
+  state.flash = state.multi ? { multi: true, html } : { seat: m.seats[0], html };
+  if (failed && !released) state.flash = { ...state.flash, err: true, html: esc(failed) };
+  patchSeats(); updateCounts(); renderMine(); renderPanel(); renderProjectSummary();
 }
 
 // ---------- "You're checked in" bar ----------
 function renderMine() {
   const m = state.mine;
-  const s = m && state.seats.get(m.seat);
-  // Forget it once it ended or the desk was released (checked out elsewhere, or auto-released).
-  if (m && (m.until <= Date.now() || (s && !s.checkedInUntil))) { state.mine = null; store.set('hotdesk.mine', null); }
+  if (m) {
+    // Drop desks that were released elsewhere (checked out, or auto-released); forget it once none are left.
+    m.seats = m.seats.filter((id) => { const s = state.seats.get(id); return !s || s.checkedInUntil; });
+    if (m.until <= Date.now() || !m.seats.length) { state.mine = null; store.set('hotdesk.mine', null); }
+    else store.set('hotdesk.mine', JSON.stringify(m));
+  }
   $('mine').hidden = !state.mine;
   if (!state.mine) return;
-  $('mine').innerHTML = `${ICON.ok}<span>You are checked in at <b>${esc(state.mine.seat)}</b> (${esc(state.mine.team)}) until <b>${fmtTime(state.mine.until)}</b>.</span>
-    <span class="spacer"></span><button type="button" class="btn" id="showMine">Show on plan</button><button type="button" class="btn" id="leaveMine">I'm leaving</button>`;
+  const n = state.mine.seats.length;
+  $('mine').innerHTML = `${ICON.ok}<span>${state.mine.teamBooking
+    ? `You booked <b>${n} desk${n === 1 ? '' : 's'}</b> for ${esc(state.mine.team)} until <b>${fmtTime(state.mine.until)}</b>: ${state.mine.seats.map(esc).join(', ')}.`
+    : `You are checked in at <b>${esc(state.mine.seats[0])}</b> (${esc(state.mine.team)}) until <b>${fmtTime(state.mine.until)}</b>.`}</span>
+    <span class="spacer"></span><button type="button" class="btn" id="showMine">Show on plan</button><button type="button" class="btn" id="leaveMine">${n > 1 ? 'Release these desks' : "I'm leaving"}</button>`;
   $('showMine').onclick = () => {
-    const s = state.seats.get(state.mine.seat);
+    const s = state.seats.get(state.mine.seats[0]);
+    if (state.multi) setMulti(false);
     if (s && s.floor !== state.floor) { state.floor = s.floor; renderFloors(); renderPlan(); }
-    select(state.mine.seat);
+    select(state.mine.seats[0]);
   };
   $('leaveMine').onclick = leave;
 }
@@ -294,10 +425,14 @@ async function refresh() {
   state.updatedAt = Date.now();
   $('live').className = 'live on';
   $('live').innerHTML = `Live <span class="sep">·</span> Updated ${fmtTime(state.updatedAt)}`;
-  patchSeats(); updateCounts(); renderProjectSummary(); renderMine();
-  // Redraw the panel only when the chosen desk's status changed (keeps what was typed).
+  // A picked desk someone else took in the meantime is dropped from the picks.
+  const lost = [...state.picked].filter((id) => !BOOKABLE.has(state.seats.get(id)?.status));
+  for (const id of lost) state.picked.delete(id);
+  if (lost.length) state.flash = { multi: true, err: true, html: `${lost.map(esc).join(', ')} ${lost.length === 1 ? 'was' : 'were'} just taken and removed from your picks.` };
+  patchSeats(); updateCounts(); renderProjectSummary(); renderMine(); renderMultiBar();
+  // Redraw the panel only when something it shows changed (keeps what was typed).
   const now = state.selected && state.seats.get(state.selected)?.status;
-  if (!state.selected || before !== now) renderPanel();
+  if (state.multi ? lost.length : (!state.selected || before !== now)) renderPanel();
 }
 
 async function init() {

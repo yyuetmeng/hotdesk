@@ -174,11 +174,36 @@ test('check-in options expose the default and maximum duration', async () => {
     checkinDurationMinutes: 180,
     checkinMaxMinutes: 480,
     projectTeams: ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'],
+    teamBookingMaxSeats: 10,
   });
   // Project colours for the booking page: name, code, colour and palette slot only (no allocated seats).
   assert.deepEqual(Object.keys(projects[0]).sort(), ['code', 'color', 'name', 'slot']);
   assert.equal(rest.demo, undefined); // demo mode is off unless DEMO_MODE=1
   assert.equal(projects.length, 8);
+});
+
+test('employees book several desks for their team (public, capped, project required)', async () => {
+  // Its own server with free seats and a cap of 3.
+  const app = createApp({ engine: new OccupancyEngine({ seats: expandLayout({ floors: [{ id: 'L1', name: 'Level 1', zones: [{ id: 'A', name: 'A', rows: 1, cols: 4 }] }] }) }),
+    publicDir: resolve(import.meta.dirname, '../public'), teamBookingMaxSeats: 3 });
+  await new Promise((r) => app.listen(0, r));
+  const url = `http://127.0.0.1:${app.address().port}`;
+  const post = (path, body) => fetch(url + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const book = (body) => post('/api/team-bookings', body);
+  assert.equal((await book({ user: '', projectTeam: 'SAP', seats: ['L1-A-01'] })).status, 400);
+  assert.equal((await book({ user: 'Mei', seats: ['L1-A-01'] })).status, 400);
+  assert.equal((await book({ user: 'Mei', projectTeam: 'SAP', seats: ['L1-A-01', 'L1-A-02', 'L1-A-03', 'L1-A-04'] })).status, 400);
+  const res = await book({ user: 'Mei', projectTeam: 'SAP', minutes: 60, seats: ['L1-A-01', 'L1-A-02'] });
+  assert.equal(res.status, 200);
+  const seats = await res.json();
+  assert.deepEqual(seats.map((x) => [x.id, x.status, x.teamBooking]), [['L1-A-01', 'occupied', true], ['L1-A-02', 'occupied', true]]);
+  assert.ok(seats.every((x) => !('checkedInBy' in x)));
+  assert.equal((await book({ user: 'Wei', projectTeam: 'SAP', seats: ['L1-A-02'] })).status, 409);
+  // The booker releases them one by one with their name, like any check-in.
+  for (const id of ['L1-A-01', 'L1-A-02']) {
+    assert.equal((await post(`/api/seats/${id}/checkout`, { user: 'Mei', projectTeam: 'SAP' })).status, 200);
+  }
+  app.close();
 });
 
 test('self-service booking page and its floor data are public and carry no personal data', async () => {

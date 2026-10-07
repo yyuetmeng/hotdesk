@@ -72,9 +72,10 @@ function publicView(v) {
  * @param {string} [opts.publicUrl]     base URL printed in desk QR codes (default: the URL the page was opened at)
  * @param {string} [opts.buildingName]
  * @param {{id: string, plan: object|null}[]} [opts.floorPlans]  drawing data per floor for the dashboard (building.json `plan`)
+ * @param {number} [opts.teamBookingMaxSeats]  most seats an employee can book for their team on /book (admins: 100)
  * @param {boolean} [opts.demo]          demo mode (DEMO_MODE=1, set by `npm run demo`): /book fills in sample names
  */
-export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicUrl, buildingName = 'Desk labels', floorPlans = [], demo = false }) {
+export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicUrl, buildingName = 'Desk labels', floorPlans = [], demo = false, teamBookingMaxSeats = 10 }) {
   const streams = new Set();
 
   engine.on('change', (seat) => {
@@ -244,7 +245,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     if (method === 'GET' && url.pathname === '/api/checkin-options') {
       const { checkinDurationMinutes, checkinMaxMinutes } = engine.rules;
       const projects = engine.listProjects().map(({ name, code, color, slot }) => ({ name, code, color, slot }));
-      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams, projects, ...(demo ? { demo: true } : {}) });
+      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams, projects, teamBookingMaxSeats, ...(demo ? { demo: true } : {}) });
     }
     if (method === 'GET' && url.pathname === '/api/project-teams') {
       return send(res, 200, engine.projectTeams);
@@ -258,6 +259,17 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     }
     if (method === 'GET' && url.pathname === '/api/availability') {
       return send(res, 200, engine.list({ floor: url.searchParams.get('floor') ?? undefined }).map(publicView));
+    }
+    // An employee books several seats for their project team (/book). Same rules as the dashboard's
+    // team booking (held for the whole time, all or nothing), but capped and the project is required.
+    if (method === 'POST' && url.pathname === '/api/team-bookings') {
+      const body = await readJson(req);
+      const user = typeof body.user === 'string' ? body.user.trim().slice(0, 100) : '';
+      if (!user) throw new HttpError(400, 'user is required');
+      if (typeof body.projectTeam !== 'string' || !body.projectTeam) throw new HttpError(400, 'projectTeam is required');
+      const minutes = body.minutes === undefined ? undefined : Number(body.minutes);
+      const seats = engine.bookSeats(body.seats, user, { minutes, team: body.projectTeam, maxSeats: teamBookingMaxSeats });
+      return send(res, 200, seats.map(publicView));
     }
     if (parts[1] === 'seats' && parts[2] && parts.length === 4 && method === 'POST') {
       const body = await readJson(req);
