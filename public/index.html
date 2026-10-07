@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hot Desk Dashboard</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
 <style>
   :root {
     color-scheme: light;
@@ -74,7 +75,8 @@
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface-1);
   }
-  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; display: inline-flex; align-items: center; gap: 10px; }
+  header h1 img { width: 32px; height: 32px; flex: none; }
   .live { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13px; }
   .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--offline); }
   .live.on::before { background: var(--available); }
@@ -152,7 +154,7 @@
 </head>
 <body>
 <header>
-  <h1>Hot Desk Dashboard</h1>
+  <h1><img src="/static/logo.png" alt="" width="32" height="32">Hot Desk Dashboard</h1>
   <span id="live" class="live">Connecting…</span>
   <span class="spacer"></span>
   <span class="muted" id="rules"></span>
