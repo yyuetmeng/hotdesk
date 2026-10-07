@@ -514,7 +514,7 @@
   .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
   #trends .card-head > div:first-child { flex: 1; min-width: 0; }
   .seg-sm button { padding: 4px 10px; font-size: 12px; font-weight: 600; }
-  .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
   /* Zone utilisation: free seats, then one stacked bar for occupied, away and offline. */
   #projects summary { white-space: nowrap; }
   .zcell { display: flex; flex-direction: column; gap: 1px; }
@@ -542,8 +542,11 @@
   .feed { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto; font-size: 13px; }
   .feed li { padding: 8px 0; border-bottom: 1px solid var(--grid); display: flex; gap: 10px; }
   .feed time { color: var(--text-muted); font-variant-numeric: tabular-nums; flex: none; }
-  #chart { position: relative; }
-  #chart svg { display: block; width: 100%; height: 200px; }
+  /* The chart fills its card, which matches the height of the card beside it. */
+  #trends { display: flex; flex-direction: column; }
+  #chart { position: relative; flex: 1; min-height: 200px; }
+  #chart svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  #chart .empty { position: absolute; inset: 0; display: grid; place-items: center; }
   .tip {
     position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--text-primary);
     border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: var(--shadow-md); display: none; max-width: 260px;

@@ -1222,7 +1222,7 @@ function renderChart() {
     el.innerHTML = `<div class="empty">${hourly ? 'Collecting data. An hourly average is kept for 30 days.' : 'Collecting data. A sample is taken every minute.'}</div>`;
     return;
   }
-  const W = el.clientWidth || 600, H = 200, m = { l: 40, r: 12, t: 10, b: 24 };
+  const W = el.clientWidth || 600, H = Math.max(200, el.clientHeight || 200), m = { l: 40, r: 12, t: 10, b: 24 };
   const t0 = history[0].t, t1 = history.at(-1).t;
   const x = (t) => m.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - m.l - m.r);
   const y = (v) => m.t + (1 - v) * (H - m.t - m.b);
@@ -1266,7 +1266,12 @@ function renderChart() {
     hideTip();
   });
 }
-addEventListener('resize', () => renderChart());
+// Redraw when the chart's box changes size (window resize, or the card beside it growing).
+let chartBox = '';
+new ResizeObserver(() => {
+  const box = `${$('chart').clientWidth}x${$('chart').clientHeight}`;
+  if (box !== chartBox) { chartBox = box; renderChart(); }
+}).observe($('chart'));
 
 // ---------- Section navigation ----------
 const navLinks = [...document.querySelectorAll('#nav a[data-section]')];
