@@ -203,6 +203,18 @@ seats:
   **Continue with this seat**. Check-in is held until another seat is chosen or that is pressed. Changing the project in step 1 re-checks the
   selected seat straight away. A project with no pre-allocated seats gets a note instead of a warning. Selecting
   a seat before choosing a project points back to step 1.
+- **Booking several seats for the team (dashboard):** under step 1, switch to **Several seats for the team**,
+  click free seats on the plan (click again, or the × on its chip, to remove one), enter your name and a duration,
+  and **Book N seats**. All the seats are booked under your name for the project:
+  - All or nothing: if any seat has just been taken, none are booked and the reply names the seat.
+  - Team-booked seats are held for the whole duration, even before anyone sits down (no 15-minute no-show
+    release), and expire at the end like any check-in. Each can be extended or checked out on its own.
+  - They don't count against your one seat: checking in somewhere for yourself keeps the team's seats, and
+    booking more seats for the team adds to them.
+  - The pre-allocation warning lists any chosen seats that aren't the project's, with **Continue with these seats**.
+  - On phones, the panel stays below the plan while you pick, and a bar at the bottom shows how many seats are
+    chosen.
+  - API (admin): `POST /api/bookings` with `{ "user", "projectTeam", "minutes"?, "seats": [...] }`.
 - **QR check-in page:** a desk shows which project it's pre-allocated to. If someone checks in for a project that
   has pre-allocated desks elsewhere, the first tap warns them and lists that project's free pre-allocated desks.
   They can go to one of those, or tap **Check in here anyway**.

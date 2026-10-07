@@ -222,6 +222,16 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
       throw new HttpError(404, 'Not found');
     }
 
+    // --- Booking several seats for a project team under one name (admin) ---
+    if (method === 'POST' && url.pathname === '/api/bookings') {
+      requireAdmin(req, url);
+      const body = await readJson(req);
+      const user = typeof body.user === 'string' ? body.user.trim().slice(0, 100) : '';
+      if (!user) throw new HttpError(400, 'user is required');
+      const minutes = body.minutes === undefined ? undefined : Number(body.minutes);
+      return send(res, 200, engine.bookSeats(body.seats, user, { minutes, team: body.projectTeam }));
+    }
+
     // --- Employee endpoints (QR code on each desk opens /checkin?seat=ID) ---
     if (method === 'GET' && url.pathname === '/api/checkin-options') {
       const { checkinDurationMinutes, checkinMaxMinutes } = engine.rules;

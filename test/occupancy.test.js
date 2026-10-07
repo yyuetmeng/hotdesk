@@ -441,3 +441,46 @@ test('seats can be pre-allocated to one project each', () => {
   assert.deepEqual(engine.deleteProject('Data Lake').released.sort(), ['L1-A-02', 'L1-Q-01']);
   assert.equal(engine.view(engine.getSeat('L1-A-02')).allocatedTo, null);
 });
+
+test('booking several seats for a team: all or nothing, held, exempt from the one-seat rule', () => {
+  const big = { floors: [{ id: 'L1', name: 'L1', zones: [{ id: 'A', name: 'A', rows: 1, cols: 4 }] }] };
+  let now = Date.parse('2026-09-30T09:00:00Z');
+  const engine = new OccupancyEngine({ seats: expandLayout(big), clock: () => now });
+  // Give every desk a working sensor so the no-show rule would apply to a normal check-in.
+  for (const id of ['L1-A-01', 'L1-A-02', 'L1-A-03', 'L1-A-04']) engine.recordSensorEvent({ sensorId: `S-${id}`, presence: false });
+
+  engine.checkIn('L1-A-04', 'bob', { team: 'SAP' });
+  assert.throws(() => engine.bookSeats(['L1-A-01', 'L1-A-04'], 'ana', { team: 'SAP' }), ConflictError);
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).checkedInBy, null, 'nothing is booked when one seat is taken');
+  assert.throws(() => engine.bookSeats([], 'ana', { team: 'SAP' }), ValidationError);
+  assert.throws(() => engine.bookSeats(['L1-A-01', 'ZZ'], 'ana', { team: 'SAP' }), ValidationError);
+
+  const booked = engine.bookSeats(['l1-a-01', 'L1-A-02'], 'ana', { team: 'SAP', minutes: 120 });
+  assert.deepEqual(booked.map((v) => [v.id, v.checkedInBy, v.teamBooking, v.status]), [
+    ['L1-A-01', 'ana', true, 'occupied'], ['L1-A-02', 'ana', true, 'occupied'],
+  ]);
+  // Held past the 15-minute no-show window, with nobody sitting down.
+  now += 30 * MIN;
+  for (const id of ['L1-A-01', 'L1-A-02']) engine.recordSensorEvent({ sensorId: `S-${id}`, presence: false });
+  engine.sweep();
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).status, 'occupied');
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).holdExpiresAt, booked[0].checkedInUntil);
+
+  // The booker checking in for themselves keeps the team's seats...
+  engine.checkIn('L1-A-03', 'ana', { team: 'SAP' });
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).checkedInBy, 'ana');
+  // ...and extending a team seat keeps it a team booking without touching their own seat.
+  engine.checkIn('L1-A-02', 'ana', { team: 'SAP' });
+  assert.equal(engine.view(engine.getSeat('L1-A-02')).teamBooking, true);
+  assert.equal(engine.view(engine.getSeat('L1-A-03')).checkedInBy, 'ana');
+
+  // Expires at the end of the booking; checking out frees a seat at once.
+  engine.checkOut('L1-A-02', 'ana', { team: 'SAP' });
+  assert.equal(engine.view(engine.getSeat('L1-A-02')).status, 'available');
+  now += 120 * MIN;
+  for (const id of ['L1-A-01']) engine.recordSensorEvent({ sensorId: `S-${id}`, presence: false });
+  engine.sweep();
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).checkedInBy, null);
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).teamBooking, false);
+  assert.ok(engine.activity.some((a) => a.type === 'book' && a.seatId === 'L1-A-01' && a.team === 'SAP'));
+});

@@ -39,6 +39,8 @@ const state = {
   view: safeGet('hotdesk.view') === 'alloc' ? 'alloc' : 'live', allocProjects: [], activeProject: null,
   // The project someone is booking for: its pre-allocated seats are highlighted on the plan.
   bookingFor: safeGet('hotdesk.bookingFor') || '', allocAck: '',
+  // Booking several seats for the team: `multi` turns it on, `picked` holds the chosen seats.
+  multi: false, picked: new Set(), multiFlash: '',
   selected: null, flash: null,
 };
 const $ = (id) => document.getElementById(id);
@@ -344,7 +346,7 @@ function seatLabel(s) {
 function patchSeat(el, s = state.seats.get(el.dataset.seat)) {
   if (!s) return;
   const look = seatLook(s);
-  const sel = state.view === 'live' && state.selected === s.id;
+  const sel = state.view === 'live' && (state.multi ? state.picked.has(s.id) : state.selected === s.id);
   const dim = state.view === 'live' ? !matches(s) : !inFloor(s);
   const sig = [look.cls, look.color, look.pa, sel, dim].join('|');
   if (el.dataset.sig !== sig) {
@@ -413,7 +415,32 @@ function select(id) {
 function activate(id) {
   hidePop();
   if (state.view === 'alloc') toggleAllocation(id);
+  else if (state.multi) togglePick(id);
   else select(state.selected === id ? null : id);
+}
+
+const bookable = (x) => x && (x.status === 'available' || x.status === 'offline');
+
+/** Several-seats mode: add a free seat to the booking, or take it out again. */
+function togglePick(id) {
+  const s = state.seats.get(id);
+  state.multiFlash = '';
+  if (state.picked.has(id)) state.picked.delete(id);
+  else if (!bookable(s)) { state.multiFlash = `${id} is taken. Choose a free seat.`; renderPanel(); return; }
+  else state.picked.add(id);
+  const el = seatEl(id); if (el) patchSeat(el);
+  renderPanel();
+}
+
+$('multiBarGo').addEventListener('click', () => $('panel').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+
+function setMulti(on) {
+  state.multi = on; state.multiFlash = '';
+  if (!on) $('multiBar').hidden = true;
+  const before = [...state.picked, state.selected].filter(Boolean);
+  state.picked = new Set(); state.selected = null;
+  for (const id of before) { const el = seatEl(id); if (el) patchSeat(el); }
+  panelKey = ''; renderPanel();
 }
 $('plan').addEventListener('click', (e) => {
   const b = e.target.closest('.seat'); if (!b || !isOn(b)) return;
@@ -447,6 +474,7 @@ $('plan').addEventListener('keydown', (e) => {
   b.tabIndex = -1; best.tabIndex = 0; best.focus();
 });
 addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.multi && state.picked.size && !e.target.closest?.('input, select')) { setMulti(true); return; }
   if (e.key !== 'Escape' || !state.selected) return;
   if (e.target.closest?.('input, select')) return;
   const el = $('plan').querySelector(`[data-seat="${CSS.escape(state.selected)}"]`);
@@ -460,7 +488,7 @@ let popFor = null, popTimer = null;
 function seatDetails(s, el) {
   const rows = [`${s.zoneName} · ${s.floorName}`];
   if (s.allocatedTo) rows.push(`Allocated to ${s.allocatedTo}`);
-  if (s.checkedInBy) rows.push(`Name: ${s.checkedInBy}`);
+  if (s.checkedInBy) rows.push(s.teamBooking ? `Booked for the team by ${s.checkedInBy}` : `Name: ${s.checkedInBy}`);
   if (s.projectTeam) rows.push(`Project team: ${s.projectTeam}`);
   if (hasTeams()) rows.push(s.teamName ? `Assigned to ${s.teamName}` : 'Open hot desk');
   const n = Number(el?.dataset.tableSeats);
@@ -533,12 +561,19 @@ function renderPanel() {
   // Step 1, choosing the project, stays at the top; live updates only refresh its counts.
   if (!$('panelBody')) {
     panel.innerHTML = `<div class="book-bar" id="bookBar"><label for="bookFor"><span class="step">1</span>Choose a project</label>
-      <select id="bookFor">${bookingOptions()}</select><div class="book-sum" id="bookSum"></div></div><div id="panelBody"></div>`;
+      <select id="bookFor">${bookingOptions()}</select><div class="book-sum" id="bookSum"></div>
+      <div class="seg seat-mode" id="seatMode" role="group" aria-label="How many seats">
+        <button type="button" data-multi="0" aria-pressed="true">One seat</button>
+        <button type="button" data-multi="1" aria-pressed="false">Several seats for the team</button>
+      </div></div><div id="panelBody"></div>`;
     panelKey = '';
   } else if (document.activeElement?.id !== 'bookFor') $('bookFor').innerHTML = bookingOptions();
-  $('bookBar').classList.toggle('attn', Boolean(s) && !s.checkedInBy && !state.bookingFor);
+  for (const b of $('seatMode').children) b.setAttribute('aria-pressed', String((b.dataset.multi === '1') === state.multi));
+  $('bookBar').classList.toggle('attn', (Boolean(s) && !s.checkedInBy || state.multi && state.picked.size > 0) && !state.bookingFor);
   renderBookingSummary();
   const body = $('panelBody');
+  // Several seats: never slide the panel over the plan (phones); a small bar links to it instead.
+  if (state.multi) { panel.classList.remove('open'); renderMultiPanel(body); return; }
   if (!s) {
     const html = idlePanel();
     if (panelKey === 'idle') body.querySelector('.panel-empty').outerHTML = html;
@@ -598,34 +633,99 @@ function setBookingFor(team) {
 function updateAllocWarning() {
   const box = $('allocWarn'), form = box?.closest('form');
   if (!box || !form) return;
-  const s = state.seats.get(state.selected), team = state.bookingFor;
+  const team = state.bookingFor, multi = state.multi;
+  const ids = multi ? [...state.picked] : state.selected ? [state.selected] : [];
+  const seats = ids.map((id) => state.seats.get(id)).filter(Boolean);
   const submit = form.querySelector('button[type=submit]');
   const note = (cls, icon, text) => { box.hidden = false; box.className = `alloc-warn ${cls}`; box.innerHTML = `${icon}<span>${text}</span>`; submit.disabled = false; };
-  if (!s || !team) { box.hidden = true; box.innerHTML = ''; submit.disabled = false; return; }
+  if (!seats.length || !team) { box.hidden = true; box.innerHTML = ''; submit.disabled = multi && !seats.length; return; }
   const mine = allocatedTo(team);
-  if (s.allocatedTo === team) return note('ok', ICON.okCircle, `${esc(s.id)} is pre-allocated to ${esc(team)}.`);
+  const off = seats.filter((x) => x.allocatedTo !== team);
+  const one = seats.length === 1 ? seats[0] : null;
+  if (!off.length) return note('ok', ICON.okCircle, one ? `${esc(one.id)} is pre-allocated to ${esc(team)}.` : `All ${seats.length} seats are pre-allocated to ${esc(team)}.`);
+  const elsewhere = off.filter((x) => x.allocatedTo);
   if (!mine.length) {
-    return note('ack', ICON.info, `${esc(team)} has no pre-allocated seats, so any free seat can be used.${s.allocatedTo ? ` Note: ${esc(s.id)} is pre-allocated to ${esc(s.allocatedTo)}.` : ''}`);
+    return note('ack', ICON.info, `${esc(team)} has no pre-allocated seats, so any free seat can be used.${elsewhere.length
+      ? ` Note: ${elsewhere.map((x) => `${esc(x.id)} is pre-allocated to ${esc(x.allocatedTo)}`).join('; ')}.` : ''}`);
   }
-  box.hidden = false;
-  if (state.allocAck === `${s.id}|${team}`) {
-    box.className = 'alloc-warn ack';
-    box.innerHTML = `${ICON.info}<span>Continuing with ${esc(s.id)}, which is not pre-allocated to ${esc(team)}.</span>`;
-    submit.disabled = false;
-    return;
+  const key = `${team}|${off.map((x) => x.id).sort().join(',')}`;
+  box.dataset.key = key;
+  if (state.allocAck === key) {
+    return note('ack', ICON.info, off.length === 1 && one
+      ? `Continuing with ${esc(one.id)}, which is not pre-allocated to ${esc(team)}.`
+      : `Continuing with ${off.length} seat${off.length === 1 ? '' : 's'} not pre-allocated to ${esc(team)}.`);
   }
-  const free = freeOf(mine).filter((x) => x.id !== s.id);
+  const free = freeOf(mine).filter((x) => !ids.includes(x.id));
+  const head = one
+    ? `<b>${esc(one.id)} is not pre-allocated to ${esc(team)}.</b> ${one.allocatedTo ? `It is pre-allocated to ${esc(one.allocatedTo)}.` : 'It is not pre-allocated to any project.'}`
+    : `<b>${off.length} of ${seats.length} seats ${off.length === 1 ? 'is' : 'are'} not pre-allocated to ${esc(team)}:</b> ${off.map((x) => `${esc(x.id)}${x.allocatedTo ? ` (${esc(x.allocatedTo)})` : ''}`).join(', ')}.`;
   box.className = 'alloc-warn';
-  box.innerHTML = `<div class="aw-head">${ICON.alert}<span><b>${esc(s.id)} is not pre-allocated to ${esc(team)}.</b>
-      ${s.allocatedTo ? `It is pre-allocated to ${esc(s.allocatedTo)}.` : 'It is not pre-allocated to any project.'}</span></div>
+  box.hidden = false;
+  box.innerHTML = `<div class="aw-head">${ICON.alert}<span>${head}</span></div>
     ${free.length
-      ? `<div class="aw-list"><span>${esc(team)}'s free pre-allocated seats:</span>${free.slice(0, 8).map((x) => `<button type="button" class="aw-seat" data-goto="${esc(x.id)}">${esc(x.id)}</button>`).join('')}${free.length > 8 ? `<span class="muted">+${free.length - 8} more</span>` : ''}</div>`
+      ? `<div class="aw-list"><span>${esc(team)}'s free pre-allocated seats${multi ? ' (click to add)' : ''}:</span>${free.slice(0, 8).map((x) => `<button type="button" class="aw-seat" data-goto="${esc(x.id)}">${esc(x.id)}</button>`).join('')}${free.length > 8 ? `<span class="muted">+${free.length - 8} more</span>` : ''}</div>`
       : `<div class="aw-list muted">All of ${esc(team)}'s pre-allocated seats are taken right now.</div>`}
     <div class="aw-actions">
-      <span class="muted">Click another seat on the plan, or</span>
-      <button type="button" class="btn btn-primary" data-aw="continue">Continue with this seat</button>
+      <span class="muted">${one && !multi ? 'Click another seat on the plan, or' : 'Remove those seats or pick others on the plan, or'}</span>
+      <button type="button" class="btn btn-primary" data-aw="continue">${one && !multi ? 'Continue with this seat' : `Continue with ${off.length === 1 ? 'this seat' : 'these seats'}`}</button>
     </div>`;
   submit.disabled = true;
+}
+
+/** Several seats for the team: the chosen seats, then one name and duration for all of them. */
+function renderMultiPanel(body) {
+  const team = state.bookingFor;
+  const key = `multi|${team ? 'project' : 'none'}`;
+  if (panelKey !== key || !body.querySelector('.multi-panel')) {
+    body.innerHTML = `<div class="panel-inner multi-panel">
+      <h3 class="ptitle"><span class="step">2</span>Choose seats <span class="muted" id="pickCount"></span></h3>
+      <div id="pickList" class="pick-list"></div>
+      ${team ? `<form class="pform" data-kind="multi" novalidate>
+        <h3><span class="step">3</span>Booking details</h3>
+        <p class="lead">The seats are booked under your name for ${esc(team)} and held for the chosen time, even before people arrive.</p>
+        <div class="alloc-warn" id="allocWarn" role="alert" hidden></div>
+        <label>Your name or employee ID<input name="user" autocomplete="off" maxlength="100" required></label>
+        <label>Duration<select name="minutes">${durationOptions()}</select></label>
+        <div class="form-msg" role="alert"></div>
+        <button type="submit" class="btn btn-primary btn-block" value="book" id="bookBtn">Book seats</button>
+      </form>` : `<div class="pform need-project"><h3><span class="step">3</span>Booking details</h3>
+        <p class="lead">Choose a project in step 1 above first. Its pre-allocated seats will be highlighted.</p></div>`}
+    </div>`;
+    body.querySelector('form')?.addEventListener('submit', onMultiSubmit);
+    panelKey = key;
+  }
+  const ids = [...state.picked].sort();
+  $('pickCount').textContent = ids.length ? `(${ids.length})` : '';
+  $('pickList').innerHTML = (state.multiFlash ? `<div class="flash ${state.multiFlash.startsWith('Booked') ? 'ok' : 'warn'}" role="status">${state.multiFlash.startsWith('Booked') ? ICON.okCircle : ICON.info}<span>${esc(state.multiFlash)}</span></div>` : '')
+    + (ids.length
+      ? `<div class="chips">${ids.map((id) => `<span class="pick-chip">${esc(id)}<button type="button" data-unpick="${esc(id)}" aria-label="Remove ${esc(id)}">×</button></span>`).join('')}</div>`
+      : `<p class="muted pick-hint">Click free seats on the plan to add them. Click a seat again to remove it.</p>`);
+  const btn = $('bookBtn');
+  if (btn) btn.textContent = ids.length ? `Book ${ids.length} seat${ids.length === 1 ? '' : 's'} for ${team}` : 'Book seats';
+  $('multiBar').hidden = !ids.length;
+  $('multiBarText').textContent = `${ids.length} seat${ids.length === 1 ? '' : 's'} chosen`;
+  updateAllocWarning();
+}
+
+async function onMultiSubmit(e) {
+  e.preventDefault();
+  const form = e.currentTarget, msg = form.querySelector('.form-msg');
+  const user = form.elements.user.value.trim(), seats = [...state.picked];
+  msg.textContent = '';
+  if (!seats.length) { msg.textContent = 'Choose at least one seat on the plan.'; return; }
+  if (!user) { msg.textContent = 'Enter your name or employee ID.'; form.elements.user.focus(); return; }
+  const btn = $('bookBtn'), label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Booking…';
+  try {
+    const booked = await apiSend('POST', '/api/bookings', { user, projectTeam: state.bookingFor, minutes: Number(form.elements.minutes.value), seats });
+    state.picked = new Set(); state.allocAck = '';
+    state.multiFlash = `Booked ${booked.length} seat${booked.length === 1 ? '' : 's'} for ${state.bookingFor} under ${user} until ${fmtTime(booked[0].checkedInUntil)}: ${booked.map((x) => x.id).join(', ')}.`;
+    form.reset();
+    await reloadSeats();
+  } catch (err) {
+    msg.textContent = err.message;
+    btn.disabled = false; btn.textContent = label;
+  }
 }
 
 $('panel').addEventListener('change', (e) => {
@@ -634,10 +734,14 @@ $('panel').addEventListener('change', (e) => {
 });
 $('panel').addEventListener('click', (e) => {
   if (state.view !== 'live') return;
+  const mode = e.target.closest('[data-multi]');
+  if (mode) { if ((mode.dataset.multi === '1') !== state.multi) setMulti(mode.dataset.multi === '1'); return; }
+  const unpick = e.target.closest('[data-unpick]');
+  if (unpick) { togglePick(unpick.dataset.unpick); return; }
   const go = e.target.closest('[data-goto]'), aw = e.target.closest('[data-aw]');
-  if (go) { select(go.dataset.goto); return; }
+  if (go) { if (state.multi) togglePick(go.dataset.goto); else select(go.dataset.goto); return; }
   if (!aw) return;
-  if (aw.dataset.aw === 'continue') { state.allocAck = `${state.selected}|${state.bookingFor}`; updateAllocWarning(); }
+  if (aw.dataset.aw === 'continue') { state.allocAck = $('allocWarn').dataset.key; updateAllocWarning(); }
 });
 
 /** Shown while no seat is selected: what to do, and where seats are free right now. */
@@ -660,7 +764,7 @@ function idlePanel() {
 
 function panelDetails(s) {
   const usage = [];
-  if (s.checkedInBy) usage.push(['Checked in by', s.checkedInBy]);
+  if (s.checkedInBy) usage.push([s.teamBooking ? 'Booked for the team by' : 'Checked in by', s.checkedInBy]);
   if (s.projectTeam) usage.push(['Project team', s.projectTeam]);
   if (s.checkedInAt) usage.push(['Since', fmtTime(s.checkedInAt)]);
   if (s.checkedInUntil) usage.push(['Until', fmtTime(s.checkedInUntil)]);
@@ -1051,6 +1155,7 @@ async function loadProjects() {
 const who = (a) => `${esc(a.detail)}${a.team ? ` <span class="muted">(${esc(a.team)})</span>` : ''}`;
 const ACT = {
   checkin: (a) => `${who(a)} checked in at <b>${esc(a.seatId)}</b>`,
+  book: (a) => `${who(a)} booked <b>${esc(a.seatId)}</b> for the team`,
   checkout: (a) => `${who(a)} checked out of <b>${esc(a.seatId)}</b>`,
   moved: (a) => `${who(a)} moved away from <b>${esc(a.seatId)}</b>`,
   renew: (a) => `${who(a)} extended their check-in at <b>${esc(a.seatId)}</b>`,
@@ -1159,7 +1264,10 @@ function connect() {
     const el = $('plan').querySelector(`[data-seat="${CSS.escape(s.id)}"]`);
     if (el) { patchSeat(el, s); updateRoving(el.closest('.fp-zone')); }
     updateCounts(); renderKpis();
-    if (state.selected === s.id || !state.selected) renderPanel();
+    if (state.multi && state.picked.has(s.id) && !bookable(s)) {
+      state.picked.delete(s.id); state.multiFlash = `${s.id} was just taken and has been removed from the booking.`;
+    }
+    if (state.selected === s.id || !state.selected || state.multi) renderPanel();
     $('noMatch').hidden = [...state.seats.values()].some((x) => inFloor(x) && matches(x));
     refreshSummarySoon();
   });

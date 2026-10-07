@@ -94,6 +94,8 @@ export function deriveStatus(seat, now, rules = DEFAULT_RULES) {
 
   if (hasSensor_ && !sensorOffline) {
     if (seat.presence) return Status.OCCUPIED;
+    // Booked for a team: held for the whole booking, whether or not anyone has sat down yet.
+    if (checkedIn && seat.teamBooking) return Status.OCCUPIED;
     if (checkedIn && now - seat.checkedInAt < rules.checkinConfirmMinutes * MINUTE) {
       // Just checked in; give the sensor a chance to see them. If they had
       // already been sitting there and left, the away grace applies instead.
@@ -150,7 +152,8 @@ export function expandLayout(building) {
   return seats;
 }
 
-const STATE_FIELDS = ['presence', 'lastPresenceAt', 'lastSensorSeenAt', 'checkedInBy', 'checkedInAt', 'checkedInUntil', 'checkedInTeam'];
+const STATE_FIELDS = ['presence', 'lastPresenceAt', 'lastSensorSeenAt', 'checkedInBy', 'checkedInAt', 'checkedInUntil', 'checkedInTeam', 'teamBooking'];
+const MAX_BOOKING_SEATS = 100;
 
 /** Calendar day in the server's time zone (TZ), e.g. 2026-10-05. */
 const dayKey = (t) => new Date(t).toLocaleDateString('en-CA');
@@ -192,7 +195,7 @@ export class OccupancyEngine extends EventEmitter {
     const saved = state.seats ?? {};
     for (const def of seats) {
       const linked = def.id in this.sensorLinks ? this.sensorLinks[def.id] : def.sensorId;
-      const seat = { ...def, sensorId: normalizeSensorId(linked), placeholderSensor: !(def.id in this.sensorLinks) && Boolean(def.sensorId), presence: false, lastPresenceAt: null, lastSensorSeenAt: null, checkedInBy: null, checkedInAt: null, checkedInUntil: null, checkedInTeam: null };
+      const seat = { ...def, sensorId: normalizeSensorId(linked), placeholderSensor: !(def.id in this.sensorLinks) && Boolean(def.sensorId), presence: false, lastPresenceAt: null, lastSensorSeenAt: null, checkedInBy: null, checkedInAt: null, checkedInUntil: null, checkedInTeam: null, teamBooking: false };
       for (const f of STATE_FIELDS) if (saved[def.id]?.[f] !== undefined) seat[f] = saved[def.id][f];
       // State saved before check-ins had an end time: give them the default duration.
       if (seat.checkedInAt && !seat.checkedInUntil) seat.checkedInUntil = seat.checkedInAt + this.rules.checkinDurationMinutes * MINUTE;
@@ -435,23 +438,74 @@ export class OccupancyEngine extends EventEmitter {
       throw new ConflictError(`Seat ${seatId} is already taken`);
     }
     if (seat.checkedInBy && seat.checkedInBy !== user) this.#release(seat, now, 'auto-release');
-    // One seat per person: checking in elsewhere releases the previous seat.
-    for (const other of this.seats.values()) {
-      if (other !== seat && other.checkedInBy === user) {
-        this.#release(other, now, 'moved');
-        this.#refresh(other, now);
+    const renewing = seat.checkedInBy === user;
+    // Extending a seat booked for the team keeps it a team booking.
+    const teamBooking = renewing && seat.teamBooking;
+    // One seat per person: checking in elsewhere releases the person's previous seat.
+    // Seats they booked for their team are not theirs to sit in, so they are kept.
+    if (!teamBooking) {
+      for (const other of this.seats.values()) {
+        if (other !== seat && other.checkedInBy === user && !other.teamBooking) {
+          this.#release(other, now, 'moved');
+          this.#refresh(other, now);
+        }
       }
     }
-    const renewing = seat.checkedInBy === user;
     seat.checkedInBy = user;
     seat.checkedInAt = now;
     seat.checkedInUntil = now + minutes * MINUTE;
     seat.checkedInTeam = team;
+    seat.teamBooking = teamBooking;
     this.#log(now, seat, renewing ? 'renew' : 'checkin', user, team);
     if (!renewing) this.#countTeam(now, team, 'checkins');
     this.#noteRequester(user, team, now, { seatId: seat.id, checkin: !renewing });
     this.#refresh(seat, now);
     return this.view(seat);
+  }
+
+  /**
+   * Book several seats for a project team under one person's name. All or nothing: if any
+   * seat is unknown or taken, none are booked. Team-booked seats are held for the whole
+   * booking (no 15-minute no-show release) and are exempt from the one-seat rule, so the
+   * booker can still check in somewhere for themselves. Seats the same person already holds
+   * are renewed.
+   */
+  bookSeats(seatIds, user, { minutes = this.rules.checkinDurationMinutes, team } = {}) {
+    if (!user) throw new ValidationError('user is required');
+    team = this.projectTeam(team);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > this.rules.checkinMaxMinutes) {
+      throw new ValidationError(`Booking duration must be between 1 and ${this.rules.checkinMaxMinutes} minutes`);
+    }
+    if (!Array.isArray(seatIds)) throw new ValidationError('seats must be a list of seat ids');
+    const ids = [...new Set(seatIds.map((id) => String(id ?? '').trim().toUpperCase()).filter(Boolean))];
+    if (!ids.length) throw new ValidationError('Choose at least one seat');
+    if (ids.length > MAX_BOOKING_SEATS) throw new ValidationError(`At most ${MAX_BOOKING_SEATS} seats can be booked at once`);
+    const unknown = ids.filter((id) => !this.seats.has(id));
+    if (unknown.length) throw new ValidationError(`Unknown seats: ${unknown.join(', ')}`);
+    const now = this.clock();
+    // Someone else's check-in, or a person sitting there, makes a seat unavailable.
+    const taken = ids.filter((id) => {
+      const seat = this.seats.get(id);
+      if (seat.checkedInBy === user) return false;
+      const status = deriveStatus(seat, now, this.rules);
+      return status === Status.OCCUPIED || status === Status.AWAY;
+    });
+    if (taken.length) throw new ConflictError(`Already taken: ${taken.join(', ')}`);
+    for (const id of ids) {
+      const seat = this.seats.get(id);
+      if (seat.checkedInBy && seat.checkedInBy !== user) this.#release(seat, now, 'auto-release');
+      const renewing = seat.checkedInBy === user;
+      seat.checkedInBy = user;
+      seat.checkedInAt = now;
+      seat.checkedInUntil = now + minutes * MINUTE;
+      seat.checkedInTeam = team;
+      seat.teamBooking = true;
+      this.#log(now, seat, renewing ? 'renew' : 'book', user, team);
+      if (!renewing) this.#countTeam(now, team, 'checkins');
+      this.#noteRequester(user, team, now, { seatId: seat.id, checkin: !renewing });
+      this.#refresh(seat, now);
+    }
+    return ids.map((id) => this.view(this.seats.get(id), now));
   }
 
   checkOut(seatId, user, { team } = {}) {
@@ -504,6 +558,7 @@ export class OccupancyEngine extends EventEmitter {
     seat.checkedInAt = null;
     seat.checkedInUntil = null;
     seat.checkedInTeam = null;
+    seat.teamBooking = false;
     this.#log(now, seat, reason, user, team);
     this.emit('change', this.view(seat, now));
   }
@@ -595,8 +650,8 @@ export class OccupancyEngine extends EventEmitter {
     let holdExpiresAt = null;
     if (status === Status.AWAY) holdExpiresAt = seat.lastPresenceAt + this.rules.awayGraceMinutes * MINUTE;
     else if (status === Status.OCCUPIED && !seat.presence && seat.checkedInAt) {
-      // Unconfirmed check-in on a working sensor ends early if nobody sits down.
-      holdExpiresAt = seat.sensorId && sensorOnline
+      // Unconfirmed check-in on a working sensor ends early if nobody sits down; a team booking doesn't.
+      holdExpiresAt = seat.sensorId && sensorOnline && !seat.teamBooking
         ? Math.min(seat.checkedInAt + this.rules.checkinConfirmMinutes * MINUTE, seat.checkedInUntil)
         : seat.checkedInUntil;
     }
@@ -620,6 +675,7 @@ export class OccupancyEngine extends EventEmitter {
       checkedInAt: seat.checkedInAt,
       checkedInUntil: seat.checkedInUntil,
       projectTeam: seat.checkedInTeam,
+      teamBooking: Boolean(seat.teamBooking),
       lastPresenceAt: seat.lastPresenceAt,
       holdExpiresAt,
       allocatedTo: this.allocations.get(seat.id) ?? null,

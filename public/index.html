@@ -378,6 +378,25 @@
   .book-bar.attn { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent); }
   .book-bar.attn select { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
   .need-project .lead { margin: 0; }
+  .multi-bar { display: none; }
+  @media (max-width: 1180px) {
+    .multi-bar:not([hidden]) { display: flex; position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 35; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 10px 10px 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-md); font-weight: 600; font-size: 14px; }
+  }
+  .seat-mode { display: grid; grid-template-columns: 1fr 1fr; margin-top: 4px; }
+  .seat-mode button { font-size: 12px; padding: 6px 8px; white-space: normal; line-height: 1.25; }
+  .multi-panel .ptitle { display: flex; align-items: center; margin: 0 0 10px; font-size: 14px; }
+  .multi-panel .ptitle .muted { margin-left: 6px; font-weight: 500; }
+  .pick-list { display: grid; gap: 10px; }
+  .pick-list .chips { gap: 6px; }
+  .pick-chip { display: inline-flex; align-items: center; gap: 2px; font: 600 12px var(--font); padding: 3px 4px 3px 9px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent-strong); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .pick-chip button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 5px; border-radius: 50%; }
+  .pick-chip button:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  .pick-hint { margin: 0; font-size: 13px; }
+  .flash.warn { background: color-mix(in srgb, var(--seat-away) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--seat-away) 45%, var(--border)); color: var(--text-primary); margin-top: 0; }
+  .flash.warn svg { color: var(--seat-away-ink); }
+  .multi-panel .flash { margin-top: 0; }
   .alloc-warn.ok { display: flex; gap: 8px; align-items: flex-start; background: var(--available-soft); border-color: color-mix(in srgb, var(--seat-available) 40%, var(--border)); font-size: 12px; padding: 8px 10px; }
   .alloc-warn.ok svg { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--seat-available); }
   .book-line { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 13px; }
@@ -692,6 +711,7 @@
     </section>
   </main>
 </div>
+<div class="multi-bar" id="multiBar" hidden><span id="multiBarText"></span><button type="button" class="btn btn-primary" id="multiBarGo">Booking details ↓</button></div>
 <div class="pop" id="pop" role="tooltip" aria-hidden="true"></div>
 <div class="tip" id="tip" role="tooltip"></div>
 <script src="/static/floorplan.js"></script>

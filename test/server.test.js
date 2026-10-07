@@ -98,6 +98,14 @@ test('projects and seat allocation API is admin-only and validates input', async
   assert.deepEqual((await res.json()).released, ['L1-A-01']);
 });
 
+test('booking several seats for a team is admin-only', async () => {
+  const body = { user: 'ana', projectTeam: 'SAP', seats: ['L1-A-01'] };
+  assert.equal((await post('/api/bookings', body)).status, 401);
+  const res = await post('/api/bookings', { ...body, seats: ['ZZ'] }, admin);
+  assert.equal(res.status, 400);
+  assert.equal((await post('/api/bookings', { ...body, user: '' }, admin)).status, 400);
+});
+
 test('serves dashboard and check-in pages; blocks traversal', async () => {
   assert.equal((await fetch(`${base}/`)).status, 200);
   assert.equal((await fetch(`${base}/checkin?seat=L1-A-01`)).status, 200);
