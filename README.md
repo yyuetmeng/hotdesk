@@ -6,7 +6,9 @@ and gives administrators a live dashboard of seat availability.
 - **Detection:** under-desk presence sensors (primary) plus QR-code check-in (fallback / sensorless areas).
 - **Auto-release:** a desk whose occupant has been gone longer than a grace period (default 20 min)
   becomes available again. Unconfirmed or expired check-ins are released too.
-- **Admin dashboard:** live floor plan, KPIs, 24 h occupancy trend, per-zone utilisation, activity feed.
+- **Admin dashboard:** interactive live floor plan (hover a seat to preview it, click to select it and check someone
+  in, extend or check out from the side panel), KPIs that follow the floor filter, 24 h occupancy trend,
+  per-zone utilisation, activity feed.
 
 ![Admin dashboard](docs/dashboard.png)
 
@@ -169,7 +171,8 @@ src/labels.js      printable QR desk labels
 src/server.js      HTTP API, SSE stream, static pages
 src/store.js       JSON persistence
 src/index.js       wiring + periodic sweep
-public/index.html  admin dashboard
+public/index.html  admin dashboard (markup and styles)
+public/dashboard.js admin dashboard (behaviour)
 public/checkin.html employee QR check-in page
 public/sensors.html admin page for linking sensors to desks
 scripts/simulate.js sensor/check-in simulator

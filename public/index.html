@@ -8,41 +8,56 @@
 <style>
   :root {
     color-scheme: light;
-    --surface-0: #f4f4f2;
-    --surface-1: #fcfcfb;
-    --border: #e2e1dc;
-    --grid: #ecebe7;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --text-muted: #7a7974;
-    --occupied: #2a78d6;
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface-2: #f7f9fc;
+    --border: #e3e8ef;
+    --border-strong: #cbd3de;
+    --grid: #edf0f4;
+    --desk: #e7ecf3;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --accent: #2563eb;
+    --accent-strong: #1d4ed8;
+    --accent-soft: #eaf1fe;
+    --accent-ring: rgb(37 99 235 / 0.18);
+    --accent-btn: #2563eb;
+    --accent-btn-hover: #1d4ed8;
+    --sidebar: #0f1d3a;
+    --sidebar-text: #c7d2e5;
+    --sidebar-active: #1e3a8a;
+    --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
+    --shadow-md: 0 8px 24px -8px rgb(15 23 42 / 0.18);
+    /* Live status colours (unchanged from the original dashboard). */
     --available: #0ca30c;
+    --available-soft: #ecf8ec;
+    --occupied: #2a78d6;
     --away: #fab219;
+    --away-line: #d99300;
+    --away-ink: #8a5b00;
     --offline: #a9a8a2;
-    --on-occupied: #ffffff;
-    --on-available: #ffffff;
-    --on-away: #0b0b0b;
-    --on-offline: #0b0b0b;
+    /* Occupied seats on the plan stay quiet: a neutral slate, not a loud fill. */
+    --seat-occ: #e2e8f0;
+    --seat-occ-ink: #64748b;
     --line: #2a78d6;
     /* Project team colours: the validated 8-slot categorical palette, assigned in team order. */
     --team-1: #2a78d6; --team-2: #eb6834; --team-3: #1baf7a; --team-4: #eda100;
     --team-5: #e87ba4; --team-6: #008300; --team-7: #4a3aa7; --team-8: #e34948;
     --anon: #7a7974;
+    --cell: 36px;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --surface-0: #111110;
-      --surface-1: #1a1a19;
-      --border: #2e2e2b;
-      --grid: #262624;
-      --text-primary: #ffffff;
-      --text-secondary: #c3c2b7;
-      --text-muted: #8f8e86;
-      --occupied: #3987e5;
-      --offline: #5c5b56;
-      --on-offline: #ffffff;
-      --line: #3987e5;
+      --bg: #0d1117; --surface: #161b22; --surface-2: #1b212a; --border: #2a313c; --border-strong: #3d4654;
+      --grid: #222933; --desk: #252c37; --text-primary: #f1f5f9; --text-secondary: #b6c0cd; --text-muted: #8b97a7;
+      --accent: #4f8cff; --accent-strong: #8fb4ff; --accent-soft: rgb(79 140 255 / 0.16); --accent-ring: rgb(79 140 255 / 0.25);
+      --sidebar: #0a0e14; --sidebar-text: #aab6c8; --sidebar-active: #1c2a44;
+      --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3); --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.6);
+      --available-soft: rgb(12 163 12 / 0.14); --away-ink: #fab219; --away-line: #fab219;
+      --occupied: #3987e5; --offline: #5c5b56; --seat-occ: #2b3340; --seat-occ-ink: #8b97a7; --line: #3987e5;
       --team-1: #3987e5; --team-2: #d95926; --team-3: #199e70; --team-4: #c98500;
       --team-5: #d55181; --team-6: #008300; --team-7: #9085e9; --team-8: #e66767;
       --anon: #8f8e86;
@@ -50,576 +65,424 @@
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --surface-0: #111110;
-    --surface-1: #1a1a19;
-    --border: #2e2e2b;
-    --grid: #262624;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #8f8e86;
-    --occupied: #3987e5;
-    --offline: #5c5b56;
-    --on-offline: #ffffff;
-    --line: #3987e5;
+    --bg: #0d1117; --surface: #161b22; --surface-2: #1b212a; --border: #2a313c; --border-strong: #3d4654;
+    --grid: #222933; --desk: #252c37; --text-primary: #f1f5f9; --text-secondary: #b6c0cd; --text-muted: #8b97a7;
+    --accent: #4f8cff; --accent-strong: #8fb4ff; --accent-soft: rgb(79 140 255 / 0.16); --accent-ring: rgb(79 140 255 / 0.25);
+    --sidebar: #0a0e14; --sidebar-text: #aab6c8; --sidebar-active: #1c2a44;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3); --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.6);
+    --available-soft: rgb(12 163 12 / 0.14); --away-ink: #fab219; --away-line: #fab219;
+    --occupied: #3987e5; --offline: #5c5b56; --seat-occ: #2b3340; --seat-occ-ink: #8b97a7; --line: #3987e5;
     --team-1: #3987e5; --team-2: #d95926; --team-3: #199e70; --team-4: #c98500;
     --team-5: #d55181; --team-6: #008300; --team-7: #9085e9; --team-8: #e66767;
     --anon: #8f8e86;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  body {
-    margin: 0; background: var(--surface-0); color: var(--text-primary);
-    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+  body { margin: 0; background: var(--bg); color: var(--text-primary); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+  svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  button, select, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- Shell ---------- */
+  .shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; }
+  /* Paint the sidebar column full height, so it never ends above a long page. */
+  @media (min-width: 901px) { .shell { background: linear-gradient(to right, var(--sidebar) 236px, transparent 236px); } }
+  .sidebar {
+    background: var(--sidebar); color: var(--sidebar-text); padding: 20px 14px; position: sticky; top: 0; height: 100vh;
+    display: flex; flex-direction: column; gap: 4px;
   }
-  header {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface-1);
+  .brand { display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 650; font-size: 15px; padding: 2px 8px 18px; letter-spacing: -0.01em; }
+  .brand img { width: 32px; height: 32px; border-radius: 8px; flex: none; }
+  .nav-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: rgb(199 210 229 / 0.55); padding: 14px 10px 6px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: inherit; text-decoration: none;
+    font-weight: 500; transition: background-color 0.15s, color 0.15s;
   }
-  header h1 { font-size: 18px; margin: 0; font-weight: 600; display: inline-flex; align-items: center; gap: 10px; }
-  header h1 img { width: 32px; height: 32px; flex: none; }
-  .live { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13px; }
-  .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--offline); }
-  .live.on::before { background: var(--available); }
+  .nav a:hover { background: rgb(255 255 255 / 0.06); color: #fff; }
+  .nav a[aria-current="true"] { background: var(--sidebar-active); color: #fff; }
+  .nav a .ext { margin-left: auto; opacity: 0.5; width: 14px; height: 14px; }
+  .main { min-width: 0; padding: 24px 28px 48px; display: grid; gap: 20px; align-content: start; max-width: 1480px; width: 100%; margin: 0 auto; }
+  .topbar { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .topbar h1 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 650; letter-spacing: -0.02em; }
+  .topbar p { margin: 4px 0 0; color: var(--text-secondary); }
   .spacer { flex: 1; }
-  .btn { font-size: 13px; font-weight: 600; color: var(--text-primary); text-decoration: none; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; }
-  .btn:hover { background: var(--grid); }
-  main { padding: 20px 24px 40px; max-width: 1280px; margin: 0 auto; display: grid; gap: 20px; }
-  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
-  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-  .kpi .label { color: var(--text-secondary); font-size: 13px; display: flex; align-items: center; gap: 6px; }
-  .kpi .value { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 4px; }
-  .kpi .sub { color: var(--text-muted); font-size: 12px; }
-  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
-  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .live {
+    display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px;
+    padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  }
+  .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--offline); }
+  .live.on::before { background: var(--available); box-shadow: 0 0 0 3px rgb(12 163 12 / 0.15); }
+  .live .sep { color: var(--border-strong); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; min-width: 0; box-shadow: var(--shadow-sm); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  .card h2 + .sub, .card-head .sub { color: var(--text-muted); font-size: 13px; margin: 2px 0 0; }
+  .muted { color: var(--text-muted); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 600; text-decoration: none;
+    color: var(--text-primary); background: var(--surface); padding: 8px 14px; border: 1px solid var(--border-strong); border-radius: 8px;
+    cursor: pointer; transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover { background: var(--surface-2); border-color: var(--text-muted); }
+  .btn-primary { background: var(--accent-btn); border-color: var(--accent-btn); color: #fff; }
+  .btn-primary:hover { background: var(--accent-btn-hover); border-color: var(--accent-btn-hover); }
+  .btn-ghost { border-color: transparent; background: transparent; color: var(--text-secondary); }
+  .btn-ghost:hover { background: var(--grid); border-color: transparent; color: var(--text-primary); }
+  .btn:disabled { opacity: 0.6; cursor: progress; }
+  .btn-block { width: 100%; padding: 11px 14px; font-size: 14px; }
+
+  /* ---------- Summary cards ---------- */
+  .scope { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 13px; margin-bottom: -8px; }
+  .scope b { color: var(--text-secondary); font-weight: 600; }
+  .kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+  .kpi { display: grid; grid-template-columns: auto 1fr; column-gap: 14px; align-items: start; align-content: start; padding: 18px; transition: border-color 0.15s, box-shadow 0.15s; }
+  .kpi:hover { border-color: var(--border-strong); }
+  .kpi .icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--k) 13%, var(--surface)); color: var(--k); grid-row: span 2; }
+  .kpi .icon svg { width: 20px; height: 20px; }
+  .kpi .label { color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+  .kpi .value { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.15; letter-spacing: -0.02em; margin-top: 2px; }
+  .kpi .value small { font-size: 14px; color: var(--text-muted); font-weight: 500; margin-left: 4px; letter-spacing: 0; }
+  .kpi .sub { color: var(--text-muted); font-size: 12px; margin-top: 8px; grid-column: 1 / -1; }
+  .kpi .meter { grid-column: 1 / -1; height: 4px; background: var(--grid); border-radius: 2px; overflow: hidden; margin-top: 12px; }
+  .kpi .meter i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+
+  /* ---------- Filter bar ---------- */
+  .filterbar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 12px 0 16px; border-bottom: 1px solid var(--grid); margin-bottom: 16px; }
+  .fgroup { display: flex; align-items: center; gap: 8px; }
+  .fgroup > .flabel { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--grid); border-radius: 9px; }
   .seg button {
-    border: 0; background: transparent; color: var(--text-secondary); padding: 6px 12px; font: inherit; cursor: pointer;
+    border: 0; background: transparent; color: var(--text-secondary); padding: 5px 12px; border-radius: 7px; cursor: pointer;
+    font-size: 13px; font-weight: 500; white-space: nowrap; transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
   }
-  .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
-  select { font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); }
-  .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
-  @media (max-width: 900px) { .two { grid-template-columns: minmax(0, 1fr); } main { padding: 16px; } header { padding: 12px 16px; } }
-  .floor + .floor { margin-top: 20px; }
-  .floor h3 { font-size: 13px; margin: 0 0 8px; color: var(--text-secondary); font-weight: 600; }
-  .zones { display: flex; flex-wrap: wrap; gap: 16px; }
-  .zone { border: 1px dashed var(--border); border-radius: 8px; padding: 10px; max-width: 100%; overflow-x: auto; }
-  .zone .zname { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between; gap: 12px; }
-  .seats { display: grid; gap: 4px; grid-auto-rows: 34px; }
+  .seg button:hover { color: var(--text-primary); }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm), 0 0 0 1px var(--border); }
+  select {
+    font-size: 13px; padding: 7px 30px 7px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background-color: var(--surface);
+    appearance: none; cursor: pointer; transition: border-color 0.15s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center;
+  }
+  select:hover { border-color: var(--text-muted); }
+  select.active { border-color: var(--accent); background-color: var(--accent-soft); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chipbtn {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); border-radius: 999px;
+    padding: 5px 11px; font-size: 13px; color: var(--text-secondary); cursor: pointer; transition: all 0.15s;
+  }
+  .chipbtn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .chipbtn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+  .chipbtn .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ---------- Floor plan ---------- */
+  .planwrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+  .notice { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary); margin-bottom: 14px; font-size: 13px; }
+  .notice .btn { margin-left: auto; padding: 5px 10px; }
+  #plan { animation: fade-in 0.2s ease; }
+  .floor + .floor { margin-top: 28px; }
+  .floor-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .floor-head h3 { margin: 0; font-size: 14px; font-weight: 650; }
+  .floor-head .count { color: var(--text-muted); font-size: 13px; }
+  .zones { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .zone {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 18px; max-width: 100%; overflow-x: auto;
+  }
+  .zone-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 14px; font-size: 12px; }
+  .zone-head .name { font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+  .zone-head .free { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .zone-head .free b { color: var(--available); font-weight: 600; }
+  .zone-grid { display: grid; column-gap: 6px; row-gap: 8px; grid-auto-rows: var(--cell); padding: 6px; }
+  .desk { background: var(--desk); border-radius: 9px; margin: -6px; pointer-events: none; }
+
   .seat {
-    width: 34px; height: 34px; border-radius: 6px; border: 0; padding: 0; cursor: pointer;
-    display: grid; place-items: center; font-size: 13px; font-weight: 700; line-height: 1;
+    position: relative; z-index: 1; width: var(--cell); height: var(--cell); padding: 0; border-radius: 10px;
+    border: 1.5px solid transparent; background: var(--surface); color: var(--text-primary);
+    display: grid; place-items: center; font: 700 10px/1 var(--font); letter-spacing: -0.01em; cursor: pointer;
+    box-shadow: 0 1px 1px rgb(15 23 42 / 0.05);
+    transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.18s, border-color 0.18s, background-color 0.18s, opacity 0.2s;
   }
-  .seat:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
-  .seat.dim { opacity: 0.18; }
-  .s-available { background: var(--available); color: var(--on-available); }
-  .s-occupied { background: var(--occupied); color: var(--on-occupied); }
-  .s-away { background: var(--away); color: var(--on-away); }
-  .s-offline { background: var(--offline); color: var(--on-offline); }
-  /* Project team view: occupied desks are filled with the team colour and carry the team code;
-     other states become outlines so they never compete with the team colours. */
-  .seat.code { font-size: 9.5px; letter-spacing: -0.02em; }
-  .seat.p-anon { background: var(--anon); color: #ffffff; }
-  .seat.p-available { background: transparent; color: var(--text-secondary); box-shadow: inset 0 0 0 2px var(--available); }
-  .seat.p-away { background: transparent; color: var(--text-primary); border: 2px dashed var(--ring, var(--anon)); }
-  .seat.p-offline { background: transparent; color: var(--text-muted); border: 2px dotted var(--offline); }
-  .seat.unassigned { background: transparent; color: var(--text-secondary); box-shadow: inset 0 0 0 1.5px var(--text-muted); }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--text-secondary); font-size: 12px; margin-top: 12px; }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .legend .seat { width: 18px; height: 18px; font-size: 10px; cursor: default; border-radius: 4px; }
-  .legend .seat.code { width: auto !important; min-width: 30px; padding: 0 5px; font-size: 9.5px; }
+  .seat svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .seat .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--available); }
+  .st-available { border-color: color-mix(in srgb, var(--available) 70%, var(--surface)); }
+  .st-occupied { background: var(--seat-occ); color: var(--seat-occ-ink); box-shadow: none; }
+  .st-occupied.team { background: color-mix(in srgb, var(--c) 24%, var(--surface)); border-color: color-mix(in srgb, var(--c) 55%, var(--surface)); color: var(--text-primary); }
+  .st-away { background: var(--surface-2); border: 1.5px dashed color-mix(in srgb, var(--away-line) 70%, var(--surface)); color: var(--away-ink); box-shadow: none; }
+  .st-away.team { border-color: color-mix(in srgb, var(--c) 75%, var(--surface)); background: var(--surface-2); color: var(--text-secondary); }
+  .st-offline { background: var(--surface-2); border: 1.5px dotted var(--border-strong); color: var(--text-muted); box-shadow: none; font-size: 13px; }
+  .layout { background: color-mix(in srgb, var(--c) 30%, var(--surface)); border: 1.5px solid var(--c); color: var(--text-primary); }
+  .layout-none { background: var(--surface); border: 1.5px solid var(--border-strong); color: var(--text-secondary); }
+  .layout .dot, .layout-none .dot { background: var(--available); box-shadow: 0 0 0 2px var(--surface); }
+
+  .seat:not(:disabled):hover { border-color: var(--text-muted); box-shadow: 0 2px 6px -2px rgb(15 23 42 / 0.18); }
+  .seat.st-available:not(:disabled):hover, .seat.st-available:focus-visible {
+    transform: translateY(-2px) scale(1.06); border-color: var(--available); background: var(--available-soft);
+    box-shadow: 0 6px 14px -4px rgb(15 23 42 / 0.25);
+  }
+  .seat.is-selected, .seat.is-selected:not(:disabled):hover {
+    z-index: 2; border: 2px solid var(--accent); background: var(--accent-soft); color: var(--accent-strong);
+    transform: translateY(-2px); box-shadow: 0 0 0 4px var(--accent-ring), 0 6px 14px -4px rgb(37 99 235 / 0.35);
+  }
+  .seat.is-selected .dot { background: var(--accent); }
+  .seat-badge {
+    position: absolute; top: -7px; right: -7px; width: 17px; height: 17px; border-radius: 50%; background: var(--accent); color: #fff;
+    display: grid; place-items: center; box-shadow: 0 0 0 2px var(--surface); animation: pop-in 0.18s ease-out;
+  }
+  .seat-badge svg { width: 10px; height: 10px; stroke-width: 3.2; }
+  .seat:disabled { opacity: 0.16; cursor: default; box-shadow: none; }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--grid); }
+  .lgroup { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .lgroup > b { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; margin-right: 2px; }
+  .litem { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-secondary); }
+  .litem .seat { --cell: 20px; border-radius: 6px; cursor: default; font-size: 8px; transform: none !important; }
+  .litem .seat svg { width: 11px; height: 11px; }
+  .litem .seat .dot { width: 6px; height: 6px; }
+  .litem .seat-badge { width: 11px; height: 11px; top: -4px; right: -4px; }
+  .litem .seat-badge svg { width: 7px; height: 7px; }
+  .chip {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 20px; padding: 0 6px; border-radius: 6px;
+    font-size: 10px; font-weight: 700; background: color-mix(in srgb, var(--c) 24%, var(--surface));
+    border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--surface)); color: var(--text-primary);
+  }
+  .chip.solid { background: var(--c); }
+
+  /* Popover */
+  .pop {
+    position: fixed; z-index: 30; width: 240px; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: var(--shadow-md); padding: 12px 14px; font-size: 12px; color: var(--text-secondary);
+    opacity: 0; transform: translateY(4px); transition: opacity 0.15s ease, transform 0.15s ease; visibility: hidden;
+  }
+  .pop.show { opacity: 1; transform: none; visibility: visible; }
+  .pop .ptitle { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .pop .ptitle b { font-size: 14px; color: var(--text-primary); }
+  .pop dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; }
+  .pop dt { color: var(--text-muted); }
+  .pop dd { margin: 0; color: var(--text-primary); }
+  .pop .hint { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--grid); color: var(--accent-strong); font-weight: 500; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    background: color-mix(in srgb, var(--k) 14%, var(--surface)); color: var(--k); white-space: nowrap;
+  }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .k-available { --k: var(--available); }
+  .k-occupied { --k: var(--seat-occ-ink); }
+  .k-away { --k: var(--away-ink); }
+  .k-offline { --k: var(--text-muted); }
+
+  /* ---------- Seat panel ---------- */
+  .panel { position: sticky; top: 16px; padding: 0; overflow: hidden; }
+  .panel-inner { padding: 20px; animation: slide-in 0.2s ease; }
+  .panel-empty { text-align: center; padding: 36px 24px; color: var(--text-secondary); }
+  .panel-empty .big { width: 52px; height: 52px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin: 0 auto 14px; }
+  .panel-empty .big svg { width: 26px; height: 26px; }
+  .panel-empty h3 { margin: 0 0 6px; font-size: 15px; color: var(--text-primary); }
+  .panel-empty p { margin: 0 0 6px; font-size: 13px; }
+  .panel-empty .stat { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--grid); font-size: 13px; }
+  .panel-empty .stat b { font-size: 22px; color: var(--available); display: block; font-variant-numeric: tabular-nums; }
+  .kbd-hint { margin-top: 14px; font-size: 12px; color: var(--text-muted); }
+  kbd { font: 600 11px var(--font); padding: 1px 5px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2); }
+  .phead { display: flex; align-items: flex-start; gap: 10px; }
+  .phead h2 { font-size: 20px; margin: 0; letter-spacing: -0.02em; }
+  .phead .pill { margin-top: 4px; }
+  .phead .close { margin-left: auto; padding: 6px; border-radius: 8px; }
+  .meta { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+  .meta li { display: flex; gap: 10px; align-items: flex-start; color: var(--text-secondary); font-size: 13px; }
+  .meta li svg { color: var(--text-muted); margin-top: 1px; }
+  .meta li b { color: var(--text-primary); font-weight: 500; }
+  .usage { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); display: grid; gap: 4px; font-size: 13px; }
+  .usage .row { display: flex; justify-content: space-between; gap: 12px; }
+  .usage .row span:first-child { color: var(--text-muted); }
+  .usage .row span:last-child { text-align: right; font-weight: 500; }
+  .flash { margin-top: 16px; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; font-size: 13px; animation: slide-in 0.2s ease; }
+  .flash.ok { background: var(--available-soft); color: var(--text-primary); border: 1px solid color-mix(in srgb, var(--available) 35%, var(--surface)); }
+  .flash.ok svg { color: var(--available); }
+  .pform { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--grid); display: grid; gap: 10px; }
+  .pform h3 { margin: 0; font-size: 14px; }
+  .pform .lead { margin: -4px 0 2px; color: var(--text-muted); font-size: 12px; }
+  .pform label { display: grid; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .pform input, .pform select { width: 100%; font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-strong); background-color: var(--surface); font-weight: 400; color: var(--text-primary); transition: border-color 0.15s, box-shadow 0.15s; }
+  .pform select { padding-right: 30px; }
+  .pform input:focus, .pform select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .pform .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pform .note { margin: 0; font-size: 12px; color: var(--text-muted); display: flex; gap: 6px; }
+  .pform .note svg { width: 14px; height: 14px; margin-top: 2px; }
+  .form-msg { font-size: 13px; color: #c62828; min-height: 0; }
+  .form-msg:empty { display: none; }
+  .pclose-row { display: none; }
+
+  /* ---------- Tables and other sections ---------- */
+  .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--grid); }
-  th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--grid); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  tbody tr { transition: background-color 0.15s; }
+  tbody tr:hover { background: var(--surface-2); }
   td.num, th.num { text-align: right; }
   .bar { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; min-width: 60px; }
   .bar > i { display: block; height: 100%; background: var(--occupied); border-radius: 0 3px 3px 0; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
   .reqs summary { cursor: pointer; color: var(--text-secondary); }
   .reqs ul { list-style: none; margin: 6px 0 2px; padding: 0; display: grid; gap: 2px; }
   .reqs li { display: flex; gap: 8px; justify-content: space-between; font-size: 13px; }
   .feed { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto; font-size: 13px; }
-  .feed li { padding: 6px 0; border-bottom: 1px solid var(--grid); display: flex; gap: 8px; }
+  .feed li { padding: 8px 0; border-bottom: 1px solid var(--grid); display: flex; gap: 10px; }
   .feed time { color: var(--text-muted); font-variant-numeric: tabular-nums; flex: none; }
-  .muted { color: var(--text-muted); }
   #chart { position: relative; }
   #chart svg { display: block; width: 100%; height: 200px; }
   .tip {
-    position: fixed; pointer-events: none; z-index: 10; background: var(--surface-1); color: var(--text-primary);
-    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px;
-    box-shadow: 0 4px 16px rgb(0 0 0 / 0.12); display: none; max-width: 260px;
+    position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: var(--shadow-md); display: none; max-width: 260px;
   }
   .tip b { display: block; margin-bottom: 2px; }
-  .empty { color: var(--text-muted); padding: 24px 0; text-align: center; }
+  .empty { color: var(--text-muted); padding: 28px 0; text-align: center; }
+
+  /* Loading skeletons (static: no looping animation) */
+  .skel { background: var(--grid); border-radius: 8px; }
+  .kpi.loading .value, .kpi.loading .label, .kpi.loading .sub { color: transparent; background: var(--grid); border-radius: 6px; }
+  .kpi.loading .icon { background: var(--grid); color: transparent; }
+
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slide-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+  @keyframes pop-in { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1180px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 1180px) {
+    .planwrap { grid-template-columns: minmax(0, 1fr); }
+    .panel {
+      position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 40; max-height: 78vh; overflow: auto;
+      border-radius: 16px 16px 0 0; box-shadow: 0 -12px 32px -8px rgb(15 23 42 / 0.3); transform: translateY(105%);
+      transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); max-width: 560px; margin: 0 auto;
+    }
+    .panel.open { transform: none; }
+    .panel::before { content: ""; display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--border-strong); margin: 10px auto 0; }
+  }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { position: sticky; top: 0; z-index: 20; height: auto; flex-direction: row; align-items: center; padding: 10px 12px; gap: 6px; overflow-x: auto; }
+    .brand { padding: 0 8px 0 0; white-space: nowrap; }
+    .nav-label { display: none; }
+    .nav { display: flex; gap: 2px; }
+    .nav a { white-space: nowrap; padding: 7px 10px; }
+    .nav a .ext { display: none; }
+    .main { padding: 16px; }
+    .two { grid-template-columns: minmax(0, 1fr); }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { padding: 16px; }
+  }
+  @media (max-width: 520px) { .kpis { grid-template-columns: minmax(0, 1fr); } .topbar h1 { font-size: 20px; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    .seat, .seat:hover, .seat.is-selected, .seat.st-available:focus-visible { transform: none !important; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1><img src="/static/logo.png" alt="" width="32" height="32">Hot Desk Dashboard</h1>
-  <span id="live" class="live">Connecting…</span>
-  <span class="spacer"></span>
-  <span class="muted" id="rules"></span>
-  <a id="sensorsLink" class="btn" href="/sensors">Sensors</a>
-  <a id="labelsLink" class="btn" href="/labels" target="_blank" rel="noopener">Print desk labels</a>
-</header>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><img src="/static/logo.png" alt="" width="32" height="32">Hot Desk Dashboard</div>
+    <nav class="nav" id="nav" aria-label="Dashboard sections">
+      <div class="nav-label">Workspace</div>
+      <a href="#floorplan" data-section="floorplan" aria-current="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 10h8M11 3v18M15 14h6"/></svg>Floor plan</a>
+      <a href="#teams" data-section="teams"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>Project teams</a>
+      <a href="#trends" data-section="trends"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>Occupancy &amp; activity</a>
+      <a href="#utilisation" data-section="utilisation"><svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Utilisation</a>
+      <div class="nav-label">Administration</div>
+      <a id="sensorsLink" href="/sensors"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/><path d="M1.5 9a15 15 0 0 1 21 0"/></svg>Sensors</a>
+      <a id="labelsLink" href="/labels" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/></svg>Print desk labels<svg class="i ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+    </nav>
+  </aside>
 
-<main>
-  <section class="kpis" id="kpis" aria-label="Current seat availability"></section>
-
-  <section class="card">
-    <div class="filters" style="justify-content: space-between; margin-bottom: 12px;">
-      <h2 style="margin:0">Floor plan</h2>
-      <div class="filters">
-        <div class="seg" id="viewMode" role="group" aria-label="Colour desks by">
-          <button type="button" data-mode="project" aria-pressed="true">Project team</button>
-          <button type="button" data-mode="status" aria-pressed="false">Status</button>
-          <button type="button" data-mode="team" aria-pressed="false" id="layoutTeamMode">Team assignment</button>
-        </div>
-        <div class="seg" id="floorFilter" role="group" aria-label="Floor"></div>
-        <select id="teamFilter" aria-label="Team filter"><option value="">All teams</option></select>
-        <select id="projectFilter" aria-label="Project team filter"><option value="">All project teams</option></select>
-        <select id="statusFilter" aria-label="Status filter">
-          <option value="">All statuses</option>
-          <option value="available">Available</option>
-          <option value="occupied">Occupied</option>
-          <option value="away">Away (held)</option>
-          <option value="offline">Sensor offline</option>
-        </select>
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Office floor plan</h1>
+        <p>Live seat availability. Hover a seat to preview it, click to see its details and check someone in.</p>
       </div>
+      <span class="spacer"></span>
+      <span id="live" class="live">Connecting…</span>
     </div>
-    <div id="plan"></div>
-    <div class="legend" id="legend"></div>
-  </section>
 
-  <section class="card">
-    <div class="filters" style="justify-content: space-between; margin-bottom: 12px;">
-      <h2 style="margin:0">Project teams</h2>
-      <a class="btn" id="requestersCsv" href="/api/requesters.csv">Download requesters (CSV)</a>
+    <div class="scope" id="scope" aria-live="polite">&nbsp;</div>
+    <section class="kpis" id="kpis" aria-label="Seat availability for the current filters"></section>
+
+    <section class="card" id="floorplan">
+      <div class="card-head" style="margin-bottom:0">
+        <div><h2>Floor plan</h2><p class="sub" id="planSub">Seats are shown where they sit on each floor.</p></div>
+      </div>
+      <div class="filterbar" role="toolbar" aria-label="Floor plan filters">
+        <div class="fgroup"><div class="seg" id="floorFilter" role="group" aria-label="Floor"></div></div>
+        <div class="fgroup">
+          <span class="flabel" id="modeLabel">Colour by</span>
+          <div class="seg" id="viewMode" role="group" aria-labelledby="modeLabel">
+            <button type="button" data-mode="project" aria-pressed="true">Project team</button>
+            <button type="button" data-mode="status" aria-pressed="false">Status</button>
+            <button type="button" data-mode="team" aria-pressed="false" id="layoutTeamMode">Team assignment</button>
+          </div>
+        </div>
+        <select id="projectFilter" aria-label="Project team filter"><option value="">All project teams</option></select>
+        <select id="teamFilter" aria-label="Team filter"><option value="">All teams</option></select>
+        <div class="chips" id="statusFilter" role="group" aria-label="Status filter"></div>
+        <button type="button" class="btn btn-ghost" id="clearFilters" hidden>Clear filters</button>
+      </div>
+      <div class="planwrap">
+        <div>
+          <div class="notice" id="noMatch" hidden>
+            <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span>No seats match these filters on this floor.</span>
+            <button type="button" class="btn" data-clear>Clear filters</button>
+          </div>
+          <div id="plan" role="region" aria-label="Floor plan" aria-describedby="planHelp">
+            <div class="zones" aria-hidden="true">
+              <div class="skel" style="width:min(560px,100%);height:340px"></div>
+              <div class="skel" style="width:280px;height:340px"></div>
+            </div>
+          </div>
+          <p id="planHelp" hidden>Use the arrow keys to move between seats in an area, Enter to select a seat and Escape to clear the selection.</p>
+          <div class="legend" id="legend"></div>
+        </div>
+        <aside class="card panel" id="panel" aria-label="Seat details"></aside>
+      </div>
+    </section>
+
+    <section class="card" id="teams">
+      <div class="card-head">
+        <div><h2>Project teams</h2><p class="sub">Who is checked in now, and today's check-ins and check-outs.</p></div>
+        <a class="btn" id="requestersCsv" href="/api/requesters.csv"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Download requesters (CSV)</a>
+      </div>
+      <div style="overflow-x:auto"><table id="projects"></table></div>
+    </section>
+
+    <div class="two" id="trends">
+      <section class="card">
+        <div class="card-head"><div><h2>Occupancy, last 24 hours</h2><p class="sub">Share of seats in use (occupied or away).</p></div></div>
+        <div id="chart"></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>Recent activity</h2></div>
+        <ul class="feed" id="feed"></ul>
+      </section>
     </div>
-    <div style="overflow-x:auto"><table id="projects"></table></div>
-  </section>
 
-  <div class="two">
-    <section class="card">
-      <h2>Occupancy, last 24 hours</h2>
-      <div id="chart"></div>
+    <section class="card" id="utilisation">
+      <div class="card-head"><h2>Utilisation by zone</h2></div>
+      <div style="overflow-x:auto"><table id="zones"></table></div>
     </section>
-    <section class="card">
-      <h2>Recent activity</h2>
-      <ul class="feed" id="feed"></ul>
+
+    <section class="card" id="teamSection">
+      <div class="card-head"><h2>Utilisation by team</h2></div>
+      <div style="overflow-x:auto"><table id="teamsTable"></table></div>
     </section>
-  </div>
-
-  <section class="card">
-    <h2>Utilisation by zone</h2>
-    <div style="overflow-x:auto"><table id="zones"></table></div>
-  </section>
-
-  <section class="card" id="teamSection">
-    <h2>Utilisation by team</h2>
-    <div style="overflow-x:auto"><table id="teams"></table></div>
-  </section>
-</main>
+  </main>
+</div>
+<div class="pop" id="pop" role="tooltip" aria-hidden="true"></div>
 <div class="tip" id="tip" role="tooltip"></div>
-
-<script>
-const STATUS = {
-  available: { label: 'Available', glyph: '✓' },
-  occupied: { label: 'Occupied', glyph: '●' },
-  away: { label: 'Away (held)', glyph: '…' },
-  offline: { label: 'Sensor offline', glyph: '!' },
-};
-
-const params = new URLSearchParams(location.search);
-let token = params.get('token') || safeGet('hotdesk.token') || '';
-function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
-function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
-
-const state = { seats: new Map(), summary: null, projects: [], floor: safeGet('hotdesk.floor') || '', status: '', team: '', project: '', mode: safeGet('hotdesk.mode') || 'project' };
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const pct = (x) => `${Math.round(x * 100)}%`;
-
-function withToken(path) {
-  if (!token) return path;
-  return path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
-}
-
-async function api(path) {
-  const res = await fetch(withToken(path));
-  if (res.status === 401) {
-    const t = prompt('Administrator token');
-    if (t === null) throw new Error('unauthorised');
-    token = t; safeSet('hotdesk.token', t);
-    return api(path);
-  }
-  if (!res.ok) throw new Error(`${path}: ${res.status}`);
-  return res.json();
-}
-
-// ---------- KPIs ----------
-function renderKpis() {
-  const s = state.summary; if (!s) return;
-  const o = s.overall;
-  const tile = (key, value, sub) => `
-    <div class="card kpi">
-      <div class="label">${key ? `<span class="seat s-${key}" style="width:16px;height:16px;font-size:10px;border-radius:4px;cursor:default">${STATUS[key].glyph}</span>${STATUS[key].label}` : 'Occupancy rate'}</div>
-      <div class="value">${value}</div>
-      <div class="sub">${sub}</div>
-    </div>`;
-  $('kpis').innerHTML =
-    tile(null, pct(o.occupancyRate), `${o.occupied + o.away} of ${o.total} seats in use`) +
-    tile('available', o.available, 'free to take now') +
-    tile('occupied', o.occupied, 'presence detected / checked in') +
-    tile('away', o.away, `held ≤ ${s.rules.awayGraceMinutes} min, then released`) +
-    tile('offline', o.offline, 'sensors needing attention');
-  $('rules').textContent = `Updated ${fmtTime(s.at)}`;
-}
-
-// ---------- Floor plan ----------
-function renderFloorFilter() {
-  const floors = state.summary?.floors ?? [];
-  if (state.floor && !floors.some((f) => f.id === state.floor)) state.floor = '';
-  const opts = [{ id: '', name: 'All floors' }, ...floors];
-  $('floorFilter').innerHTML = opts.map((f) =>
-    `<button type="button" data-floor="${esc(f.id)}" aria-pressed="${f.id === state.floor}">${esc(f.name)}</button>`).join('');
-}
-
-function renderPlan() {
-  const floors = (state.summary?.floors ?? []).filter((f) => !state.floor || f.id === state.floor);
-  const seats = [...state.seats.values()];
-  $('plan').innerHTML = floors.map((f) => `
-    <div class="floor">
-      <h3>${esc(f.name)} · ${f.available} available of ${f.total}</h3>
-      <div class="zones">${f.zones.map((z) => {
-        const zs = seats.filter((s) => s.floor === f.id && s.zone === z.id);
-        const cols = Math.max(1, ...zs.map((s) => s.col + 1));
-        return `<div class="zone">
-          <div class="zname"><span>${esc(z.name)}</span><span>${z.available}/${z.total} free</span></div>
-          <div class="seats" style="grid-template-columns:repeat(${cols}, 34px)">
-            ${zs.map(seatButton).join('')}
-          </div></div>`;
-      }).join('')}</div>
-    </div>`).join('') || '<div class="empty">No seats configured.</div>';
-}
-
-const teamKey = (t) => t ?? '_';
-function teamInfo(id) { return (state.summary?.teams ?? []).find((t) => t.id === id); }
-function inkFor(hex) {
-  const n = parseInt(hex.slice(1), 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? '#0b0b0b' : '#ffffff';
-}
-
-// ---------- Project team colours ----------
-const rootStyle = () => getComputedStyle(document.documentElement);
-function projectInfo(name) { return name ? state.projects.find((t) => t.name === name) : undefined; }
-/** The team's colour as a hex for the current light/dark mode. */
-function projectColor(t) {
-  if (t.color) return t.color;
-  const v = t.slot === null || t.slot === undefined ? '--anon' : `--team-${(t.slot % 8) + 1}`;
-  return rootStyle().getPropertyValue(v).trim() || '#7a7974';
-}
-function luminance(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
-  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-}
-/** Black or white text, whichever contrasts more with the fill. */
-function inkOn(hex) {
-  const l = luminance(hex);
-  return (l + 0.05) / (luminance('#0b0b0b') + 0.05) >= 1.05 / (l + 0.05) ? '#0b0b0b' : '#ffffff';
-}
-
-function projectSeat(s) {
-  const t = projectInfo(s.projectTeam);
-  if (s.status === 'occupied') {
-    if (!t) return { cls: 'p-anon', style: '', text: '●' };
-    const c = projectColor(t);
-    return { cls: 'code', style: `background:${c};color:${inkOn(c)};`, text: esc(t.code) };
-  }
-  if (s.status === 'away') return t ? { cls: 'p-away code', style: `--ring:${projectColor(t)};`, text: esc(t.code) } : { cls: 'p-away', style: '', text: '…' };
-  if (s.status === 'available') return { cls: 'p-available', style: '', text: '✓' };
-  return { cls: 'p-offline', style: '', text: '!' };
-}
-
-function seatButton(s) {
-  const dim = (state.status && s.status !== state.status) || (state.team && teamKey(s.team) !== state.team)
-    || (state.project && s.projectTeam !== state.project) ? ' dim' : '';
-  let cls = `s-${s.status}`, style = '', text = STATUS[s.status].glyph;
-  if (state.mode === 'project') ({ cls, style, text } = projectSeat(s));
-  if (state.mode === 'team') {
-    const color = teamInfo(s.team)?.color;
-    if (color) { cls = ''; style = `background:${color};color:${inkFor(color)};`; }
-    else cls = 'unassigned';
-  }
-  const team = !hasTeams() ? '' : s.teamName ? `, ${esc(s.teamName)}` : ', unassigned';
-  const project = s.projectTeam ? `, ${esc(s.projectTeam)}` : '';
-  return `<button type="button" class="seat ${cls}${dim}" data-seat="${esc(s.id)}"
-    style="${style}grid-column:${s.col + 1};grid-row:${s.row + 1}"
-    aria-label="${esc(s.id)}: ${STATUS[s.status].label}${project}${team}">${text}</button>`;
-}
-
-function seatTip(s) {
-  const lines = [`<b>${esc(s.id)} — ${STATUS[s.status].label}</b>`];
-  if (hasTeams()) lines.push(s.teamName ? `Assigned to: ${esc(s.teamName)}` : 'Unassigned (open hot desk)');
-  if (s.checkedInBy) lines.push(`Checked in: ${esc(s.checkedInBy)} (${esc(s.projectTeam ?? 'no team')}), ${fmtTime(s.checkedInAt)}–${fmtTime(s.checkedInUntil)}`);
-  if (s.hasSensor) lines.push(`Sensor ${esc(s.sensorId)}: ${s.sensorOnline ? (s.presence ? 'presence detected' : 'no presence') : 'offline'}`);
-  else lines.push('No sensor — QR check-in only');
-  if (s.status === 'away') lines.push(`Last seen ${fmtTime(s.lastPresenceAt)}`);
-  if (s.holdExpiresAt) lines.push(`Auto-release at ${fmtTime(s.holdExpiresAt)}`);
-  return lines[0] + lines.slice(1).join('<br>');
-}
-
-function renderLegend() {
-  const status = Object.entries(STATUS).map(([k, v]) =>
-    `<span><span class="seat s-${k}">${v.glyph}</span>${v.label}</span>`).join('');
-  if (state.mode === 'status') { $('legend').innerHTML = status; return; }
-  if (state.mode === 'project') {
-    const teams = state.projects.filter((t) => t.configured).map((t) => {
-      const c = projectColor(t);
-      return `<span><span class="seat code" style="background:${c};color:${inkOn(c)}">${esc(t.code)}</span>${esc(t.name)}</span>`;
-    }).join('');
-    $('legend').innerHTML = teams
-      + `<span><span class="seat p-anon">●</span>Occupied, not checked in</span>`
-      + `<span><span class="seat p-away code" style="--ring:${projectColor(state.projects[0] ?? { slot: 0 })}">${esc(state.projects[0]?.code ?? '')}</span>Away, desk held (dashed outline in the team's colour)</span>`
-      + `<span><span class="seat p-away">…</span>Away, not checked in</span>`
-      + `<span><span class="seat p-available">✓</span>Available</span>`
-      + `<span><span class="seat p-offline">!</span>Sensor offline</span>`;
-    return;
-  }
-  const teams = (state.summary?.teams ?? []).map((t) => t.color
-    ? `<span><span class="seat" style="background:${t.color}"></span>${esc(t.name)}</span>`
-    : `<span><span class="seat unassigned"></span>${esc(t.name)}</span>`).join('');
-  $('legend').innerHTML = teams + `<span class="muted">Symbol shows live status: ${Object.values(STATUS).map((v) => `${v.glyph} ${v.label}`).join(' · ')}</span>`;
-}
-
-const hasTeams = () => (state.summary?.teams ?? []).some((t) => t.id !== null);
-
-function renderTeamFilter() {
-  // Team features only make sense when the building layout assigns desks to teams.
-  const show = hasTeams();
-  for (const id of ['layoutTeamMode', 'teamFilter', 'teamSection']) $(id).hidden = !show;
-  if (!show) { state.team = ''; if (state.mode === 'team') state.mode = 'project'; }
-  syncModeButtons();
-  const sel = $('teamFilter');
-  const opts = (state.summary?.teams ?? []).map((t) => `<option value="${esc(teamKey(t.id))}">${esc(t.name)}</option>`).join('');
-  sel.innerHTML = `<option value="">All teams</option>${opts}`;
-  sel.value = state.team;
-}
-
-function syncModeButtons() {
-  for (const x of $('viewMode').children) x.setAttribute('aria-pressed', String(x.dataset.mode === state.mode));
-}
-$('viewMode').addEventListener('click', (e) => {
-  const b = e.target.closest('button'); if (!b) return;
-  state.mode = b.dataset.mode; safeSet('hotdesk.mode', state.mode);
-  syncModeButtons(); renderLegend(); renderPlan();
-});
-// Team colours have separate light and dark steps: redraw when the theme changes.
-matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { renderLegend(); renderPlan(); renderProjects(); });
-$('teamFilter').addEventListener('change', (e) => { state.team = e.target.value; renderPlan(); });
-
-$('floorFilter').addEventListener('click', (e) => {
-  const b = e.target.closest('button'); if (!b) return;
-  state.floor = b.dataset.floor; safeSet('hotdesk.floor', state.floor);
-  renderFloorFilter(); renderPlan();
-});
-$('statusFilter').addEventListener('change', (e) => { state.status = e.target.value; renderPlan(); });
-
-const tip = $('tip');
-function showTip(html, x, y) {
-  tip.innerHTML = html; tip.style.display = 'block';
-  const r = tip.getBoundingClientRect();
-  tip.style.left = Math.min(x + 14, innerWidth - r.width - 8) + 'px';
-  tip.style.top = Math.min(y + 14, innerHeight - r.height - 8) + 'px';
-}
-function hideTip() { tip.style.display = 'none'; }
-$('plan').addEventListener('pointermove', (e) => {
-  const b = e.target.closest('.seat'); if (!b) return hideTip();
-  showTip(seatTip(state.seats.get(b.dataset.seat)), e.clientX, e.clientY);
-});
-$('plan').addEventListener('pointerleave', hideTip);
-$('plan').addEventListener('focusin', (e) => {
-  const b = e.target.closest('.seat'); if (!b) return;
-  const r = b.getBoundingClientRect();
-  showTip(seatTip(state.seats.get(b.dataset.seat)), r.right, r.top);
-});
-$('plan').addEventListener('focusout', hideTip);
-
-// ---------- Zone table ----------
-function renderZones() {
-  const rows = (state.summary?.floors ?? []).flatMap((f) => f.zones.map((z) => ({ floor: f.name, ...z })));
-  $('zones').innerHTML = `<thead><tr><th>Floor</th><th>Zone</th><th class="num">Seats</th><th class="num">Available</th>
-    <th class="num">Occupied</th><th class="num">Away</th><th class="num">Offline</th><th>Occupancy</th></tr></thead>
-    <tbody>${rows.map((z) => `<tr><td>${esc(z.floor)}</td><td>${esc(z.name)}</td><td class="num">${z.total}</td>
-      <td class="num">${z.available}</td><td class="num">${z.occupied}</td><td class="num">${z.away}</td><td class="num">${z.offline}</td>
-      <td><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><i style="width:${pct(z.occupancyRate)}"></i></div>
-      <span style="width:3em;text-align:right">${pct(z.occupancyRate)}</span></div></td></tr>`).join('')}</tbody>`;
-}
-
-function renderTeams() {
-  const rows = state.summary?.teams ?? [];
-  $('teams').innerHTML = `<thead><tr><th>Team</th><th class="num">Desks</th><th class="num">Available</th>
-    <th class="num">Occupied</th><th class="num">Away</th><th class="num">Offline</th><th>Occupancy</th></tr></thead>
-    <tbody>${rows.map((t) => `<tr><td><span style="display:inline-flex;align-items:center;gap:8px">
-      <span class="swatch" style="${t.color ? `background:${t.color}` : 'box-shadow:inset 0 0 0 1.5px var(--text-muted)'}"></span>${esc(t.name)}</span></td>
-      <td class="num">${t.total}</td><td class="num">${t.available}</td><td class="num">${t.occupied}</td><td class="num">${t.away}</td><td class="num">${t.offline}</td>
-      <td><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><i style="width:${pct(t.occupancyRate)}"></i></div>
-      <span style="width:3em;text-align:right">${pct(t.occupancyRate)}</span></div></td></tr>`).join('')}</tbody>`;
-}
-
-// ---------- Project teams ----------
-function renderProjectFilter() {
-  const sel = $('projectFilter');
-  sel.innerHTML = '<option value="">All project teams</option>' +
-    state.projects.map((t) => `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join('');
-  if (!state.projects.some((t) => t.name === state.project)) state.project = '';
-  sel.value = state.project;
-}
-$('projectFilter').addEventListener('change', (e) => { state.project = e.target.value; renderPlan(); });
-
-function renderProjects() {
-  const rows = state.projects;
-  const total = (k) => rows.reduce((n, t) => n + t[k], 0);
-  const person = (r) => `<li><span>${esc(r.name)}</span><span class="muted">${r.checkedInAt
-    ? `at <b>${esc(r.checkedInAt)}</b> until ${fmtTime(r.checkedInUntil)}`
-    : r.lastCheckInAt ? `last in ${new Date(r.lastCheckInAt).toLocaleDateString()} (${esc(r.lastSeatId ?? '')})` : ''}</span></li>`;
-  $('projects').innerHTML = `<thead><tr><th>Project team</th><th class="num">Checked in now</th><th class="num">Check-ins today</th>
-    <th class="num">Check-outs today</th><th>Requesters</th></tr></thead>
-    <tbody>${rows.map((t) => `<tr>
-      <td><span style="display:inline-flex;align-items:center;gap:8px"><span class="seat code" style="width:34px;height:22px;cursor:default;background:${projectColor(t)};color:${inkOn(projectColor(t))}">${esc(t.code)}</span>${esc(t.name)}${t.configured ? '' : ' <span class="muted">(no longer offered)</span>'}</span></td>
-      <td class="num">${t.checkedInNow}</td><td class="num">${t.checkinsToday}</td><td class="num">${t.checkoutsToday}</td>
-      <td>${t.requesters.length
-        ? `<details class="reqs"><summary>${t.requesters.length} requester${t.requesters.length === 1 ? '' : 's'}</summary><ul>${t.requesters.map(person).join('')}</ul></details>`
-        : '<span class="muted">none yet</span>'}</td></tr>`).join('')}
-      <tr><td><b>Total</b></td><td class="num"><b>${total('checkedInNow')}</b></td><td class="num"><b>${total('checkinsToday')}</b></td>
-      <td class="num"><b>${total('checkoutsToday')}</b></td><td class="muted">${rows.reduce((n, t) => n + t.requesters.length, 0)} requesters</td></tr></tbody>`;
-}
-
-async function loadProjects() {
-  // Keep open requester lists open across refreshes.
-  const open = new Set([...document.querySelectorAll('#projects details[open]')].map((d) => d.closest('tr').firstElementChild.textContent));
-  const before = JSON.stringify(state.projects.map((t) => [t.name, t.code, t.color, t.slot]));
-  state.projects = await api('/api/project-teams/summary');
-  renderProjectFilter(); renderProjects();
-  // Codes and colours arrive with the summary: redraw the plan once they're known or change.
-  if (before !== JSON.stringify(state.projects.map((t) => [t.name, t.code, t.color, t.slot]))) { renderLegend(); renderPlan(); }
-  document.querySelectorAll('#projects details').forEach((d) => { if (open.has(d.closest('tr').firstElementChild.textContent)) d.open = true; });
-}
-
-// ---------- Activity ----------
-const who = (a) => `${esc(a.detail)}${a.team ? ` <span class="muted">(${esc(a.team)})</span>` : ''}`;
-const ACT = {
-  checkin: (a) => `${who(a)} checked in at <b>${esc(a.seatId)}</b>`,
-  checkout: (a) => `${who(a)} checked out of <b>${esc(a.seatId)}</b>`,
-  moved: (a) => `${who(a)} moved away from <b>${esc(a.seatId)}</b>`,
-  renew: (a) => `${who(a)} extended their check-in at <b>${esc(a.seatId)}</b>`,
-  expired: (a) => `${who(a)}: check-in at <b>${esc(a.seatId)}</b> expired`,
-  'auto-release': (a) => `<b>${esc(a.seatId)}</b> auto-released${a.detail ? ` (was ${esc(a.detail)})` : ''}`,
-  status: (a) => `<b>${esc(a.seatId)}</b> ${esc(a.detail)}`,
-};
-async function renderFeed() {
-  const items = await api('/api/activity');
-  $('feed').innerHTML = items.slice(0, 60).map((a) =>
-    `<li><time>${fmtTime(a.at)}</time><span>${(ACT[a.type] ?? ACT.status)(a)}</span></li>`).join('')
-    || '<li class="muted">No activity yet.</li>';
-}
-
-// ---------- Occupancy chart (single series: % of seats in use) ----------
-let history = [];
-function renderChart() {
-  const el = $('chart');
-  if (history.length < 2) { el.innerHTML = '<div class="empty">Collecting data — samples are taken every minute.</div>'; return; }
-  const W = el.clientWidth || 600, H = 200, m = { l: 40, r: 12, t: 10, b: 24 };
-  const t0 = history[0].t, t1 = history.at(-1).t;
-  const x = (t) => m.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - m.l - m.r);
-  const y = (v) => m.t + (1 - v) * (H - m.t - m.b);
-  const rate = (h) => (h.total ? (h.occupied + h.away) / h.total : 0);
-  const d = history.map((h, i) => `${i ? 'L' : 'M'}${x(h.t).toFixed(1)},${y(rate(h)).toFixed(1)}`).join('');
-  const area = `${d}L${x(t1)},${y(0)}L${x(t0)},${y(0)}Z`;
-  const yt = [0, 0.25, 0.5, 0.75, 1];
-  const nx = Math.min(6, Math.max(2, Math.floor(W / 110)), Math.max(2, Math.floor((t1 - t0) / 60_000) + 1));
-  const xt = Array.from({ length: nx }, (_, i) => t0 + ((t1 - t0) * i) / (nx - 1));
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Seat occupancy rate over the last 24 hours">
-    ${yt.map((v) => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/>
-      <text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${pct(v)}</text>`).join('')}
-    ${xt.map((t, i) => `<text x="${x(t)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === nx - 1 ? 'end' : 'middle'}" font-size="11" fill="var(--text-muted)">${fmtTime(t)}</text>`).join('')}
-    <path d="${area}" fill="var(--line)" opacity="0.12"/>
-    <path d="${d}" fill="none" stroke="var(--line)" stroke-width="2" stroke-linejoin="round"/>
-    <line id="xh" y1="${m.t}" y2="${H - m.b}" stroke="var(--text-muted)" stroke-dasharray="3 3" visibility="hidden"/>
-    <circle id="xd" r="4" fill="var(--line)" stroke="var(--surface-1)" stroke-width="2" visibility="hidden"/>
-    <rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" id="hit"/>
-  </svg>`;
-  const svg = el.querySelector('svg');
-  svg.querySelector('#hit').addEventListener('pointermove', (e) => {
-    const r = svg.getBoundingClientRect();
-    const px = ((e.clientX - r.left) / r.width) * W;
-    const t = t0 + ((px - m.l) / (W - m.l - m.r)) * (t1 - t0);
-    let h = history[0];
-    for (const s of history) if (Math.abs(s.t - t) < Math.abs(h.t - t)) h = s;
-    const xh = svg.querySelector('#xh'), xd = svg.querySelector('#xd');
-    xh.setAttribute('x1', x(h.t)); xh.setAttribute('x2', x(h.t)); xh.setAttribute('visibility', 'visible');
-    xd.setAttribute('cx', x(h.t)); xd.setAttribute('cy', y(rate(h))); xd.setAttribute('visibility', 'visible');
-    showTip(`<b>${fmtTime(h.t)} — ${pct(rate(h))} in use</b>Occupied ${h.occupied} · Away ${h.away}<br>Available ${h.available} · Offline ${h.offline}`, e.clientX, e.clientY);
-  });
-  svg.querySelector('#hit').addEventListener('pointerleave', () => {
-    svg.querySelector('#xh').setAttribute('visibility', 'hidden');
-    svg.querySelector('#xd').setAttribute('visibility', 'hidden');
-    hideTip();
-  });
-}
-addEventListener('resize', () => renderChart());
-
-// ---------- Live updates ----------
-let summaryTimer = null;
-function refreshSummarySoon() {
-  if (summaryTimer) return;
-  summaryTimer = setTimeout(async () => {
-    summaryTimer = null;
-    try {
-      state.summary = await api('/api/summary');
-      renderKpis(); renderPlan(); renderZones(); renderTeams(); renderFeed(); loadProjects();
-    } catch (e) { console.error(e); }
-  }, 400);
-}
-
-function connect() {
-  const es = new EventSource(withToken('/api/stream'));
-  es.addEventListener('snapshot', (e) => {
-    const { seats, summary } = JSON.parse(e.data);
-    state.seats = new Map(seats.map((s) => [s.id, s]));
-    state.summary = summary;
-    renderKpis(); renderFloorFilter(); renderTeamFilter(); renderLegend(); renderPlan(); renderZones(); renderTeams();
-    $('live').textContent = 'Live'; $('live').classList.add('on');
-  });
-  es.addEventListener('seat', (e) => {
-    const s = JSON.parse(e.data);
-    state.seats.set(s.id, s);
-    const b = document.querySelector(`[data-seat="${CSS.escape(s.id)}"]`);
-    if (b) b.outerHTML = seatButton(s);
-    refreshSummarySoon();
-  });
-  es.onerror = () => { $('live').textContent = 'Reconnecting…'; $('live').classList.remove('on'); };
-}
-
-async function start() {
-  try {
-    await api('/api/summary'); // triggers the token prompt before opening the stream
-    $('labelsLink').href = withToken('/labels');
-    $('sensorsLink').href = withToken('/sensors');
-    $('requestersCsv').href = withToken('/api/requesters.csv');
-    loadProjects();
-    connect();
-    renderFeed();
-    const loadHistory = async () => { history = await api('/api/history'); renderChart(); };
-    loadHistory();
-    setInterval(loadHistory, 60_000);
-    setInterval(refreshSummarySoon, 30_000); // hold timers expire without a sensor event
-  } catch (e) {
-    $('live').textContent = 'Not authorised';
-  }
-}
-start();
-</script>
+<script src="/static/dashboard.js"></script>
 </body>
 </html>
