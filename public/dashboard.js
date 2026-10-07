@@ -32,7 +32,7 @@ function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 let token = params.get('token') || safeGet('hotdesk.token') || '';
 
 const state = {
-  seats: new Map(), summary: null, projects: [], options: null,
+  seats: new Map(), summary: null, projects: [], options: null, plans: new Map(),
   floor: safeGet('hotdesk.floor') || '', status: '', team: '', project: '', mode: safeGet('hotdesk.mode') || 'project',
   selected: null, flash: null,
 };
@@ -98,8 +98,8 @@ function renderKpis() {
     tile('rate', 'var(--accent)', ICON.gauge, 'Occupancy', pct(rate), `${c.occupied + c.away} of ${c.total} seats in use`,
       `<div class="meter" role="presentation"><i style="width:${pct(rate)}"></i></div>`) +
     tile('available', 'var(--available)', STATUS_ICON.available, 'Available', c.available, STATUS.available.sub) +
-    tile('occupied', 'var(--seat-occ-ink)', STATUS_ICON.occupied, 'Occupied', c.occupied, STATUS.occupied.sub) +
-    tile('away', 'var(--away-ink)', STATUS_ICON.away, 'Away (held)', c.away, `held ≤ ${s.rules.awayGraceMinutes} min, then released`) +
+    tile('occupied', 'var(--seat-occupied)', STATUS_ICON.occupied, 'Occupied', c.occupied, STATUS.occupied.sub) +
+    tile('away', 'var(--seat-away-ink)', STATUS_ICON.away, 'Away (held)', c.away, `held ≤ ${s.rules.awayGraceMinutes} min, then released`) +
     tile('offline', 'var(--text-muted)', STATUS_ICON.offline, 'Sensor offline', c.offline, STATUS.offline.sub);
 }
 
@@ -127,7 +127,7 @@ function renderFloorFilter() {
 
 function renderStatusFilter() {
   const opts = [['', 'All statuses', null], ...Object.entries(STATUS).map(([k, v]) => [k, v.label, k])];
-  const dot = { available: 'var(--available)', occupied: 'var(--seat-occ-ink)', away: 'var(--away)', offline: 'var(--offline)' };
+  const dot = { available: 'var(--seat-available)', occupied: 'var(--seat-occupied)', away: 'var(--seat-away)', offline: 'var(--seat-offline)' };
   $('statusFilter').innerHTML = opts.map(([k, label, d]) =>
     `<button type="button" class="chipbtn" data-status="${k}" aria-pressed="${state.status === k}">${d ? `<span class="dot" style="background:${dot[d]}"></span>` : ''}${esc(label)}</button>`).join('');
 }
@@ -203,84 +203,109 @@ function projectColor(t) {
   const v = t.slot === null || t.slot === undefined ? '--anon' : `--team-${(t.slot % 8) + 1}`;
   return rootStyle().getPropertyValue(v).trim() || '#7a7974';
 }
+function luminance(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+/** Black or white text, whichever contrasts more with the fill. */
+function inkOn(hex) {
+  const l = luminance(hex);
+  return (l + 0.05) / (luminance('#0b0b0b') + 0.05) >= 1.05 / (l + 0.05) ? '#0b0b0b' : '#ffffff';
+}
 
 // ---------- Floor plan ----------
-/**
- * Desk surfaces drawn behind the seats. Each group of touching desks becomes one
- * table; a group that isn't a full rectangle falls back to one table per row run.
- * Purely decorative: seats keep their configured row and column.
- */
-function deskBlocks(seats) {
-  const at = new Map(seats.map((s) => [`${s.row},${s.col}`, s]));
-  const seen = new Set();
-  const blocks = [];
-  for (const s of seats) {
-    const key = `${s.row},${s.col}`;
-    if (seen.has(key)) continue;
-    const group = []; const stack = [s]; seen.add(key);
-    while (stack.length) {
-      const c = stack.pop(); group.push(c);
-      for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const k = `${c.row + dr},${c.col + dc}`;
-        if (at.has(k) && !seen.has(k)) { seen.add(k); stack.push(at.get(k)); }
-      }
-    }
-    const r0 = Math.min(...group.map((g) => g.row)), r1 = Math.max(...group.map((g) => g.row));
-    const c0 = Math.min(...group.map((g) => g.col)), c1 = Math.max(...group.map((g) => g.col));
-    if ((r1 - r0 + 1) * (c1 - c0 + 1) === group.length) { blocks.push({ r0, r1, c0, c1 }); continue; }
-    const byRow = new Map();
-    for (const g of group) byRow.set(g.row, [...(byRow.get(g.row) ?? []), g.col].sort((a, b) => a - b));
-    for (const [row, cols] of byRow) {
-      let start = cols[0];
-      cols.forEach((col, i) => {
-        if (cols[i + 1] !== col + 1) { blocks.push({ r0: row, r1: row, c0: start, c1: col }); start = cols[i + 1]; }
-      });
-    }
-  }
-  return blocks;
-}
+// Each floor is one SVG (public/floorplan.js). Seats are its only interactive parts; the
+// office around them is context. Scale: fit the card width, but never below TAP_SCALE
+// (px per plan unit) so chairs stay easy to hit; past that the plan scrolls.
+const MIN_SCALE = 4, TAP_SCALE = 6, FIT_CAP = 8, MAX_SCALE = 18;
+let layouts = [];
+let zoom = 1;
 
 function renderPlan() {
   hidePop();
   const floors = (state.summary?.floors ?? []).filter((f) => !state.floor || f.id === state.floor);
   const seats = [...state.seats.values()];
-  $('plan').innerHTML = floors.map((f) => `
+  layouts = floors.map((f) => FloorPlan.layoutFloor(f, seats, state.plans.get(f.id)));
+  $('plan').innerHTML = layouts.map((fl) => `
     <div class="floor">
-      <div class="floor-head"><h3>${esc(f.name)}</h3><span class="count" data-floor-count="${esc(f.id)}"></span></div>
-      <div class="zones">${f.zones.map((z) => {
-        const zs = seats.filter((s) => s.floor === f.id && s.zone === z.id);
-        const cols = Math.max(1, ...zs.map((s) => s.col + 1));
-        const rows = Math.max(1, ...zs.map((s) => s.row + 1));
-        return `<div class="zone">
-          <div class="zone-head"><span class="name">${esc(z.name)}</span><span class="free" data-zone-count="${esc(f.id)}|${esc(z.id)}"></span></div>
-          <div class="zone-grid" role="group" aria-label="${esc(`${f.name}, ${z.name}`)}" style="grid-template-columns:repeat(${cols}, var(--cell));grid-template-rows:repeat(${rows}, var(--cell))">
-            ${deskBlocks(zs).map((b) => `<div class="desk" style="grid-area:${b.r0 + 1} / ${b.c0 + 1} / ${b.r1 + 2} / ${b.c1 + 2}"></div>`).join('')}
-            ${zs.map((s) => `<button type="button" class="seat" data-seat="${esc(s.id)}" tabindex="-1" style="grid-area:${s.row + 1} / ${s.col + 1}"></button>`).join('')}
-          </div></div>`;
-      }).join('')}</div>
+      <div class="floor-head"><h3>${esc(fl.name)}</h3><span class="count" data-floor-count="${esc(fl.id)}"></span>
+        ${fl.plan ? '' : '<span class="fp-note">Walls and facilities are not mapped for this floor yet.</span>'}</div>
+      <div class="fp-scroll">${FloorPlan.floorSVG(fl)}</div>
     </div>`).join('') || '<div class="empty">No seats configured.</div>';
   // Restart the fade so a floor switch reads as a transition.
   $('plan').style.animation = 'none'; void $('plan').offsetWidth; $('plan').style.animation = '';
+  applyScale();
   patchAllSeats();
   updateCounts();
 }
 
+function baseScale(fl) {
+  const avail = $('floorplan').clientWidth - 42;
+  return Math.min(FIT_CAP, Math.max(TAP_SCALE, avail / (fl.w + 2)));
+}
+function applyScale() {
+  $('plan').querySelectorAll('svg.fp').forEach((svg, i) => {
+    const fl = layouts[i]; if (!fl) return;
+    const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, baseScale(fl) * zoom));
+    svg.setAttribute('width', Math.round(Number(svg.dataset.w) * s));
+    svg.setAttribute('height', Math.round(Number(svg.dataset.h) * s));
+  });
+  $('zoomLevel').textContent = `${Math.round(zoom * 100)}%`;
+}
+addEventListener('resize', () => applyScale());
+$('zoom').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  zoom = b.dataset.zoom === 'in' ? Math.min(2.5, zoom * 1.25) : b.dataset.zoom === 'out' ? Math.max(0.5, zoom / 1.25) : 1;
+  applyScale();
+  if (state.selected) revealSeat(state.selected, 'auto');
+});
+
+const seatEl = (id) => $('plan').querySelector(`.seat[data-seat="${CSS.escape(id)}"]`);
+const isOn = (el) => !el.classList.contains('is-dim');
+
+/** Scroll the plan (not the page) so a seat is in view, e.g. after the panel narrows the plan. */
+function revealSeat(id, behavior = 'smooth') {
+  const el = seatEl(id); if (!el) return;
+  const box = el.closest('.fp-scroll'), r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+  const m = 48;
+  let dx = 0, dy = 0;
+  if (r.left < b.left + m) dx = r.left - b.left - m; else if (r.right > b.right - m) dx = r.right - b.right + m;
+  if (r.top < b.top + m) dy = r.top - b.top - m; else if (r.bottom > b.bottom - m) dy = r.bottom - b.bottom + m;
+  if (dx || dy) box.scrollBy({ left: dx, top: dy, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : behavior });
+}
+
+/** Glyphs drawn on the chair: shape as well as colour tells the states apart. */
+function glyph(kind, cx, cy, text = '') {
+  switch (kind) {
+    case 'dot': return `<circle class="g-fill" cx="${cx}" cy="${cy}" r="0.55"/>`;
+    case 'person': return `<g class="g-fill" transform="translate(${cx} ${cy})"><circle cy="-0.5" r="0.52"/><path d="M-1 0.95a1 0.9 0 0 1 2 0z"/></g>`;
+    case 'clock': return `<g class="g-stroke" transform="translate(${cx} ${cy})"><circle r="0.9"/><path d="M0 -0.5V0l0.38 0.3"/></g>`;
+    case 'alert': return `<text class="g-text g-alert" x="${cx}" y="${cy}">!</text>`;
+    // Codes are up to four characters: shorter ones get a larger size.
+    default: return `<text class="g-text g-code" x="${cx}" y="${cy}" font-size="${text.length <= 2 ? 1.5 : text.length === 3 ? 1.2 : 0.98}">${esc(text)}</text>`;
+  }
+}
+const BADGE = '<g class="badge" transform="translate(3.55 0.05)"><circle r="1"/><path d="M-0.48 0.02l0.33 0.33 0.65-0.68"/></g>';
+const STATUS_GLYPH = { available: 'dot', occupied: 'person', away: 'clock', offline: 'alert' };
+
 /** How a seat looks in the current colour mode. */
 function seatLook(s) {
-  const glyph = { available: '<i class="dot"></i>', occupied: ICON.person, away: ICON.clock, offline: '!' }[s.status];
+  const base = { cls: `st-${s.status}`, color: '', ink: '', kind: STATUS_GLYPH[s.status], text: '' };
   if (state.mode === 'team') {
     const color = teamInfo(s.team)?.color;
-    return color ? { cls: 'layout', color, text: glyph } : { cls: 'layout-none', color: '', text: glyph };
+    return color ? { ...base, cls: `layout st-${s.status}`, color } : { ...base, cls: `layout-none st-${s.status}` };
   }
   if (state.mode === 'project' && (s.status === 'occupied' || s.status === 'away')) {
     const t = projectInfo(s.projectTeam);
-    if (t) return { cls: `st-${s.status} team`, color: projectColor(t), text: esc(t.code) };
+    if (t && s.status === 'occupied') { const c = projectColor(t); return { ...base, cls: 'st-occupied team', color: c, ink: inkOn(c), kind: 'code', text: t.code }; }
+    if (t) return { ...base, kind: 'code', text: t.code };
   }
-  return { cls: `st-${s.status}`, color: '', text: glyph };
+  return base;
 }
 
 function seatLabel(s) {
-  const parts = [`Seat ${s.id}`, STATUS[s.status].label];
+  const parts = [`Seat ${s.id}`, STATUS[s.status].label, s.zoneName];
   if (s.projectTeam) parts.push(s.projectTeam);
   if (hasTeams()) parts.push(s.teamName ? `assigned to ${s.teamName}` : 'unassigned');
   if (state.selected === s.id) parts.push('selected');
@@ -292,14 +317,15 @@ function patchSeat(el, s = state.seats.get(el.dataset.seat)) {
   const look = seatLook(s);
   const sel = state.selected === s.id;
   const dim = !matches(s);
-  const sig = [look.cls, look.color, look.text, sel, dim].join('|');
+  const sig = [look.cls, look.color, look.kind, look.text, sel, dim].join('|');
   if (el.dataset.sig !== sig) {
     el.dataset.sig = sig;
-    el.className = `seat ${look.cls}${sel ? ' is-selected' : ''}`;
-    if (look.color) el.style.setProperty('--c', look.color); else el.style.removeProperty('--c');
-    el.innerHTML = look.text + (sel ? `<span class="seat-badge">${ICON.check}</span>` : '');
-    el.disabled = dim;
+    el.setAttribute('class', `seat ${look.cls}${sel ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`);
+    if (look.color) { el.style.setProperty('--c', look.color); el.style.setProperty('--ink', look.ink || '#0b0b0b'); }
+    else { el.style.removeProperty('--c'); el.style.removeProperty('--ink'); }
+    el.querySelector('.glyph').innerHTML = glyph(look.kind, el.dataset.cx, el.dataset.cy, look.text) + (sel ? BADGE : '');
     el.setAttribute('aria-pressed', String(sel));
+    if (dim) el.setAttribute('aria-disabled', 'true'); else el.removeAttribute('aria-disabled');
   }
   el.setAttribute('aria-label', seatLabel(s));
   if (popFor === el) fillPop(el);
@@ -307,15 +333,16 @@ function patchSeat(el, s = state.seats.get(el.dataset.seat)) {
 
 function patchAllSeats() {
   for (const el of $('plan').querySelectorAll('.seat')) patchSeat(el);
-  for (const g of $('plan').querySelectorAll('.zone-grid')) updateRoving(g);
+  for (const z of $('plan').querySelectorAll('.fp-zone')) updateRoving(z);
   const any = [...state.seats.values()].some((s) => inFloor(s) && matches(s));
   $('noMatch').hidden = any || !state.seats.size;
 }
 
-/** One tab stop per area: the selected seat, else the last focused, else the first enabled seat. */
-function updateRoving(grid) {
-  const seats = [...grid.querySelectorAll('.seat')];
-  const enabled = seats.filter((b) => !b.disabled);
+/** One tab stop per zone: the selected seat, else the last focused, else the first enabled seat. */
+function updateRoving(zone) {
+  if (!zone) return;
+  const seats = [...zone.querySelectorAll('.seat')];
+  const enabled = seats.filter(isOn);
   const current = enabled.find((b) => b.dataset.seat === state.selected)
     ?? enabled.find((b) => b === document.activeElement)
     ?? enabled.find((b) => b.tabIndex === 0) ?? enabled[0];
@@ -331,7 +358,7 @@ function updateCounts() {
   for (const el of $('plan').querySelectorAll('[data-zone-count]')) {
     const [f, z] = el.dataset.zoneCount.split('|');
     const c = countsFor((s) => s.floor === f && s.zone === z);
-    el.innerHTML = `<b>${c.available}</b> of ${c.total} free`;
+    el.textContent = `${c.available} of ${c.total} free`;
   }
   for (const el of $('plan').querySelectorAll('[data-floor-count]')) {
     const c = countsFor((s) => s.floor === el.dataset.floorCount);
@@ -346,14 +373,16 @@ function select(id) {
   if (prev !== id) state.flash = null;
   for (const sid of [prev, id]) {
     if (!sid) continue;
-    const el = $('plan').querySelector(`[data-seat="${CSS.escape(sid)}"]`);
-    if (el) { patchSeat(el); updateRoving(el.closest('.zone-grid')); }
+    const el = seatEl(sid);
+    if (el) { patchSeat(el); updateRoving(el.closest('.fp-zone')); }
   }
   renderPanel();
+  // The panel narrows the plan as it opens: keep the chosen seat in sight.
+  if (id) setTimeout(() => revealSeat(id), 260);
 }
 
 $('plan').addEventListener('click', (e) => {
-  const b = e.target.closest('.seat'); if (!b || b.disabled) return;
+  const b = e.target.closest('.seat'); if (!b || !isOn(b)) return;
   hidePop();
   select(state.selected === b.dataset.seat ? null : b.dataset.seat);
 });
@@ -361,17 +390,24 @@ $('plan').addEventListener('click', (e) => {
 const KEYS = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0] };
 $('plan').addEventListener('keydown', (e) => {
   const b = e.target.closest('.seat'); if (!b) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault(); hidePop();
+    select(state.selected === b.dataset.seat ? null : b.dataset.seat);
+    return;
+  }
   const dir = KEYS[e.key]; if (!dir) return;
   e.preventDefault();
-  const cur = state.seats.get(b.dataset.seat);
+  // Move by where seats are drawn, not by map row/column: counters and benches don't line up.
+  const centre = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  const [x0, y0] = centre(b);
   let best = null, bestScore = Infinity;
-  for (const el of b.closest('.zone-grid').querySelectorAll('.seat:not(:disabled)')) {
-    if (el === b) continue;
-    const s = state.seats.get(el.dataset.seat);
-    const dr = s.row - cur.row, dc = s.col - cur.col;
-    if (dir[0] && Math.sign(dr) !== dir[0]) continue;
-    if (dir[1] && (Math.sign(dc) !== dir[1] || dr !== 0)) continue;
-    const score = dir[0] ? Math.abs(dr) * 1000 + Math.abs(dc) : Math.abs(dc);
+  for (const el of b.closest('.fp-zone').querySelectorAll('.seat')) {
+    if (el === b || !isOn(el)) continue;
+    const [x, y] = centre(el);
+    const along = dir[1] ? (x - x0) * dir[1] : (y - y0) * dir[0];
+    const across = dir[1] ? Math.abs(y - y0) : Math.abs(x - x0);
+    if (along < 2) continue;
+    const score = along + across * 3;
     if (score < bestScore) { bestScore = score; best = el; }
   }
   if (!best) return;
@@ -418,7 +454,7 @@ function hidePop() { clearTimeout(popTimer); popFor = null; pop.classList.remove
 $('plan').addEventListener('pointerover', (e) => {
   if (e.pointerType === 'touch') return;
   const b = e.target.closest('.seat');
-  if (!b || b.disabled || b === popFor) return;
+  if (!b || !isOn(b) || b === popFor) return;
   clearTimeout(popTimer);
   popTimer = setTimeout(() => showPop(b), popFor ? 0 : 80);
 });
@@ -452,21 +488,8 @@ function renderPanel() {
   const panel = $('panel');
   const s = state.selected && state.seats.get(state.selected);
   panel.classList.toggle('open', Boolean(s));
-  if (!s) {
-    const key = 'empty';
-    const c = countsFor(inScope);
-    const html = `<div class="panel-empty">
-      <div class="big">${ICON.pointer}</div>
-      <h3>Select a seat</h3>
-      <p>Hover a seat on the plan to preview it. Click it to see its details and check someone in.</p>
-      <div class="stat"><b>${c.available}</b>of ${c.total} seats available${state.floor ? ' on this floor' : ''}</div>
-      <div class="kbd-hint"><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> move · <kbd>Enter</kbd> select · <kbd>Esc</kbd> clear</div>
-    </div>`;
-    if (panelKey === key) panel.querySelector('.panel-empty').outerHTML = html;
-    else panel.innerHTML = html;
-    panelKey = key;
-    return;
-  }
+  $('planwrap').classList.toggle('has-panel', Boolean(s));
+  if (!s) { panel.innerHTML = ''; panelKey = ''; return; }
   // The form only re-renders when what it does changes, so live updates never wipe typed input.
   const mode = s.checkedInBy ? `manage:${s.checkedInBy}` : 'checkin';
   const key = `${s.id}|${mode}`;
@@ -582,21 +605,27 @@ async function reloadSeats() {
 }
 
 // ---------- Legend ----------
-function sample(cls, inner, style = '') { return `<span class="seat ${cls}" style="${style}" aria-hidden="true">${inner}</span>`; }
+function chairSample(cls, kind, { text = '', style = '', badge = false } = {}) {
+  const chair = FloorPlan.chairMarkup('left').replace('<g class="glyph"></g>', `<g class="glyph">${glyph(kind, 2.05, 1.8, text)}${badge ? BADGE : ''}</g>`);
+  return `<svg class="lchair" viewBox="-1.2 -1.4 6.2 6.2" aria-hidden="true"><g class="seat ${cls}" style="${style}">${chair}</g></svg>`;
+}
 function renderLegend() {
+  const project = state.mode === 'project';
   const status = `<div class="lgroup"><b>Seats</b>
-    <span class="litem">${sample('st-available', '<i class="dot"></i>')}Available</span>
-    <span class="litem">${sample('st-available is-selected', `<i class="dot"></i><span class="seat-badge">${ICON.check}</span>`)}Selected</span>
-    <span class="litem">${sample('st-occupied', ICON.person)}Occupied${state.mode === 'project' ? ', not checked in' : ''}</span>
-    <span class="litem">${sample('st-away', ICON.clock)}Away (held)${state.mode === 'project' ? ', not checked in' : ''}</span>
-    <span class="litem">${sample('st-offline', '!')}Sensor offline</span>
-    <span class="litem"><span class="desk" style="display:inline-block;width:28px;height:14px;margin:0"></span>Desk</span></div>`;
+    <span class="litem">${chairSample('st-available', 'dot')}Available</span>
+    <span class="litem">${chairSample('st-available is-selected', 'dot', { badge: true })}Selected</span>
+    <span class="litem">${chairSample('st-occupied', 'person')}Occupied${project ? ', not checked in' : ''}</span>
+    <span class="litem">${chairSample('st-away', 'clock')}Away (held)</span>
+    <span class="litem">${chairSample('st-offline', 'alert')}Sensor offline</span>
+    <span class="litem"><svg class="lchair" viewBox="0 0 8 5" aria-hidden="true"><rect class="fp-table" x="0.5" y="1" width="7" height="3" rx="0.4"/></svg>Table</span></div>`;
   let extra = '';
-  if (state.mode === 'project') {
-    const t0 = state.projects.find((t) => t.configured);
-    extra = `<div class="lgroup"><b>Project teams</b>${state.projects.filter((t) => t.configured).map((t) =>
-      `<span class="litem"><span class="chip" style="--c:${projectColor(t)}">${esc(t.code)}</span>${esc(t.name)}</span>`).join('')}
-      ${t0 ? `<span class="litem">${sample('st-away team', esc(t0.code), `--c:${projectColor(t0)};--cell:auto;min-width:34px;height:20px;padding:0 5px`)}Away, held for the team (dashed)</span>` : ''}</div>`;
+  if (project) {
+    const teams = state.projects.filter((t) => t.configured);
+    extra = `<div class="lgroup"><b>Occupied by project team</b>${teams.map((t) => {
+      const c = projectColor(t);
+      return `<span class="litem">${chairSample('st-occupied team', 'code', { text: t.code, style: `--c:${c};--ink:${inkOn(c)}` })}${esc(t.name)}</span>`;
+    }).join('')}
+      ${teams[0] ? `<span class="litem">${chairSample('st-away', 'code', { text: teams[0].code })}Away, held for the team</span>` : ''}</div>`;
   } else if (state.mode === 'team') {
     extra = `<div class="lgroup"><b>Team assignment</b>${(state.summary?.teams ?? []).map((t) => t.color
       ? `<span class="litem"><span class="swatch" style="background:${t.color}"></span>${esc(t.name)}</span>`
@@ -766,9 +795,9 @@ function connect() {
     const s = JSON.parse(e.data);
     state.seats.set(s.id, s);
     const el = $('plan').querySelector(`[data-seat="${CSS.escape(s.id)}"]`);
-    if (el) { patchSeat(el, s); updateRoving(el.closest('.zone-grid')); }
+    if (el) { patchSeat(el, s); updateRoving(el.closest('.fp-zone')); }
     updateCounts(); renderKpis();
-    if (state.selected === s.id || !state.selected) renderPanel();
+    if (state.selected === s.id) renderPanel();
     $('noMatch').hidden = [...state.seats.values()].some((x) => inFloor(x) && matches(x));
     refreshSummarySoon();
   });
@@ -788,6 +817,7 @@ async function start() {
     $('labelsLink').href = withToken('/labels');
     $('sensorsLink').href = withToken('/sensors');
     $('requestersCsv').href = withToken('/api/requesters.csv');
+    state.plans = new Map((await api('/api/floorplan').catch(() => [])).map((f) => [f.id, f.plan]));
     fetch('/api/checkin-options').then((r) => r.json()).then((o) => { state.options = o; panelKey = ''; renderPanel(); }).catch(() => {});
     loadProjects();
     connect();

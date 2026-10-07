@@ -94,6 +94,38 @@ and use the team's letter in the map instead of `.`. When a layout has teams, th
 The deck's blue arrows and "OSN" label are ignored. The latest revision of the deck blanks out the Level 2
 UAT Stations block, so it is no longer part of the layout. Level 2 now has only the General Office.
 
+### Floor-plan drawing (optional)
+
+The dashboard draws each floor as an office plan. Tables come from the desk `map`: desks that touch form
+a table. A bank two desks wide is a table with chairs on both sides, a bank one desk wide is a bench, and a
+single row of three or more is a counter with chairs along it.
+
+To draw walls and facilities, give the floor a `"plan"`. All numbers are plan units (about 10 cm), with
+`0,0` at the top-left corner of the outer wall:
+
+```json
+"plan": {
+  "width": 171, "height": 73,
+  "zones": { "DF": { "x": 8, "y": 6, "w": 52, "h": 46 } },
+  "walls": [[0, 55, 4.5, 55]],
+  "windows": [[9, 0, 17.5, 0]],
+  "doors": [{ "x": 9.5, "y": 55, "r": 5, "from": 180, "to": 270 }],
+  "rooms": [{ "kind": "pantry", "x": 0, "y": 55, "w": 26, "h": 18, "label": "Pantry" }],
+  "fixtures": [{ "kind": "planter", "x": 71, "y": 48, "w": 29, "h": 4 }],
+  "plants": [[4.5, 4.5]]
+}
+```
+
+- `zones` places each zone's area. Its tables are centred inside, and the box grows if the desks need more room.
+- `walls` and `windows` are lines `[x1, y1, x2, y2]`. The outer wall is drawn from `width` and `height`.
+- `doors` are hinged at `x,y` with leaf length `r`, swinging from angle `from` to `to` (degrees,
+  0 = right, 90 = down).
+- Room kinds are `pantry`, `toilet-m`, `toilet-f`, `lift`, `store` and `service`. Fixture kinds are
+  `planter` and `storage`.
+
+Level 1's plan is traced from the Digital Factory floor-plan drawing. A floor without a `plan` (Level 2 for
+now) still shows its zones and tables, on a plain floor.
+
 ## Check-in duration
 
 Every check-in holds the desk for **3 hours by default**. On the check-in page the user can choose another
@@ -173,6 +205,7 @@ src/store.js       JSON persistence
 src/index.js       wiring + periodic sweep
 public/index.html  admin dashboard (markup and styles)
 public/dashboard.js admin dashboard (behaviour)
+public/floorplan.js floor-plan layout and SVG drawing
 public/checkin.html employee QR check-in page
 public/sensors.html admin page for linking sensors to desks
 scripts/simulate.js sensor/check-in simulator

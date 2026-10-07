@@ -71,8 +71,9 @@ function publicView(v) {
  * @param {string} [opts.adminToken]    required for admin endpoints when set
  * @param {string} [opts.publicUrl]     base URL printed in desk QR codes (default: the URL the page was opened at)
  * @param {string} [opts.buildingName]
+ * @param {{id: string, plan: object|null}[]} [opts.floorPlans]  drawing data per floor for the dashboard (building.json `plan`)
  */
-export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicUrl, buildingName = 'Desk labels' }) {
+export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicUrl, buildingName = 'Desk labels', floorPlans = [] }) {
   const streams = new Set();
 
   engine.on('change', (seat) => {
@@ -241,6 +242,8 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
           return send(res, 200, engine.list(q));
         case '/api/summary':
           return send(res, 200, engine.summary());
+        case '/api/floorplan':
+          return send(res, 200, floorPlans);
         case '/api/history':
           return send(res, 200, engine.history);
         case '/api/activity':

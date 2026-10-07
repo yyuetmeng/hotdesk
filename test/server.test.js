@@ -15,6 +15,7 @@ before(async () => {
     publicDir: resolve(import.meta.dirname, '../public'),
     sensorApiKey: 'sensor-key',
     adminToken: 'admin-token',
+    floorPlans: [{ id: 'L1', plan: { width: 40, height: 20, zones: { A: { x: 2, y: 2, w: 20, h: 12 } } } }],
   });
   await new Promise((r) => server.listen(0, r));
   base = `http://127.0.0.1:${server.address().port}`;
@@ -69,6 +70,12 @@ test('check-in flow and privacy of public views', async () => {
   assert.equal((await res.json()).status, 'available'); // no sensor has reported: follows check-ins
   assert.equal((await post('/api/seats/L1-A-02/checkin', {})).status, 400);
   assert.equal((await post('/api/seats/ZZ/checkin', { user: 'x', projectTeam: 'G&C' })).status, 404);
+});
+
+test('floor-plan drawing data is admin-only', async () => {
+  assert.equal((await fetch(`${base}/api/floorplan`)).status, 401);
+  const plans = await (await fetch(`${base}/api/floorplan`, { headers: admin })).json();
+  assert.deepEqual(plans, [{ id: 'L1', plan: { width: 40, height: 20, zones: { A: { x: 2, y: 2, w: 20, h: 12 } } } }]);
 });
 
 test('serves dashboard and check-in pages; blocks traversal', async () => {
