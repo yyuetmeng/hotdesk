@@ -34,11 +34,24 @@ npm run simulate             # in a second terminal: fake sensors + check-ins
 npm test
 ```
 
-The simulator feeds every desk sensor and checks simulated people in and out, using the server's current project
-list (including projects added or deleted on the dashboard). If the server was started with `SENSOR_API_KEY`, give
-the simulator the same key: `SENSOR_API_KEY=... npm run simulate`. To point it at another address:
+The simulator plays an office day:
+
+- **People:** 70 people from the project teams (the server's current list, including projects added or deleted
+  on the dashboard) arrive, sit down so the desk sensor sees them, and leave again. They stay about 20 minutes
+  and are out about 10.
+- **Check-ins:** most check in with their project, so desks show in team colours, and most check out when they
+  leave.
+- **Seat choice:** people prefer their project's pre-allocated seats, and seats booked for their team.
+- **Team bookings:** every few minutes (and once at the start), a team lead books 2–4 seats for the team, preferring
+  the team's pre-allocated seats, and teammates come and sit in them.
+- **Visitors:** a few sit down without checking in (plain occupied).
+- **Broken sensors:** two sensors stop reporting, so their desks turn *sensor offline* after 15 minutes.
+
+If the server was started with `SENSOR_API_KEY`, give the simulator the same key: `SENSOR_API_KEY=... npm run
+simulate`. Team bookings need the admin token too, if the server has one: `ADMIN_TOKEN=... SENSOR_API_KEY=... npm
+run simulate`. Without it, the simulator says so and carries on without team bookings. To point it at another address:
 `npm run simulate -- http://host:port`. In a Codespace, set the `HOTDESK_DEMO` secret to `1`, or run
-`HOTDESK_DEMO=1 npm run codespace`; the right key is passed for you.
+`HOTDESK_DEMO=1 npm run codespace`; the right key and token are passed for you.
 
 To watch seats auto-release quickly while simulating, shorten the grace:
 

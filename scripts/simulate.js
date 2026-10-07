@@ -1,5 +1,12 @@
-// Simulates a building's desk sensors and a few QR check-ins against a running server.
-// Usage: node scripts/simulate.js [baseUrl]   (env: SENSOR_API_KEY, SIM_INTERVAL_MS)
+// Simulates an office day against a running server: people from the project teams arrive,
+// sit down (desk sensors see them), mostly check in with their project, and leave again;
+// team leads now and then book a few seats for their team; a few visitors sit without
+// checking in; two sensors break so their desks show offline.
+//
+// Usage: node scripts/simulate.js [baseUrl]
+// Env:   SENSOR_API_KEY  the server's sensor key (needed if the server has one)
+//        ADMIN_TOKEN     the server's admin token (needed for team bookings if the server has one)
+//        SIM_INTERVAL_MS time between rounds (default 3000)
 import { readFileSync } from 'node:fs';
 import { expandLayout } from '../src/occupancy.js';
 
@@ -7,19 +14,43 @@ const base = process.argv[2] ?? process.env.BASE_URL ?? 'http://localhost:3000';
 const interval = Number(process.env.SIM_INTERVAL_MS ?? 3000);
 const building = JSON.parse(readFileSync(new URL('../config/building.json', import.meta.url), 'utf8'));
 const seats = expandLayout(building);
+const seatById = new Map(seats.map((s) => [s.id, s]));
 const sensored = seats.filter((s) => s.sensorId);
 const qrOnly = seats.filter((s) => !s.sensorId);
 
-// Each sensor keeps a little state: present or not.
-const present = new Map(sensored.map((s) => [s.sensorId, Math.random() < 0.35]));
-// A couple of sensors are "broken" and never report, so the dashboard shows offline seats.
-const broken = new Set(sensored.slice(-2).map((s) => s.sensorId));
+// Rates are per minute of real time, so the simulation looks the same at any SIM_INTERVAL_MS.
+const PEOPLE = 70;              // people in the project teams
+const VISITORS = 8;             // people who sit down without checking in
+const START_SEATED = 0.45;      // share of people already at a desk when the simulation starts
+const ARRIVE = 1 / 10;          // someone who is out comes back after about 10 minutes
+const LEAVE = 1 / 20;           // someone stays at a desk for about 20 minutes
+const CHECK_IN = 0.85;          // share of arrivals who check in with their project
+const CHECK_OUT = 0.7;          // share of leavers who check out (the rest are released by the away grace)
+const PREFER_ALLOCATED = 0.8;   // chance to pick their project's pre-allocated seat when one is free
+const TEAM_BOOKING = 1 / 4;     // a team lead books seats for the team about every 4 minutes
+const BOOKING_MINUTES = 60;
+/** The chance of something that happens `perMinute` times a minute happening in one round. */
+const chance = (perMinute) => 1 - Math.exp(-perMinute * interval / 60_000);
 
-// 40 simulated requesters, each in one of the project teams. The list comes from the running
-// server (it can be edited on the dashboard), falling back to building.json if it can't be read.
+// Sensors that break: they report once, then go silent, so their desks turn "sensor offline".
+const broken = new Set(sensored.slice(-2).map((s) => s.sensorId));
+const present = new Map(sensored.map((s) => [s.sensorId, false]));
+
+// The project list comes from the running server (it can be edited on the dashboard), falling
+// back to building.json if it can't be read.
 let teams = (building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'])
   .map((t) => (typeof t === 'string' ? t : t.name));
-const people = Array.from({ length: 40 }, (_, i) => ({ name: `employee${i + 1}`, team: null, seat: null }));
+const people = Array.from({ length: PEOPLE }, (_, i) => ({ name: `employee${i + 1}`, team: null, seat: null, checkedIn: false }));
+const visitors = Array.from({ length: VISITORS }, () => ({ seat: null }));
+const teamBooked = new Map(); // seat id -> { team, until } for seats our team leads booked
+
+const headers = { 'content-type': 'application/json' };
+if (process.env.SENSOR_API_KEY) headers['x-api-key'] = process.env.SENSOR_API_KEY;
+const adminHeaders = process.env.ADMIN_TOKEN ? { authorization: `Bearer ${process.env.ADMIN_TOKEN}` } : {};
+let teamBookings = true;
+
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+const shuffle = (list) => list.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
 
 /** Follow the server's current project list; people whose project was deleted move to another. */
 async function syncTeams() {
@@ -33,11 +64,8 @@ async function syncTeams() {
   people.forEach((p, i) => { if (!teams.includes(p.team)) p.team = teams[i % teams.length]; });
 }
 
-const headers = { 'content-type': 'application/json' };
-if (process.env.SENSOR_API_KEY) headers['x-api-key'] = process.env.SENSOR_API_KEY;
-
-async function post(path, body, extra = {}) {
-  const res = await fetch(base + path, { method: 'POST', headers: { ...headers, ...extra }, body: JSON.stringify(body) });
+async function post(path, body) {
+  const res = await fetch(base + path, { method: 'POST', headers, body: JSON.stringify(body) });
   if (res.status === 401 && path === '/api/sensors/events') {
     console.error(process.env.SENSOR_API_KEY
       ? 'The server rejected SENSOR_API_KEY. Use the same key the server was started with.'
@@ -45,36 +73,107 @@ async function post(path, body, extra = {}) {
     process.exit(1);
   }
   if (!res.ok && res.status !== 409) console.error(path, res.status, await res.text());
+  return res;
 }
 
-async function tick() {
-  const events = [];
-  for (const [sensorId, isPresent] of present) {
-    if (broken.has(sensorId)) continue;
-    // Roughly a third of desks have someone at them; the away grace adds some held seats on top.
-    const flip = isPresent ? Math.random() < 0.04 : Math.random() < 0.02;
-    const next = flip ? !isPresent : isPresent;
-    present.set(sensorId, next);
-    events.push({ sensorId, presence: next }); // every reading doubles as a heartbeat
-  }
-  await post('/api/sensors/events', events);
+/** Every seat's live status and pre-allocation, from the public availability list. */
+async function availability() {
+  const res = await fetch(`${base}/api/availability`);
+  return res.ok ? new Map((await res.json()).map((s) => [s.id, s])) : new Map();
+}
 
-  // People check in at desks where someone is sitting, and some check out again.
-  if (Math.random() < 0.3) {
-    const person = people[Math.floor(Math.random() * people.length)];
-    if (person.seat && Math.random() < 0.4) {
-      await post(`/api/seats/${person.seat}/checkout`, { user: person.name, projectTeam: person.team });
-      person.seat = null;
-    } else if (!person.seat) {
-      const taken = new Set(people.map((p) => p.seat));
-      const free = seats.filter((s) => !taken.has(s.id) && (!s.sensorId || present.get(s.sensorId)));
-      if (free.length) {
-        const seat = free[Math.floor(Math.random() * free.length)];
-        await post(`/api/seats/${seat.id}/checkin`, { user: person.name, projectTeam: person.team });
-        person.seat = seat.id;
+/** A seat for someone from `team`: a seat booked for their team, else their pre-allocated seats, else any free seat. */
+function chooseSeat(team, avail, taken) {
+  const free = (id) => !taken.has(id) && avail.get(id)?.status === 'available';
+  const booked = [...teamBooked].filter(([id, b]) => b.team === team && !taken.has(id)).map(([id]) => id);
+  if (booked.length) return pick(booked);
+  const mine = seats.filter((s) => avail.get(s.id)?.allocatedTo === team && free(s.id));
+  if (mine.length && Math.random() < PREFER_ALLOCATED) return pick(mine).id;
+  // Otherwise a free seat that isn't kept for another project, if there is one.
+  const open = seats.filter((s) => free(s.id) && !avail.get(s.id)?.allocatedTo);
+  const any = seats.filter((s) => free(s.id));
+  return (open.length ? pick(open) : any.length ? pick(any) : null)?.id ?? null;
+}
+
+function sit(seatId) {
+  const s = seatById.get(seatId);
+  if (s?.sensorId) present.set(s.sensorId, true);
+}
+function stand(seatId) {
+  const s = seatById.get(seatId);
+  if (s?.sensorId) present.set(s.sensorId, false);
+}
+
+/** A team lead books 2–4 seats for their team, preferring the team's pre-allocated seats. */
+async function bookForTeam(avail, taken) {
+  const team = pick(teams);
+  const free = (s) => !taken.has(s.id) && avail.get(s.id)?.status === 'available' && !teamBooked.has(s.id);
+  const mine = shuffle(seats.filter((s) => free(s) && avail.get(s.id)?.allocatedTo === team));
+  const others = shuffle(seats.filter((s) => free(s) && !avail.get(s.id)?.allocatedTo));
+  const chosen = [...mine, ...others].slice(0, 2 + Math.floor(Math.random() * 3)).map((s) => s.id);
+  if (!chosen.length) return;
+  const res = await fetch(`${base}/api/bookings`, {
+    method: 'POST',
+    headers: { ...headers, ...adminHeaders },
+    body: JSON.stringify({ user: `lead-${team.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, projectTeam: team, minutes: BOOKING_MINUTES, seats: chosen }),
+  });
+  if (res.status === 401) {
+    teamBookings = false;
+    console.error('Team bookings need the admin token: run with the same ADMIN_TOKEN as the server. Continuing without them.');
+    return;
+  }
+  if (!res.ok) return; // a seat was taken in the meantime: another round will try again
+  const until = Date.now() + BOOKING_MINUTES * 60_000;
+  for (const id of chosen) teamBooked.set(id, { team, until });
+}
+
+let round = 0;
+async function tick() {
+  round++;
+  const avail = await availability();
+  // Forget team bookings that ended (expired, or checked out on the dashboard).
+  for (const [id, b] of teamBooked) if (b.until <= Date.now() || !avail.get(id)?.teamBooking) teamBooked.delete(id);
+  const taken = new Set([...people, ...visitors].map((p) => p.seat).filter(Boolean));
+  const checkins = [], checkouts = [];
+
+  for (const p of people) {
+    if (p.seat && Math.random() < chance(LEAVE)) {
+      stand(p.seat);
+      if (p.checkedIn && Math.random() < CHECK_OUT) checkouts.push({ seat: p.seat, user: p.name, projectTeam: p.team });
+      taken.delete(p.seat);
+      p.seat = null; p.checkedIn = false;
+    } else if (!p.seat && Math.random() < (round === 1 ? START_SEATED : chance(ARRIVE))) {
+      const seat = chooseSeat(p.team, avail, taken);
+      if (!seat) continue;
+      p.seat = seat; taken.add(seat); sit(seat);
+      // Sitting in a seat booked for the team needs no check-in; desks without a sensor always do.
+      const qrOnlyDesk = !seatById.get(seat).sensorId;
+      if (!teamBooked.has(seat) && (qrOnlyDesk || Math.random() < CHECK_IN)) {
+        p.checkedIn = true;
+        checkins.push({ seat, user: p.name, projectTeam: p.team });
       }
     }
   }
+  for (const v of visitors) {
+    if (v.seat && Math.random() < chance(LEAVE * 2)) { stand(v.seat); taken.delete(v.seat); v.seat = null; }
+    else if (!v.seat && Math.random() < (round === 1 ? START_SEATED : chance(ARRIVE))) {
+      const free = sensored.filter((s) => !taken.has(s.id) && avail.get(s.id)?.status === 'available' && !avail.get(s.id)?.allocatedTo);
+      if (free.length) { v.seat = pick(free).id; taken.add(v.seat); sit(v.seat); }
+    }
+  }
+
+  // Sensors report what they see (every reading doubles as a heartbeat); broken ones only once.
+  const events = [];
+  for (const [sensorId, isPresent] of present) {
+    if (broken.has(sensorId) && round > 1) continue;
+    events.push({ sensorId, presence: isPresent });
+  }
+  await post('/api/sensors/events', events);
+  for (const c of checkins) await post(`/api/seats/${c.seat}/checkin`, { user: c.user, projectTeam: c.projectTeam });
+  for (const c of checkouts) await post(`/api/seats/${c.seat}/checkout`, { user: c.user, projectTeam: c.projectTeam });
+
+  // One booking right away so it shows from the start, then every few minutes.
+  if (teamBookings && (round === 2 || Math.random() < chance(TEAM_BOOKING))) await bookForTeam(await availability(), taken);
 }
 
 try {
@@ -85,6 +184,6 @@ try {
 }
 await syncTeams();
 setInterval(syncTeams, 60_000);
-console.log(`Simulating ${sensored.length} sensors (${broken.size} broken), ${qrOnly.length} QR-only desks and ${people.length} requesters in ${teams.length} project teams against ${base}`);
+console.log(`Simulating ${PEOPLE} people in ${teams.length} project teams, ${VISITORS} visitors, ${sensored.length} sensors (${broken.size} breaking) and ${qrOnly.length} QR-only desks against ${base}`);
 await tick();
 setInterval(() => tick().catch((e) => console.error(e.message)), interval);

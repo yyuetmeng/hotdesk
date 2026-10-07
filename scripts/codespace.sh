@@ -111,7 +111,7 @@ start() {
   fi
 
   if [[ "${HOTDESK_DEMO:-}" == 1 ]]; then
-    SENSOR_API_KEY="$key" nohup node scripts/simulate.js "http://localhost:${PORT}" >> "$DATA/simulator.log" 2>&1 < /dev/null &
+    SENSOR_API_KEY="$key" ADMIN_TOKEN="$admin" nohup node scripts/simulate.js "http://localhost:${PORT}" >> "$DATA/simulator.log" 2>&1 < /dev/null &
     echo $! > "$DATA/sim.pid"
     disown
   fi
