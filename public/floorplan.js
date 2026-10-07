@@ -8,8 +8,8 @@
  * wide a bench desk, and a single row of three or more a counter with seats along it.
  *
  * Each seat is drawn as a workstation: its own segment of the table with a monitor, an
- * office chair, and a status light on the desk. Furniture is neutral; status is colour
- * (the light, and a seated person when occupied); interaction is a highlight.
+ * office chair, and a status light on the desk once it is taken (none while free).
+ * Furniture is neutral; status is colour; selection turns the chair itself blue.
  *
  * A floor may also carry a `plan` (outline, walls, windows, doors, rooms, fixtures,
  * plants and a box per zone, all in plan units of roughly 10 cm). Without one, zones
@@ -239,13 +239,11 @@ const FloorPlan = (() => {
     const num = String(p.id).split('-').pop();
     return `<g class="seat" data-seat="${esc(p.id)}" data-side="${p.side}" data-kind="${esc(p.kind)}" data-table-seats="${p.tableSeats}" tabindex="-1" role="button">
       <rect class="ws-hit" x="${r1(b.x - 0.3)}" y="${r1(b.y - 0.3)}" width="${r1(b.w + 0.6)}" height="${r1(b.h + 0.6)}"/>
-      <rect class="ws-sel" x="${r1(b.x - 0.35)}" y="${r1(b.y - 0.35)}" width="${r1(b.w + 0.7)}" height="${r1(b.h + 0.7)}" rx="0.9"/>
       <rect class="ws-desk" x="${p.desk.x}" y="${p.desk.y}" width="${p.desk.w}" height="${p.desk.h}"/>
       <rect class="ws-monitor" x="${p.monitor.x}" y="${p.monitor.y}" width="${p.monitor.w}" height="${p.monitor.h}" rx="0.12"/>
       <g class="ws-chair" transform="${chairTransform(p)}">${CHAIR_SHAPE}</g>
       <g class="ws-status" transform="translate(${p.light[0]} ${p.light[1]})">${LIGHT}</g>
       <text class="ws-num" x="${p.label[0]}" y="${p.label[1]}">${esc(num)}</text>
-      <g class="ws-badge" transform="translate(${r1(b.x + b.w + 0.1)} ${r1(b.y - 0.1)})"><circle r="1"/><path d="M-0.46 0.02l0.32 0.32 0.62-0.66"/></g>
     </g>`;
   }
 
@@ -256,7 +254,7 @@ const FloorPlan = (() => {
       light: [CHAIR + DESK * 0.4, 2.7], label: [0, 0] };
     return `<svg class="ws-sample" viewBox="-0.6 -0.6 ${r1(CHAIR + DESK + 1.8)} 6.8" aria-hidden="true">
       <rect class="fp-table" x="${CHAIR}" y="0" width="${DESK}" height="5.4" rx="0.3"/>
-      ${seatMarkup(p).replace('class="seat"', `class="seat ${cls}" style="${style}"`).replace(/tabindex="-1" role="button"/, '')}</svg>`;
+      ${seatMarkup(p).replace('class="seat"', `class="seat ${cls}" style="${style}"`).replace(/tabindex="-1" role="button"/, '').replace(/<text class="ws-num"[^]*?<\/text>/, '')}</svg>`;
   }
 
   const plantMarkup = ([x, y], size = 1) => `<g class="fp-plant" transform="translate(${x} ${y}) scale(${size})">

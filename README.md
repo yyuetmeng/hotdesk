@@ -101,8 +101,9 @@ a table. A bank two desks wide is a table with chairs on both sides, a bank one 
 single row of three or more is a counter with chairs along it.
 
 Each seat is drawn as a workstation: its own segment of the table with a monitor, and an office chair, in
-neutral colours. Status is a small light on the desk. An occupied seat also shows a person in the chair, and
-an away seat shows the chair pushed back.
+neutral colours. A free desk has no marker. A taken desk gets a small status light: an occupied seat also
+shows a person in the chair, and an away seat shows the chair pushed back. The selected seat's chair turns
+blue and glows.
 
 To draw walls and facilities, give the floor a `"plan"`. All numbers are plan units (about 10 cm), with
 `0,0` at the top-left corner of the outer wall:

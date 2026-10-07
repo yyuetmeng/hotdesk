@@ -43,8 +43,8 @@
     --seat-occ-ink: #64748b;
     --line: #2a78d6;
     /* Project team colours: the validated 8-slot categorical palette, assigned in team order. */
-    --team-1: #2a78d6; --team-2: #eb6834; --team-3: #1baf7a; --team-4: #eda100;
-    --team-5: #e87ba4; --team-6: #008300; --team-7: #4a3aa7; --team-8: #e34948;
+    --team-1: #2a78d6; --team-2: #eb6834; --team-3: #9b5de5; --team-4: #eda100;
+    --team-5: #e87ba4; --team-6: #a0663a; --team-7: #4a3aa7; --team-8: #e34948;
     --anon: #7a7974;
     /* Seat chairs on the floor plan: status is the chair colour plus a glyph. */
     --seat-available: #22a447; --seat-occupied: #6f8fc4; --seat-away: #f2b01e; --seat-offline: #c3c5c9;
@@ -65,8 +65,8 @@
       --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3); --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.6);
       --available-soft: rgb(12 163 12 / 0.14); --away-ink: #fab219; --away-line: #fab219;
       --occupied: #3987e5; --offline: #5c5b56; --seat-occ: #2b3340; --seat-occ-ink: #8b97a7; --line: #3987e5;
-      --team-1: #3987e5; --team-2: #d95926; --team-3: #199e70; --team-4: #c98500;
-      --team-5: #d55181; --team-6: #008300; --team-7: #9085e9; --team-8: #e66767;
+      --team-1: #3987e5; --team-2: #d95926; --team-3: #b07cf0; --team-4: #c98500;
+      --team-5: #d55181; --team-6: #c08552; --team-7: #9085e9; --team-8: #e66767;
       --anon: #8f8e86;
       --seat-available: #2fb457; --seat-occupied: #5d7fb8; --seat-away: #e3a51a; --seat-offline: #4b5058;
       --seat-glyph: #ffffff; --seat-away-ink: #3d2800; --seat-offline-ink: #c3c8cf;
@@ -86,8 +86,8 @@
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3); --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.6);
     --available-soft: rgb(12 163 12 / 0.14); --away-ink: #fab219; --away-line: #fab219;
     --occupied: #3987e5; --offline: #5c5b56; --seat-occ: #2b3340; --seat-occ-ink: #8b97a7; --line: #3987e5;
-    --team-1: #3987e5; --team-2: #d95926; --team-3: #199e70; --team-4: #c98500;
-    --team-5: #d55181; --team-6: #008300; --team-7: #9085e9; --team-8: #e66767;
+    --team-1: #3987e5; --team-2: #d95926; --team-3: #b07cf0; --team-4: #c98500;
+    --team-5: #d55181; --team-6: #c08552; --team-7: #9085e9; --team-8: #e66767;
     --anon: #8f8e86;
     --seat-available: #2fb457; --seat-occupied: #5d7fb8; --seat-away: #e3a51a; --seat-offline: #4b5058;
     --seat-glyph: #ffffff; --seat-away-ink: #3d2800; --seat-offline-ink: #c3c8cf;
@@ -253,22 +253,20 @@
   .seat { cursor: pointer; outline: none; transform-box: fill-box; transform-origin: center;
     transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.18s, opacity 0.2s; }
   .seat .ws-hit { fill: transparent; }
-  .seat .ws-sel { fill: transparent; stroke: transparent; stroke-width: 0.3; transition: fill 0.18s, stroke 0.18s; }
   .seat .ws-desk { fill: transparent; transition: fill 0.18s; }
   .ws-monitor { fill: var(--fp-monitor); }
-  .ws-seat { fill: var(--fp-chair); stroke: var(--fp-chair-edge); stroke-width: 0.12; }
-  .ws-back, .ws-arm { fill: var(--fp-chair-dark); }
+  .ws-seat { fill: var(--fp-chair); stroke: var(--fp-chair-edge); stroke-width: 0.12; transition: fill 0.18s, stroke 0.18s; }
+  .ws-back, .ws-arm { fill: var(--fp-chair-dark); transition: fill 0.18s; }
+  .ws-chair { transition: filter 0.18s; }
   .ws-chair-in { transition: transform 0.2s ease; }
   .ws-person { display: none; fill: var(--seat-occupied); stroke: var(--fp-floor); stroke-width: 0.14; }
   .ws-light { fill: var(--k, var(--seat-offline)); stroke: var(--fp-table); stroke-width: 0.22; }
   .ws-light-halo { fill: var(--k, transparent); opacity: 0.2; }
   .ws-glyph { display: none; fill: none; stroke: #fff; stroke-width: 0.26; stroke-linecap: round; }
   .ws-num { display: none; font: 600 0.82px var(--font); fill: var(--fp-label); text-anchor: middle; dominant-baseline: central; }
-  .ws-badge { display: none; }
-  .ws-badge circle { fill: var(--accent); stroke: var(--surface); stroke-width: 0.3; }
-  .ws-badge path { fill: none; stroke: #fff; stroke-width: 0.3; stroke-linecap: round; stroke-linejoin: round; }
 
   .st-available { --k: var(--seat-available); }
+  .st-available .ws-status { display: none; }
   .st-occupied { --k: var(--seat-occupied); }
   .st-occupied .ws-person { display: inline; }
   .st-occupied .ws-light-halo { opacity: 0; }
@@ -287,14 +285,15 @@
 
   .show-nums .ws-num { display: inline; }
   .seat:not(.is-dim):hover, .seat:focus-visible { transform: translateY(-0.25px) scale(1.06); filter: drop-shadow(0 1px 1.2px rgb(15 23 42 / 0.28)); }
-  .seat:not(.is-dim):hover .ws-sel, .seat:focus-visible .ws-sel { fill: color-mix(in srgb, var(--k, var(--accent)) 10%, transparent); stroke: color-mix(in srgb, var(--k, var(--accent)) 55%, transparent); }
+  .seat:not(.is-dim):hover .ws-seat, .seat:focus-visible .ws-seat { stroke: var(--text-muted); stroke-width: 0.22; }
   .seat:hover .ws-num, .seat:focus-visible .ws-num { display: inline; }
   .seat.st-available:not(.is-dim):hover .ws-desk { fill: color-mix(in srgb, var(--seat-available) 14%, transparent); }
-  .seat:focus-visible .ws-sel { stroke: var(--accent); stroke-dasharray: 0.6 0.4; }
-  .seat.is-selected { transform: translateY(-0.25px) scale(1.06); filter: drop-shadow(0 0 1.6px rgb(37 99 235 / 0.55)); }
-  .seat.is-selected .ws-sel, .seat.is-selected:hover .ws-sel { fill: color-mix(in srgb, var(--accent) 9%, transparent); stroke: var(--accent); stroke-width: 0.42; stroke-dasharray: none; }
-  .seat.is-selected .ws-badge, .seat.is-selected .ws-num { display: inline; }
-  .seat.is-selected .ws-num { fill: var(--accent-strong); font-weight: 700; }
+  .seat:focus-visible .ws-seat { stroke: var(--accent); stroke-dasharray: 0.5 0.35; }
+  /* Selected: the chair itself turns blue and glows; nothing is boxed. */
+  .seat.is-selected .ws-seat, .seat.is-selected:hover .ws-seat { fill: var(--accent); stroke: var(--accent-strong); stroke-width: 0.16; stroke-dasharray: none; }
+  .seat.is-selected .ws-back, .seat.is-selected .ws-arm { fill: var(--accent-strong); }
+  .seat.is-selected .ws-chair { filter: drop-shadow(0 0 0.8px var(--accent)) drop-shadow(0 0 2.2px rgb(37 99 235 / 0.55)); opacity: 1; }
+  .seat.is-selected .ws-num { display: inline; fill: var(--accent-strong); font-weight: 700; }
   .seat.is-dim { pointer-events: none; cursor: default; opacity: 0.2; }
 
   /* Legend */
@@ -302,7 +301,7 @@
   .lgroup { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
   .lgroup > b { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; margin-right: 2px; }
   .litem { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
-  .ws-sample { width: 40px; height: 36px; flex: none; }
+  .ws-sample { width: 40px; height: 36px; flex: none; overflow: visible; }
   .ws-sample .seat { cursor: default; pointer-events: none; transform: none !important; filter: none !important; }
   .chip {
     display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 20px; padding: 0 6px; border-radius: 6px;
