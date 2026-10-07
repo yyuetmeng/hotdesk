@@ -34,6 +34,12 @@ npm run simulate             # in a second terminal: fake sensors + check-ins
 npm test
 ```
 
+The simulator feeds every desk sensor and checks simulated people in and out, using the server's current project
+list (including projects added or deleted on the dashboard). If the server was started with `SENSOR_API_KEY`, give
+the simulator the same key: `SENSOR_API_KEY=... npm run simulate`. To point it at another address:
+`npm run simulate -- http://host:port`. In a Codespace, set the `HOTDESK_DEMO` secret to `1`, or run
+`HOTDESK_DEMO=1 npm run codespace`; the right key is passed for you.
+
 To watch seats auto-release quickly while simulating, shorten the grace:
 
 ```bash

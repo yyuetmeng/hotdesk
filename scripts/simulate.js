@@ -15,16 +15,35 @@ const present = new Map(sensored.map((s) => [s.sensorId, Math.random() < 0.35]))
 // A couple of sensors are "broken" and never report, so the dashboard shows offline seats.
 const broken = new Set(sensored.slice(-2).map((s) => s.sensorId));
 
-// 40 simulated requesters, each in one of the building's project teams.
-const teams = (building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'])
+// 40 simulated requesters, each in one of the project teams. The list comes from the running
+// server (it can be edited on the dashboard), falling back to building.json if it can't be read.
+let teams = (building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'])
   .map((t) => (typeof t === 'string' ? t : t.name));
-const people = Array.from({ length: 40 }, (_, i) => ({ name: `employee${i + 1}`, team: teams[i % teams.length], seat: null }));
+const people = Array.from({ length: 40 }, (_, i) => ({ name: `employee${i + 1}`, team: null, seat: null }));
+
+/** Follow the server's current project list; people whose project was deleted move to another. */
+async function syncTeams() {
+  try {
+    const res = await fetch(`${base}/api/checkin-options`);
+    if (res.ok) {
+      const list = (await res.json()).projectTeams;
+      if (Array.isArray(list) && list.length) teams = list;
+    }
+  } catch {}
+  people.forEach((p, i) => { if (!teams.includes(p.team)) p.team = teams[i % teams.length]; });
+}
 
 const headers = { 'content-type': 'application/json' };
 if (process.env.SENSOR_API_KEY) headers['x-api-key'] = process.env.SENSOR_API_KEY;
 
 async function post(path, body, extra = {}) {
   const res = await fetch(base + path, { method: 'POST', headers: { ...headers, ...extra }, body: JSON.stringify(body) });
+  if (res.status === 401 && path === '/api/sensors/events') {
+    console.error(process.env.SENSOR_API_KEY
+      ? 'The server rejected SENSOR_API_KEY. Use the same key the server was started with.'
+      : 'The server requires a sensor key. Run again with the same SENSOR_API_KEY as the server, e.g. SENSOR_API_KEY=... npm run simulate');
+    process.exit(1);
+  }
   if (!res.ok && res.status !== 409) console.error(path, res.status, await res.text());
 }
 
@@ -58,6 +77,14 @@ async function tick() {
   }
 }
 
+try {
+  await fetch(`${base}/healthz`);
+} catch {
+  console.error(`No Hot Desk server at ${base}. Start it first (npm start), or pass its address: npm run simulate -- http://host:port`);
+  process.exit(1);
+}
+await syncTeams();
+setInterval(syncTeams, 60_000);
 console.log(`Simulating ${sensored.length} sensors (${broken.size} broken), ${qrOnly.length} QR-only desks and ${people.length} requesters in ${teams.length} project teams against ${base}`);
 await tick();
 setInterval(() => tick().catch((e) => console.error(e.message)), interval);
