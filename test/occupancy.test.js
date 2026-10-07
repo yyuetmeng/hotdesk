@@ -275,6 +275,30 @@ test('summary, history sampling and snapshot round-trip', () => {
   assert.equal(copy.history.length, 2);
 });
 
+test('chart periods: minute samples up to a day, hourly averages with peaks beyond', () => {
+  const { engine, clock } = setup();
+  // Hour 1 (09:00): one of three seats occupied for 30 minutes, then two for 30 minutes.
+  // Sensors report every minute so none of them goes offline.
+  const minute = (ids) => { for (const id of ids) engine.recordSensorEvent({ sensorId: id, presence: true }); engine.sweep(); clock.advance(1); };
+  for (let i = 0; i < 30; i++) minute(['S-L1-A-01']);
+  for (let i = 0; i < 30; i++) minute(['S-L1-A-01', 'S-L1-A-02']);
+  engine.sweep(); // 10:00, first sample of hour 2
+
+  assert.equal(engine.historyFor('1h').length, 61); // 09:00 through 10:00 inclusive
+  assert.equal(engine.historyFor('24h').length, 61);
+  const week = engine.historyFor('7d');
+  assert.equal(week.length, 2);
+  assert.equal(week[0].hourly, true);
+  assert.equal(week[0].t, Date.parse('2026-09-30T09:00:00Z'));
+  assert.equal(week[0].occupied, 1.5);
+  assert.equal(week[0].total, 3);
+  assert.equal(week[0].peak, 0.667);
+  assert.throws(() => engine.historyFor('2y'), /Unknown period/);
+
+  const copy = new OccupancyEngine({ seats: expandLayout(building), state: engine.snapshot(), clock: clock.now });
+  assert.deepEqual(copy.historyFor('30d'), engine.historyFor('30d'));
+});
+
 test('linking a real sensor to a desk, moving it, and unlinking', () => {
   const { engine, clock } = setup();
   // A sensor that isn't linked yet is remembered so an admin can link it.

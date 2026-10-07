@@ -512,6 +512,8 @@
 
   /* ---------- Tables and other sections ---------- */
   .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+  #trends .card-head > div:first-child { flex: 1; min-width: 0; }
+  .seg-sm button { padding: 4px 10px; font-size: 12px; font-weight: 600; }
   .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
   /* Zone utilisation: free seats, then one stacked bar for occupied, away and offline. */
   #projects summary { white-space: nowrap; }
@@ -680,7 +682,10 @@
 
     <div class="two" id="trends">
       <section class="card">
-        <div class="card-head"><div><h2>Occupancy, last 24 hours</h2><p class="sub">Share of seats in use (occupied or away).</p></div></div>
+        <div class="card-head"><div><h2>Occupancy</h2><p class="sub" id="chartSub">Seats in use (occupied or away).</p></div>
+          <div class="seg seg-sm" id="period" role="group" aria-label="Chart period">
+            <button type="button" data-period="1h" aria-pressed="false">1H</button><button type="button" data-period="6h" aria-pressed="false">6H</button><button type="button" data-period="24h" aria-pressed="true">24H</button><button type="button" data-period="7d" aria-pressed="false">7D</button><button type="button" data-period="30d" aria-pressed="false">30D</button>
+          </div></div>
         <div id="chart"></div>
       </section>
       <section class="card">

@@ -60,6 +60,11 @@ const MAX_PROJECT_NAME = 40;
 const MINUTE = 60_000;
 const TEAM_DAYS_KEPT = 62;
 const HISTORY_LIMIT = 24 * 60; // one sample per minute, 24h
+const HOUR = 60 * 60_000;
+const HOURLY_LIMIT = 30 * 24;  // hourly averages, 30 days
+/** Chart periods: minutes of history, and whether hourly averages are used instead of minute samples. */
+export const HISTORY_PERIODS = { '1h': 60, '6h': 6 * 60, '24h': 24 * 60, '7d': 7 * 24 * 60, '30d': 30 * 24 * 60 };
+const COUNT_FIELDS = ['total', 'available', 'occupied', 'away', 'offline'];
 const ACTIVITY_LIMIT = 200;
 const UNLINKED_LIMIT = 500;
 
@@ -187,6 +192,8 @@ export class OccupancyEngine extends EventEmitter {
     this.bySensor = new Map();
     this.lastStatus = new Map();
     this.history = state.history ?? [];
+    // Hourly sums for the longer chart periods: { t, n, total, available, occupied, away, offline, peak }.
+    this.hourly = state.hourly ?? [];
     this.activity = state.activity ?? [];
     this.sensorLinks = { ...(state.sensorLinks ?? {}) };
     // Sensors that report but are not linked to any desk yet, so an admin can link them.
@@ -554,9 +561,39 @@ export class OccupancyEngine extends EventEmitter {
     for (const seat of this.seats.values()) this.#refresh(seat, now);
     const last = this.history.at(-1);
     if (!last || now - last.t >= MINUTE) {
-      this.history.push({ t: now, ...this.counts(now) });
+      const sample = { t: now, ...this.counts(now) };
+      this.history.push(sample);
       if (this.history.length > HISTORY_LIMIT) this.history.splice(0, this.history.length - HISTORY_LIMIT);
+      this.#addHourly(sample);
     }
+  }
+
+  #addHourly(sample) {
+    const t = sample.t - (sample.t % HOUR);
+    let b = this.hourly.at(-1);
+    if (!b || b.t !== t) {
+      b = { t, n: 0, ...Object.fromEntries(COUNT_FIELDS.map((f) => [f, 0])), peak: 0 };
+      this.hourly.push(b);
+      if (this.hourly.length > HOURLY_LIMIT) this.hourly.splice(0, this.hourly.length - HOURLY_LIMIT);
+    }
+    b.n++;
+    for (const f of COUNT_FIELDS) b[f] += sample[f];
+    if (sample.total) b.peak = Math.max(b.peak, (sample.occupied + sample.away) / sample.total);
+  }
+
+  /**
+   * Occupancy samples for a chart period (see HISTORY_PERIODS): minute samples up to 24 hours,
+   * hourly averages (with each hour's peak rate) beyond that.
+   */
+  historyFor(period, now = this.clock()) {
+    const minutes = HISTORY_PERIODS[period];
+    if (!minutes) throw new ValidationError(`Unknown period "${period}". Use one of: ${Object.keys(HISTORY_PERIODS).join(', ')}`);
+    const from = now - minutes * MINUTE;
+    if (minutes <= 24 * 60) return this.history.filter((h) => h.t >= from);
+    return this.hourly.filter((b) => b.t + HOUR > from && b.n).map((b) => ({
+      t: b.t, hourly: true, peak: Math.round(b.peak * 1000) / 1000,
+      ...Object.fromEntries(COUNT_FIELDS.map((f) => [f, Math.round((b[f] / b.n) * 10) / 10])),
+    }));
   }
 
   #refresh(seat, now) {
@@ -768,6 +805,7 @@ export class OccupancyEngine extends EventEmitter {
     return {
       seats,
       history: this.history,
+      hourly: this.hourly,
       activity: this.activity,
       sensorLinks: this.sensorLinks,
       unlinkedSensors: Object.fromEntries(this.unlinked),

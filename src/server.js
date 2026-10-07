@@ -279,7 +279,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
         case '/api/floorplan':
           return send(res, 200, floorPlans);
         case '/api/history':
-          return send(res, 200, engine.history);
+          return send(res, 200, url.searchParams.has('period') ? engine.historyFor(url.searchParams.get('period')) : engine.history);
         case '/api/activity':
           return send(res, 200, engine.activity.slice(-100).reverse());
         case '/api/project-teams/summary':

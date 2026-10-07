@@ -1188,9 +1188,40 @@ function showTip(html, x, y) {
 function hideTip() { tip.style.display = 'none'; }
 
 let history = [];
+// Chart period: minute samples up to 24 hours, hourly averages for 7 and 30 days.
+const PERIODS = { '1h': ['last hour', 60], '6h': ['last 6 hours', 360], '24h': ['last 24 hours', 1440], '7d': ['last 7 days', 7 * 1440], '30d': ['last 30 days', 30 * 1440] };
+let period = (() => { try { const p = localStorage.getItem('hotdesk.period'); return PERIODS[p] ? p : '24h'; } catch { return '24h'; } })();
+const fmtDay = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short' });
+const fmtDayTime = (t) => `${new Date(t).toLocaleDateString([], { weekday: 'short' })} ${fmtTime(t)}`;
+const fmtTick = (t) => (period === '30d' ? fmtDay(t) : period === '7d' ? fmtDayTime(t) : fmtTime(t));
+const fmtN = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
+
+async function loadHistory() {
+  const want = period;
+  const data = await api(`/api/history?period=${want}`).catch(() => null);
+  if (want !== period || !data) return;
+  history = data; renderChart();
+}
+function setPeriod(p) {
+  period = p;
+  try { localStorage.setItem('hotdesk.period', p); } catch {}
+  for (const b of $('period').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.period === p));
+  history = []; renderChart(); loadHistory();
+}
+$('period').addEventListener('click', (e) => { const b = e.target.closest('button[data-period]'); if (b) setPeriod(b.dataset.period); });
+for (const b of $('period').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.period === period));
+
 function renderChart() {
   const el = $('chart');
-  if (history.length < 2) { el.innerHTML = '<div class="empty">Collecting data. A sample is taken every minute.</div>'; return; }
+  const [label, minutes] = PERIODS[period];
+  const hourly = minutes > 1440;
+  const since = history.length && history[0].t > Date.now() - minutes * 60_000 + (hourly ? 3_600_000 : 120_000);
+  const first = history[0]?.t;
+  $('chartSub').textContent = `Seats in use, ${label}${hourly ? ' (hourly average; dashed line: peak)' : ''}${since ? ` · since ${hourly ? `${fmtDay(first)}, ${fmtTime(first)}` : fmtTime(first)}` : ''}`;
+  if (history.length < 2) {
+    el.innerHTML = `<div class="empty">${hourly ? 'Collecting data. An hourly average is kept for 30 days.' : 'Collecting data. A sample is taken every minute.'}</div>`;
+    return;
+  }
   const W = el.clientWidth || 600, H = 200, m = { l: 40, r: 12, t: 10, b: 24 };
   const t0 = history[0].t, t1 = history.at(-1).t;
   const x = (t) => m.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - m.l - m.r);
@@ -1198,14 +1229,18 @@ function renderChart() {
   const rate = (h) => (h.total ? (h.occupied + h.away) / h.total : 0);
   const d = history.map((h, i) => `${i ? 'L' : 'M'}${x(h.t).toFixed(1)},${y(rate(h)).toFixed(1)}`).join('');
   const area = `${d}L${x(t1)},${y(0)}L${x(t0)},${y(0)}Z`;
+  // Hourly periods also show each hour's peak as a faint line above the average.
+  const peak = hourly ? history.map((h, i) => `${i ? 'L' : 'M'}${x(h.t).toFixed(1)},${y(h.peak ?? rate(h)).toFixed(1)}`).join('') : '';
   const yt = [0, 0.25, 0.5, 0.75, 1];
-  const nx = Math.min(6, Math.max(2, Math.floor(W / 110)), Math.max(2, Math.floor((t1 - t0) / 60_000) + 1));
+  const tickW = period === '7d' ? 140 : 110;
+  const nx = Math.min(6, Math.max(2, Math.floor(W / tickW)), history.length);
   const xt = Array.from({ length: nx }, (_, i) => t0 + ((t1 - t0) * i) / (nx - 1));
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Seat occupancy rate over the last 24 hours">
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Seat occupancy rate, ${esc(label)}">
     ${yt.map((v) => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/>
       <text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${pct(v)}</text>`).join('')}
-    ${xt.map((t, i) => `<text x="${x(t)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === nx - 1 ? 'end' : 'middle'}" font-size="11" fill="var(--text-muted)">${fmtTime(t)}</text>`).join('')}
+    ${xt.map((t, i) => `<text x="${x(t)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === nx - 1 ? 'end' : 'middle'}" font-size="11" fill="var(--text-muted)">${fmtTick(t)}</text>`).join('')}
     <path d="${area}" fill="var(--line)" opacity="0.12"/>
+    ${peak ? `<path d="${peak}" fill="none" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>` : ''}
     <path d="${d}" fill="none" stroke="var(--line)" stroke-width="2" stroke-linejoin="round"/>
     <line id="xh" y1="${m.t}" y2="${H - m.b}" stroke="var(--text-muted)" stroke-dasharray="3 3" visibility="hidden"/>
     <circle id="xd" r="4" fill="var(--line)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>
@@ -1221,7 +1256,9 @@ function renderChart() {
     const xh = chart.querySelector('#xh'), xd = chart.querySelector('#xd');
     xh.setAttribute('x1', x(h.t)); xh.setAttribute('x2', x(h.t)); xh.setAttribute('visibility', 'visible');
     xd.setAttribute('cx', x(h.t)); xd.setAttribute('cy', y(rate(h))); xd.setAttribute('visibility', 'visible');
-    showTip(`<b>${fmtTime(h.t)} · ${pct(rate(h))} in use</b>Occupied ${h.occupied} · Away ${h.away}<br>Available ${h.available} · Offline ${h.offline}`, e.clientX, e.clientY);
+    showTip(h.hourly
+      ? `<b>${fmtDay(h.t)}, ${fmtTime(h.t)}–${fmtTime(h.t + 3_600_000)}</b>Average ${pct(rate(h))} in use · peak ${pct(h.peak ?? rate(h))}<br>Occupied ${fmtN(h.occupied)} · Away ${fmtN(h.away)} (average)`
+      : `<b>${fmtTime(h.t)} · ${pct(rate(h))} in use</b>Occupied ${h.occupied} · Away ${h.away}<br>Available ${h.available} · Offline ${h.offline}`, e.clientX, e.clientY);
   });
   chart.querySelector('#hit').addEventListener('pointerleave', () => {
     chart.querySelector('#xh').setAttribute('visibility', 'hidden');
@@ -1315,7 +1352,6 @@ async function start() {
     loadProjects();
     connect();
     renderFeed();
-    const loadHistory = async () => { history = await api('/api/history'); renderChart(); };
     loadHistory();
     setInterval(loadHistory, 60_000);
     setInterval(refreshSummarySoon, 30_000); // hold timers expire without a sensor event

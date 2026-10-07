@@ -72,6 +72,14 @@ test('check-in flow and privacy of public views', async () => {
   assert.equal((await post('/api/seats/ZZ/checkin', { user: 'x', projectTeam: 'G&C' })).status, 404);
 });
 
+test('history by chart period', async () => {
+  const res = await fetch(`${base}/api/history?period=7d`, { headers: admin });
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(await res.json()));
+  assert.equal((await fetch(`${base}/api/history?period=nope`, { headers: admin })).status, 400);
+  assert.equal((await fetch(`${base}/api/history?period=24h`)).status, 401);
+});
+
 test('floor-plan drawing data is admin-only', async () => {
   assert.equal((await fetch(`${base}/api/floorplan`)).status, 401);
   const plans = await (await fetch(`${base}/api/floorplan`, { headers: admin })).json();

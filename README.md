@@ -167,6 +167,13 @@ The plan is served by `GET /api/floorplan`. After updating the app, restart the 
 drawing data (in a Codespace: `bash scripts/codespace.sh start`). If it can't, the dashboard shows a warning
 above the plan.
 
+## Occupancy chart
+
+The Occupancy card shows the share of seats in use (occupied or away) over **1H, 6H, 24H, 7D or 30D**; the
+choice is remembered in the browser. Up to 24 hours it plots one sample per minute. For 7 and 30 days it plots
+hourly averages, with each hour's peak as a dashed line; the server keeps these for 30 days in its state file.
+`GET /api/history?period=1h|6h|24h|7d|30d` (admin) returns the same data.
+
 ## Check-in duration
 
 Every check-in holds the desk for **3 hours by default**. On the check-in page the user can choose another
