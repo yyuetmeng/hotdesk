@@ -204,16 +204,6 @@ function projectColor(t) {
   const v = t.slot === null || t.slot === undefined ? '--anon' : `--team-${(t.slot % 8) + 1}`;
   return rootStyle().getPropertyValue(v).trim() || '#7a7974';
 }
-function luminance(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
-  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-}
-/** Black or white text, whichever contrasts more with the fill. */
-function inkOn(hex) {
-  const l = luminance(hex);
-  return (l + 0.05) / (luminance('#0b0b0b') + 0.05) >= 1.05 / (l + 0.05) ? '#0b0b0b' : '#ffffff';
-}
 
 // ---------- Floor plan ----------
 // Each floor is one SVG (public/floorplan.js). Seats are its only interactive parts; the
@@ -253,6 +243,8 @@ function applyScale() {
     const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, baseScale(fl) * zoom));
     svg.setAttribute('width', Math.round(Number(svg.dataset.w) * s));
     svg.setAttribute('height', Math.round(Number(svg.dataset.h) * s));
+    // Small seat numbers only where they are big enough to read.
+    svg.classList.toggle('show-nums', s >= 9);
   });
   $('zoomLevel').textContent = `${Math.round(zoom * 100)}%`;
 }
@@ -278,31 +270,16 @@ function revealSeat(id, behavior = 'smooth') {
   if (dx || dy) box.scrollBy({ left: dx, top: dy, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : behavior });
 }
 
-/** Glyphs drawn on the chair: shape as well as colour tells the states apart. */
-function glyph(kind, cx, cy, text = '') {
-  switch (kind) {
-    case 'dot': return `<circle class="g-fill" cx="${cx}" cy="${cy}" r="0.55"/>`;
-    case 'person': return `<g class="g-fill" transform="translate(${cx} ${cy})"><circle cy="-0.5" r="0.52"/><path d="M-1 0.95a1 0.9 0 0 1 2 0z"/></g>`;
-    case 'clock': return `<g class="g-stroke" transform="translate(${cx} ${cy})"><circle r="0.9"/><path d="M0 -0.5V0l0.38 0.3"/></g>`;
-    case 'alert': return `<text class="g-text g-alert" x="${cx}" y="${cy}">!</text>`;
-    // Codes are up to four characters: shorter ones get a larger size.
-    default: return `<text class="g-text g-code" x="${cx}" y="${cy}" font-size="${text.length <= 2 ? 1.5 : text.length === 3 ? 1.2 : 0.98}">${esc(text)}</text>`;
-  }
-}
-const BADGE = '<g class="badge" transform="translate(3.55 0.05)"><circle r="1"/><path d="M-0.48 0.02l0.33 0.33 0.65-0.68"/></g>';
-const STATUS_GLYPH = { available: 'dot', occupied: 'person', away: 'clock', offline: 'alert' };
-
-/** How a seat looks in the current colour mode. */
+/** How a seat looks in the current colour mode: classes on the workstation, plus a colour. */
 function seatLook(s) {
-  const base = { cls: `st-${s.status}`, color: '', ink: '', kind: STATUS_GLYPH[s.status], text: '' };
+  const base = { cls: `st-${s.status}`, color: '' };
   if (state.mode === 'team') {
     const color = teamInfo(s.team)?.color;
-    return color ? { ...base, cls: `layout st-${s.status}`, color } : { ...base, cls: `layout-none st-${s.status}` };
+    return color ? { cls: `layout st-${s.status}`, color } : base;
   }
-  if (state.mode === 'project' && (s.status === 'occupied' || s.status === 'away')) {
+  if (state.mode === 'project' && s.status === 'occupied') {
     const t = projectInfo(s.projectTeam);
-    if (t && s.status === 'occupied') { const c = projectColor(t); return { ...base, cls: 'st-occupied team', color: c, ink: inkOn(c), kind: 'code', text: t.code }; }
-    if (t) return { ...base, kind: 'code', text: t.code };
+    if (t) return { cls: 'st-occupied team', color: projectColor(t) };
   }
   return base;
 }
@@ -320,13 +297,11 @@ function patchSeat(el, s = state.seats.get(el.dataset.seat)) {
   const look = seatLook(s);
   const sel = state.selected === s.id;
   const dim = !matches(s);
-  const sig = [look.cls, look.color, look.kind, look.text, sel, dim].join('|');
+  const sig = [look.cls, look.color, sel, dim].join('|');
   if (el.dataset.sig !== sig) {
     el.dataset.sig = sig;
     el.setAttribute('class', `seat ${look.cls}${sel ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`);
-    if (look.color) { el.style.setProperty('--c', look.color); el.style.setProperty('--ink', look.ink || '#0b0b0b'); }
-    else { el.style.removeProperty('--c'); el.style.removeProperty('--ink'); }
-    el.querySelector('.glyph').innerHTML = glyph(look.kind, el.dataset.cx, el.dataset.cy, look.text) + (sel ? BADGE : '');
+    if (look.color) el.style.setProperty('--c', look.color); else el.style.removeProperty('--c');
     el.setAttribute('aria-pressed', String(sel));
     if (dim) el.setAttribute('aria-disabled', 'true'); else el.removeAttribute('aria-disabled');
   }
@@ -427,30 +402,36 @@ addEventListener('keydown', (e) => {
 // ---------- Seat popover ----------
 const pop = $('pop');
 let popFor = null, popTimer = null;
-function seatDetails(s) {
-  const rows = [['Status', STATUS[s.status].label], ['Location', `${s.floorName} · ${s.zoneName}`]];
-  if (hasTeams()) rows.push(['Assigned', s.teamName ?? 'Unassigned (open hot desk)']);
-  if (s.projectTeam) rows.push(['Project team', s.projectTeam]);
-  if (s.checkedInBy) rows.push(['Checked in', `${s.checkedInBy}, until ${fmtTime(s.checkedInUntil)}`]);
-  if (s.status === 'away' && s.lastPresenceAt) rows.push(['Last seen', fmtTime(s.lastPresenceAt)]);
-  if (s.holdExpiresAt) rows.push(['Auto-release', fmtTime(s.holdExpiresAt)]);
-  rows.push(['Detection', s.hasSensor ? `Sensor ${s.sensorOnline ? (s.presence ? '· presence' : '· no presence') : '· offline'}` : 'QR check-in only']);
+function seatDetails(s, el) {
+  const rows = [`${s.zoneName} · ${s.floorName}`];
+  if (s.checkedInBy) rows.push(`Name: ${s.checkedInBy}`);
+  if (s.projectTeam) rows.push(`Project team: ${s.projectTeam}`);
+  if (hasTeams()) rows.push(s.teamName ? `Assigned to ${s.teamName}` : 'Open hot desk');
+  const n = Number(el?.dataset.tableSeats);
+  if (el?.dataset.kind) rows.push(n > 1 ? `${el.dataset.kind} · ${n} seats` : el.dataset.kind);
+  if (s.holdExpiresAt) rows.push(`Auto-release ${fmtTime(s.holdExpiresAt)}`);
+  if (!s.hasSensor) rows.push('QR check-in only');
   return rows;
 }
 function fillPop(el) {
   const s = state.seats.get(el.dataset.seat); if (!s) return;
-  const hint = state.selected === s.id ? 'Selected · details on the right' : s.status === 'available' ? 'Click to select this seat' : 'Click to view details';
-  pop.innerHTML = `<div class="ptitle"><b>${esc(s.id)}</b><span class="pill k-${s.status}">${STATUS[s.status].label}</span></div>
-    <dl>${seatDetails(s).slice(1).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
-    <div class="hint">${hint}</div>`;
+  pop.innerHTML = `<div class="ptitle"><b>Seat ${esc(s.id)}</b><span class="pill k-${s.status}">${STATUS[s.status].label}</span></div>
+    ${seatDetails(s, el).map((r) => `<div>${esc(r)}</div>`).join('')}`;
 }
+/** Beside the workstation, on its chair (aisle) side, so the table's other seats stay visible. */
 function showPop(el) {
   popFor = el; fillPop(el);
-  const r = el.getBoundingClientRect(), p = pop.getBoundingClientRect();
-  let top = r.top - p.height - 10;
-  if (top < 8) top = r.bottom + 10;
-  const left = Math.max(8, Math.min(r.left + r.width / 2 - p.width / 2, innerWidth - p.width - 8));
-  pop.style.top = `${top}px`; pop.style.left = `${left}px`;
+  const r = el.getBoundingClientRect(), p = pop.getBoundingClientRect(), gap = 10;
+  const fitsLeft = r.left - p.width - gap > 8, fitsRight = r.right + p.width + gap < innerWidth - 8;
+  let left, top = r.top + r.height / 2 - p.height / 2;
+  const side = el.dataset.side;
+  if (side === 'bottom' || (!fitsLeft && !fitsRight)) {
+    left = r.left + r.width / 2 - p.width / 2;
+    top = r.bottom + p.height + gap < innerHeight ? r.bottom + gap : r.top - p.height - gap;
+  } else if ((side === 'left' && fitsLeft) || !fitsRight) left = r.left - p.width - gap;
+  else left = r.right + gap;
+  pop.style.left = `${Math.max(8, Math.min(left, innerWidth - p.width - 8))}px`;
+  pop.style.top = `${Math.max(8, Math.min(top, innerHeight - p.height - 8))}px`;
   pop.classList.add('show');
 }
 function hidePop() { clearTimeout(popTimer); popFor = null; pop.classList.remove('show'); }
@@ -631,27 +612,20 @@ async function reloadSeats() {
 }
 
 // ---------- Legend ----------
-function chairSample(cls, kind, { text = '', style = '', badge = false } = {}) {
-  const chair = FloorPlan.chairMarkup('left').replace('<g class="glyph"></g>', `<g class="glyph">${glyph(kind, 2.05, 1.8, text)}${badge ? BADGE : ''}</g>`);
-  return `<svg class="lchair" viewBox="-1.2 -1.4 6.2 6.2" aria-hidden="true"><g class="seat ${cls}" style="${style}">${chair}</g></svg>`;
-}
 function renderLegend() {
+  const ws = (cls, style = '') => FloorPlan.sampleSVG(cls, style);
   const project = state.mode === 'project';
-  const status = `<div class="lgroup"><b>Seats</b>
-    <span class="litem">${chairSample('st-available', 'dot')}Available</span>
-    <span class="litem">${chairSample('st-available is-selected', 'dot', { badge: true })}Selected</span>
-    <span class="litem">${chairSample('st-occupied', 'person')}Occupied${project ? ', not checked in' : ''}</span>
-    <span class="litem">${chairSample('st-away', 'clock')}Away (held)</span>
-    <span class="litem">${chairSample('st-offline', 'alert')}Sensor offline</span>
-    <span class="litem"><svg class="lchair" viewBox="0 0 8 5" aria-hidden="true"><rect class="fp-table" x="0.5" y="1" width="7" height="3" rx="0.4"/></svg>Table</span></div>`;
+  const status = `<div class="lgroup"><b>Workstations</b>
+    <span class="litem">${ws('st-available')}Available</span>
+    <span class="litem">${ws('st-available is-selected')}Selected</span>
+    <span class="litem">${ws('st-occupied')}Occupied${project ? ', not checked in' : ''}</span>
+    <span class="litem">${ws('st-away')}Away (held), chair pushed back</span>
+    <span class="litem">${ws('st-offline')}Sensor offline</span></div>`;
   let extra = '';
   if (project) {
     const teams = state.projects.filter((t) => t.configured);
-    extra = `<div class="lgroup"><b>Occupied by project team</b>${teams.map((t) => {
-      const c = projectColor(t);
-      return `<span class="litem">${chairSample('st-occupied team', 'code', { text: t.code, style: `--c:${c};--ink:${inkOn(c)}` })}${esc(t.name)}</span>`;
-    }).join('')}
-      ${teams[0] ? `<span class="litem">${chairSample('st-away', 'code', { text: teams[0].code })}Away, held for the team</span>` : ''}</div>`;
+    extra = `<div class="lgroup"><b>Occupied by project team</b>${teams.map((t) =>
+      `<span class="litem">${ws('st-occupied team', `--c:${projectColor(t)}`)}${esc(t.name)}</span>`).join('')}</div>`;
   } else if (state.mode === 'team') {
     extra = `<div class="lgroup"><b>Team assignment</b>${(state.summary?.teams ?? []).map((t) => t.color
       ? `<span class="litem"><span class="swatch" style="background:${t.color}"></span>${esc(t.name)}</span>`

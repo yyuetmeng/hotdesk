@@ -4,8 +4,12 @@
  *
  * Seats keep the row/column they get from each zone's `map` in config/building.json;
  * this file only decides how to draw them. Touching desks form a table: a bank two
- * desks wide becomes a table with chairs on both long sides, a bank one desk wide a
- * bench, and a single row of three or more a counter with chairs along it.
+ * desks wide becomes a shared table with a workstation on each side, a bank one desk
+ * wide a bench desk, and a single row of three or more a counter with seats along it.
+ *
+ * Each seat is drawn as a workstation: its own segment of the table with a monitor, an
+ * office chair, and a status light on the desk. Furniture is neutral; status is colour
+ * (the light, and a seated person when occupied); interaction is a highlight.
  *
  * A floor may also carry a `plan` (outline, walls, windows, doors, rooms, fixtures,
  * plants and a box per zone, all in plan units of roughly 10 cm). Without one, zones
@@ -14,16 +18,19 @@
  * No DOM access here, so the layout can be tested in Node (test/floorplan.test.js).
  */
 const FloorPlan = (() => {
-  const CHAIR = 3.6;       // chair footprint (square)
-  const TABLE = 3.4;       // depth of a table between two rows of chairs
-  const ROW_GAP = 1.8;     // gap between chairs along a table
+  const CHAIR = 3.6;       // chair footprint (square cell)
+  const DESK = 2.6;        // depth of one workstation's desk
+  const PAIR = DESK * 2;   // shared table: two desks back to back
+  const BENCH = DESK + 0.2;
+  const ROW_GAP = 1.8;     // between chairs along a table
   const BLANK = 3.4;       // an empty map row: a cross aisle
-  const SPACE = 7.4;       // an empty map column: an aisle between tables
-  const SIDE_GAP = 0.8;    // between chairs that sit side by side without a table between
-  const COUNTER = 3.0;     // depth of a counter in front of a row of chairs
-  const COUNTER_GAP = 0.4;
+  const SPACE = 6;         // an empty map column: an aisle between tables
+  const SIDE_GAP = 0.8;    // between chairs side by side without a table between
+  const COUNTER = 2.8;     // depth of a counter in front of a row of chairs
+  const OVERHANG = 0.6;    // table beyond the first and last chair
   const LABEL = 5.6;       // zone label strip: name, then free count
   const PAD = 2.6;         // padding inside a zone
+  const KIND = { pair: 'Shared table', single: 'Bench desk', counter: 'Counter seat' };
 
   const r1 = (n) => Math.round(n * 100) / 100;
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -63,7 +70,11 @@ const FloorPlan = (() => {
 
   /**
    * Lay out one zone's seats in zone-local plan units.
-   * @returns {{w:number,h:number,tables:object[],seats:object[],plants:number[][]}}
+   *
+   * Tables: { kind, x, y, w, h, seats, dividers: [y or x], spine: x | null }.
+   * Seats:  { id, x, y (chair cell), side ('left' | 'right' | 'bottom': where the chair
+   *           sits relative to its desk), desk {x,y,w,h}, monitor {x,y,w,h},
+   *           light [x,y], label [x,y], kind, tableSeats }.
    */
   function layoutZone(seats) {
     if (!seats.length) return { w: 0, h: 0, tables: [], seats: [], plants: [] };
@@ -82,13 +93,13 @@ const FloorPlan = (() => {
     }
 
     // Column positions: a table sits after the first chair of a pair or bench.
-    const tableAfter = new Set(banks.filter((b) => b.kind !== 'counter').map((b) => b.c0));
+    const tableAfter = new Map(banks.filter((b) => b.kind !== 'counter').map((b) => [b.c0, b.kind === 'pair' ? PAIR : BENCH]));
     const colX = [];
     let x = 0;
     for (let c = 0; c <= maxCol; c++) {
       colX[c] = x;
       x += deskCols.has(c) ? CHAIR : SPACE;
-      if (tableAfter.has(c)) x += TABLE;
+      if (tableAfter.has(c)) x += tableAfter.get(c);
       else if (deskCols.has(c) && deskCols.has(c + 1)) x += SIDE_GAP;
     }
     const w = x;
@@ -98,7 +109,7 @@ const FloorPlan = (() => {
     const rowY = [];
     let y = 0;
     for (let r = 0; r <= maxRow; r++) {
-      if (counterRows.has(r)) y += COUNTER + COUNTER_GAP;
+      if (counterRows.has(r)) y += COUNTER;
       rowY[r] = y;
       y += (deskRows.has(r) ? CHAIR : BLANK) + ROW_GAP;
     }
@@ -108,28 +119,57 @@ const FloorPlan = (() => {
     const tables = [], placed = [], plants = [];
     for (const b of banks) {
       if (b.kind === 'counter') {
-        const tx = colX[b.c0] - 0.4, tw = colX[b.c1] + CHAIR + 0.4 - tx;
+        const tx = colX[b.c0] - 0.4, tw = colX[b.c1] + CHAIR + 0.4 - tx, ty = rowY[b.r0] - COUNTER;
         const row = [];
         for (let c = b.c0; c <= b.c1; c++) if (at.has(`${b.r0},${c}`)) row.push(at.get(`${b.r0},${c}`));
-        tables.push({ kind: 'counter', x: r1(tx), y: r1(rowY[b.r0] - COUNTER - COUNTER_GAP), w: r1(tw), h: COUNTER, seats: row.length });
-        // Chairs are spread evenly along the counter.
-        row.forEach((s, i) => placed.push({ id: s.id, x: r1(tx + (tw * (i + 0.5)) / row.length - CHAIR / 2), y: r1(rowY[b.r0]), side: 'bottom' }));
+        const seg = tw / row.length;
+        tables.push({ kind: 'counter', x: r1(tx), y: r1(ty), w: r1(tw), h: COUNTER, seats: row.length, spine: null,
+          dividers: row.slice(1).map((_, i) => r1(tx + seg * (i + 1))) });
+        // Seats are spread evenly along the counter.
+        row.forEach((s, i) => {
+          const cx = tx + seg * (i + 0.5);
+          placed.push({
+            id: s.id, x: r1(cx - CHAIR / 2), y: r1(rowY[b.r0]), side: 'bottom', kind: KIND.counter, tableSeats: row.length,
+            desk: { x: r1(tx + seg * i), y: r1(ty), w: r1(seg), h: COUNTER },
+            monitor: { x: r1(cx - 1.2), y: r1(ty + 0.3), w: 2.4, h: 0.36 },
+            light: [r1(cx), r1(ty + COUNTER * 0.62)], label: [r1(cx + 1.75), r1(ty + COUNTER * 0.62)],
+          });
+        });
         continue;
       }
-      const tx = colX[b.c0] + CHAIR, ty = rowY[b.r0] - 0.5;
-      const th = rowY[b.r1] + CHAIR + 0.5 - ty;
+      const depth = b.kind === 'pair' ? PAIR : BENCH;
+      const tx = colX[b.c0] + CHAIR, ty = rowY[b.r0] - OVERHANG;
+      const th = rowY[b.r1] + CHAIR + OVERHANG - ty;
+      const dividers = [];
+      const first = placed.length;
       let count = 0;
       for (let r = b.r0; r <= b.r1; r++) {
+        const top = r === b.r0 ? ty : rowY[r] - ROW_GAP / 2;
+        const bottom = r === b.r1 ? ty + th : rowY[r] + CHAIR + ROW_GAP / 2;
+        if (r < b.r1) dividers.push(r1(bottom));
+        const cy = rowY[r] + CHAIR / 2;
         for (let c = b.c0; c <= b.c1; c++) {
           const s = at.get(`${r},${c}`);
           if (!s) continue;
           count++;
-          placed.push({ id: s.id, x: r1(colX[c]), y: r1(rowY[r]), side: c === b.c0 ? 'left' : 'right' });
+          const left = c === b.c0;
+          // A left seat's desk is the near half of the table; its monitor faces it from the far edge.
+          const dx = left ? tx : tx + DESK;
+          const dw = b.kind === 'pair' ? DESK : BENCH;
+          const monX = left ? tx + dw - 0.62 : tx + DESK + 0.26;
+          const lightX = left ? tx + dw * 0.4 : tx + DESK + DESK * 0.6;
+          placed.push({
+            id: s.id, x: r1(colX[c]), y: r1(rowY[r]), side: left ? 'left' : 'right', kind: KIND[b.kind], tableSeats: 0,
+            desk: { x: r1(dx), y: r1(top), w: r1(dw), h: r1(bottom - top) },
+            monitor: { x: r1(monX), y: r1(cy - 1.2), w: 0.36, h: 2.4 },
+            light: [r1(lightX), r1(cy)], label: [r1(lightX), r1(cy + 1.75)],
+          });
         }
-        // A small plant on the table between chair rows, as on the reference plan.
-        if (b.kind === 'pair' && r < b.r1) plants.push([r1(tx + TABLE / 2), r1((rowY[r] + CHAIR + rowY[r + 1]) / 2)]);
+        // A small plant on shared tables between workstations, as on the reference plan.
+        if (b.kind === 'pair' && r < b.r1 && (r - b.r0) % 2 === 0) plants.push([r1(tx + DESK), r1(bottom)]);
       }
-      tables.push({ kind: b.kind, x: r1(tx), y: r1(ty), w: TABLE, h: r1(th), seats: count });
+      for (const p of placed.slice(first)) p.tableSeats = count;
+      tables.push({ kind: b.kind, x: r1(tx), y: r1(ty), w: r1(depth), h: r1(th), seats: count, dividers, spine: b.kind === 'pair' ? r1(tx + DESK) : null });
     }
     return { w: r1(w), h: r1(h), tables, seats: placed, plants };
   }
@@ -163,34 +203,72 @@ const FloorPlan = (() => {
   }
 
   // ---------- SVG ----------
-  const BACK = { left: [0, 0.3, 0.75, 3.0], right: [2.85, 0.3, 0.75, 3.0], bottom: [0.3, 2.85, 3.0, 0.75] };
-  const CENTRE = { left: [2.05, 1.8], right: [1.55, 1.8], bottom: [1.8, 1.55] };
+  /**
+   * An office chair seen from above, drawn with its desk to the right (+x) in a
+   * CHAIR x CHAIR cell. The inner group lets CSS push the chair back (away status);
+   * the person is only shown while someone is there.
+   */
+  const CHAIR_SHAPE = `<g class="ws-chair-in">
+      <rect class="ws-arm" x="0.95" y="0.28" width="1.95" height="0.42" rx="0.21"/>
+      <rect class="ws-arm" x="0.95" y="2.9" width="1.95" height="0.42" rx="0.21"/>
+      <rect class="ws-seat" x="0.6" y="0.62" width="2.55" height="2.36" rx="0.75"/>
+      <rect class="ws-back" x="0.12" y="0.45" width="0.74" height="2.7" rx="0.37"/>
+    </g>
+    <g class="ws-person"><ellipse cx="1.6" cy="1.8" rx="0.95" ry="1.42"/><circle cx="2.15" cy="1.8" r="0.7"/></g>`;
 
-  /** The chair drawn for a seat; its fill, glyph and badge are set by the dashboard. */
-  function chairMarkup(side = 'left') {
-    const [bx, by, bw, bh] = BACK[side];
-    return `<g class="chair">
-      <rect class="ring" x="-0.6" y="-0.6" width="${CHAIR + 1.2}" height="${CHAIR + 1.2}" rx="1.3"/>
-      <rect class="body" width="${CHAIR}" height="${CHAIR}" rx="0.85"/>
-      <rect class="back" x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="0.37"/>
-      <g class="glyph"></g>
+  function chairTransform(p) {
+    if (p.side === 'right') return `translate(${r1(p.x + CHAIR)} ${p.y}) scale(-1 1)`;
+    if (p.side === 'bottom') return `translate(${p.x} ${r1(p.y + CHAIR)}) rotate(-90)`;
+    return `translate(${p.x} ${p.y})`;
+  }
+
+  /** The bounding box of a workstation: its desk segment and its chair. */
+  function wsBox(p) {
+    const x0 = Math.min(p.desk.x, p.x), y0 = Math.min(p.desk.y, p.y);
+    const x1 = Math.max(p.desk.x + p.desk.w, p.x + CHAIR), y1 = Math.max(p.desk.y + p.desk.h, p.y + CHAIR);
+    return { x: r1(x0), y: r1(y0), w: r1(x1 - x0), h: r1(y1 - y0) };
+  }
+
+  const LIGHT = `<circle class="ws-light-halo" r="1.25"/><circle class="ws-light" r="0.85"/>
+    <path class="ws-glyph ws-glyph-away" d="M0 -0.42V0l0.3 0.22"/>
+    <path class="ws-glyph ws-glyph-off" d="M0 -0.45V0.08M0 0.36v0.02"/>`;
+
+  /** One interactive workstation. Its look is driven entirely by classes on the outer group. */
+  function seatMarkup(p) {
+    const b = wsBox(p);
+    const num = String(p.id).split('-').pop();
+    return `<g class="seat" data-seat="${esc(p.id)}" data-side="${p.side}" data-kind="${esc(p.kind)}" data-table-seats="${p.tableSeats}" tabindex="-1" role="button">
+      <rect class="ws-hit" x="${r1(b.x - 0.3)}" y="${r1(b.y - 0.3)}" width="${r1(b.w + 0.6)}" height="${r1(b.h + 0.6)}"/>
+      <rect class="ws-sel" x="${r1(b.x - 0.35)}" y="${r1(b.y - 0.35)}" width="${r1(b.w + 0.7)}" height="${r1(b.h + 0.7)}" rx="0.9"/>
+      <rect class="ws-desk" x="${p.desk.x}" y="${p.desk.y}" width="${p.desk.w}" height="${p.desk.h}"/>
+      <rect class="ws-monitor" x="${p.monitor.x}" y="${p.monitor.y}" width="${p.monitor.w}" height="${p.monitor.h}" rx="0.12"/>
+      <g class="ws-chair" transform="${chairTransform(p)}">${CHAIR_SHAPE}</g>
+      <g class="ws-status" transform="translate(${p.light[0]} ${p.light[1]})">${LIGHT}</g>
+      <text class="ws-num" x="${p.label[0]}" y="${p.label[1]}">${esc(num)}</text>
+      <g class="ws-badge" transform="translate(${r1(b.x + b.w + 0.1)} ${r1(b.y - 0.1)})"><circle r="1"/><path d="M-0.46 0.02l0.32 0.32 0.62-0.66"/></g>
     </g>`;
   }
 
-  function seatMarkup(p) {
-    const [cx, cy] = CENTRE[p.side];
-    return `<g class="seat" data-seat="${esc(p.id)}" data-cx="${cx}" data-cy="${cy}" tabindex="-1" role="button" transform="translate(${p.x} ${p.y})">
-      <rect class="hit" x="-0.9" y="-0.9" width="${CHAIR + 1.8}" height="${CHAIR + 1.8}" rx="1.2"/>${chairMarkup(p.side)}</g>`;
+  /** A stand-alone workstation for the legend, with a status class such as "st-available". */
+  function sampleSVG(cls = '', style = '') {
+    const p = { id: 'x', x: 0, y: 0.9, side: 'left', kind: '', tableSeats: 0,
+      desk: { x: CHAIR, y: 0, w: DESK, h: 5.4 }, monitor: { x: CHAIR + DESK - 0.62, y: 1.5, w: 0.36, h: 2.4 },
+      light: [CHAIR + DESK * 0.4, 2.7], label: [0, 0] };
+    return `<svg class="ws-sample" viewBox="-0.6 -0.6 ${r1(CHAIR + DESK + 1.8)} 6.8" aria-hidden="true">
+      <rect class="fp-table" x="${CHAIR}" y="0" width="${DESK}" height="5.4" rx="0.3"/>
+      ${seatMarkup(p).replace('class="seat"', `class="seat ${cls}" style="${style}"`).replace(/tabindex="-1" role="button"/, '')}</svg>`;
   }
 
   const plantMarkup = ([x, y], size = 1) => `<g class="fp-plant" transform="translate(${x} ${y}) scale(${size})">
     <circle r="1.25" class="leaf"/><circle r="0.62" class="leaf2"/></g>`;
 
   function tableMarkup(t) {
-    const line = t.kind === 'counter'
-      ? ''
-      : `<line class="fp-table-line" x1="${r1(t.x + t.w / 2)}" y1="${r1(t.y + 0.5)}" x2="${r1(t.x + t.w / 2)}" y2="${r1(t.y + t.h - 0.5)}"/>`;
-    return `<rect class="fp-table" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" rx="0.5"/>${line}`;
+    const lines = t.kind === 'counter'
+      ? t.dividers.map((x) => `<line class="fp-table-div" x1="${x}" y1="${r1(t.y + 0.2)}" x2="${x}" y2="${r1(t.y + t.h - 0.2)}"/>`)
+      : t.dividers.map((y) => `<line class="fp-table-div" x1="${r1(t.x + 0.2)}" y1="${y}" x2="${r1(t.x + t.w - 0.2)}" y2="${y}"/>`);
+    if (t.spine !== null) lines.push(`<line class="fp-table-spine" x1="${t.spine}" y1="${r1(t.y + 0.3)}" x2="${t.spine}" y2="${r1(t.y + t.h - 0.3)}"/>`);
+    return `<rect class="fp-table-shadow" x="${r1(t.x + 0.15)}" y="${r1(t.y + 0.25)}" width="${t.w}" height="${t.h}" rx="0.35"/>
+      <rect class="fp-table" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" rx="0.35"/>${lines.join('')}`;
   }
 
   const ICONS = {
@@ -240,7 +318,7 @@ const FloorPlan = (() => {
   /** Walls, rooms and other context: drawn once, never interactive. */
   function architecture(fl) {
     const p = fl.plan;
-    if (!p) return `<rect class="fp-floor fp-floor-plain" x="0.5" y="0.5" width="${r1(fl.w - 1)}" height="${r1(fl.h - 1)}" rx="2"/>`;
+    if (!p) return `<rect class="fp-floor fp-floor-plain" x="0.5" y="0.5" width="${r1(fl.w - 1)}" height="${r1(fl.h - 1)}" rx="1"/>`;
     const line = (cls) => ([x1, y1, x2, y2]) => `<line class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
     return `<rect class="fp-floor" x="0" y="0" width="${p.width}" height="${p.height}"/>
       ${(p.rooms ?? []).map(roomMarkup).join('')}
@@ -254,14 +332,16 @@ const FloorPlan = (() => {
 
   /** The whole floor as one SVG string. Size is set by the caller (see dashboard.js). */
   function floorSVG(fl) {
-    const zones = fl.zones.map((z) => `
-      <g class="fp-zone" role="group" aria-label="${esc(z.name)}" data-zone="${esc(fl.id)}|${esc(z.id)}">
-        <rect class="fp-zone-area" x="${z.box.x}" y="${z.box.y}" width="${z.box.w}" height="${z.box.h}" rx="1.4"/>
-        <text class="fp-zone-label" x="${r1(z.box.x + 1.6)}" y="${r1(z.box.y + 2.7)}">${esc(z.name)}</text>
-        <text class="fp-zone-count" x="${r1(z.box.x + 1.6)}" y="${r1(z.box.y + 4.7)}" data-zone-count="${esc(fl.id)}|${esc(z.id)}"></text>
+    // Zones are areas of the same office: a faint floor tint each, a hairline edge, a label.
+    const zones = fl.zones.map((z, i) => `
+      <g class="fp-zone fp-zone-t${i % 4}" role="group" aria-label="${esc(z.name)}" data-zone="${esc(fl.id)}|${esc(z.id)}">
+        <rect class="fp-zone-area" x="${z.box.x}" y="${z.box.y}" width="${z.box.w}" height="${z.box.h}" rx="0.5"/>
+        <rect class="fp-zone-tab" x="${z.box.x}" y="${z.box.y}" width="${z.box.w}" height="0.45"/>
+        <text class="fp-zone-label" x="${r1(z.box.x + 1.6)}" y="${r1(z.box.y + 2.9)}">${esc(z.name)}</text>
+        <text class="fp-zone-count" x="${r1(z.box.x + 1.6)}" y="${r1(z.box.y + 4.8)}" data-zone-count="${esc(fl.id)}|${esc(z.id)}"></text>
         <g transform="translate(${z.ox} ${z.oy})">
           ${z.layout.tables.map(tableMarkup).join('')}
-          ${z.layout.plants.map((pt) => plantMarkup(pt, 0.6)).join('')}
+          ${z.layout.plants.map((pt) => plantMarkup(pt, 0.55)).join('')}
           ${z.layout.seats.map(seatMarkup).join('')}
         </g>
       </g>`).join('');
@@ -269,5 +349,5 @@ const FloorPlan = (() => {
       <g class="fp-arch" aria-hidden="true">${architecture(fl)}</g>${zones}</svg>`;
   }
 
-  return { layoutZone, layoutFloor, floorSVG, chairMarkup, CHAIR };
+  return { layoutZone, layoutFloor, floorSVG, sampleSVG, CHAIR };
 })();
