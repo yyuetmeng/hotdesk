@@ -193,6 +193,10 @@ if (reset) {
     console.error('Clearing the seats needs the admin token: run with the same ADMIN_TOKEN as the server.');
     process.exit(1);
   }
+  if (res.status === 404) {
+    console.error('The server is running an older version that cannot clear seats. Restart it (Ctrl+C, then npm start) so it loads the latest code, and run this again.');
+    process.exit(1);
+  }
   if (!res.ok) { console.error('Could not clear the seats:', res.status, await res.text()); process.exit(1); }
   console.log(`Cleared ${(await res.json()).cleared} seats (projects and seat allocations kept).`);
 }
