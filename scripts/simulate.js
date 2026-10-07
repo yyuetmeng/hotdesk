@@ -29,6 +29,7 @@ const qrOnly = seats.filter((s) => !s.sensorId);
 // Rates are per minute of simulated time (real time x SPEED), so the picture is the same at any
 // SIM_INTERVAL_MS; SPEED makes the day pass faster.
 const PEOPLE = 70;              // people in the project teams
+const EXTERNAL_SHARE = 0.1;    // share of people from outside the project teams ("External")
 const VISITORS = 8;             // people who sit down without checking in
 const START_SEATED = 0.45;      // share of people already at a desk when the simulation starts
 const ARRIVE = 1 / 10;          // someone who is out comes back after about 10 minutes
@@ -63,7 +64,13 @@ let teamBookings = true;
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const shuffle = (list) => list.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
 
-/** Follow the server's current project list; people whose project was deleted move to another. */
+const isExternal = (team) => /^external$/i.test(team);
+const projectTeams = () => { const list = teams.filter((t) => !isExternal(t)); return list.length ? list : teams; };
+
+/**
+ * Follow the server's current project list. Every tenth person is External (EXTERNAL_SHARE), the
+ * rest are spread evenly over the project teams; people whose project was deleted move to another.
+ */
 async function syncTeams() {
   try {
     const res = await fetch(`${base}/api/checkin-options`);
@@ -72,7 +79,12 @@ async function syncTeams() {
       if (Array.isArray(list) && list.length) teams = list;
     }
   } catch {}
-  people.forEach((p, i) => { if (!teams.includes(p.team)) p.team = teams[i % teams.length]; });
+  const external = teams.find(isExternal), projects = projectTeams();
+  const every = Math.round(1 / EXTERNAL_SHARE);
+  people.forEach((p, i) => {
+    if (teams.includes(p.team) && isExternal(p.team) === Boolean(external && i % every === 0)) return;
+    p.team = external && i % every === 0 ? external : projects[(i - (external ? Math.floor(i / every) + 1 : 0) + projects.length) % projects.length];
+  });
 }
 
 async function post(path, body) {
@@ -115,9 +127,9 @@ function stand(seatId) {
   if (s?.sensorId) present.set(s.sensorId, false);
 }
 
-/** A team lead books 2–4 seats for their team, preferring the team's pre-allocated seats. */
+/** A project team lead books 2–4 seats for their team, preferring the team's pre-allocated seats. */
 async function bookForTeam(avail, taken) {
-  const team = pick(teams);
+  const team = pick(projectTeams());
   const free = (s) => !taken.has(s.id) && avail.get(s.id)?.status === 'available' && !teamBooked.has(s.id);
   const mine = shuffle(seats.filter((s) => free(s) && avail.get(s.id)?.allocatedTo === team));
   const others = shuffle(seats.filter((s) => free(s) && !avail.get(s.id)?.allocatedTo));

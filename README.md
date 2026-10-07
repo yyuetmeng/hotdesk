@@ -43,7 +43,7 @@ the demo. Its shortened hold times last only while the demo runs: `npm start` us
 The simulator plays an office day:
 
 - **People:** 70 people from the project teams (the server's current list, including projects added or deleted
-  on the dashboard) arrive, sit down so the desk sensor sees them, and leave again. They stay about 20 minutes
+  on the dashboard; only 10% are External, the rest are spread evenly over the projects) arrive, sit down so the desk sensor sees them, and leave again. They stay about 20 minutes
   and are out about 10.
 - **Check-ins:** most check in with their project, so desks show in team colours, and most check out when they
   leave.
