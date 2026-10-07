@@ -169,11 +169,24 @@ test('desk labels page is admin-only and encodes each desk check-in URL', async 
 
 test('check-in options expose the default and maximum duration', async () => {
   const res = await fetch(`${base}/api/checkin-options`);
-  assert.deepEqual(await res.json(), {
+  const { projects, ...rest } = await res.json();
+  assert.deepEqual(rest, {
     checkinDurationMinutes: 180,
     checkinMaxMinutes: 480,
     projectTeams: ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'],
   });
+  // Project colours for the booking page: name, code, colour and palette slot only (no allocated seats).
+  assert.deepEqual(Object.keys(projects[0]).sort(), ['code', 'color', 'name', 'slot']);
+  assert.equal(projects.length, 8);
+});
+
+test('self-service booking page and its floor data are public and carry no personal data', async () => {
+  assert.equal((await fetch(`${base}/book`)).status, 200);
+  assert.equal((await fetch(`${base}/static/book.js`)).status, 200);
+  const floors = await (await fetch(`${base}/api/floors`)).json();
+  assert.deepEqual(floors, [{ id: 'L1', name: 'Level 1', zones: [{ id: 'A', name: 'A' }], plan: { width: 40, height: 20, zones: { A: { x: 2, y: 2, w: 20, h: 12 } } } }]);
+  const seats = await (await fetch(`${base}/api/availability`)).json();
+  assert.ok(seats.every((s) => !('checkedInBy' in s) && !('projectTeam' in s)));
 });
 
 test('LoRaWAN webhooks feed readings; unknown sensors are listed for linking', async () => {

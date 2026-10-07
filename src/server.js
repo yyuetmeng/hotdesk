@@ -133,6 +133,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
 
     if (method === 'GET' && url.pathname === '/') return serveStatic(res, 'index.html');
     if (method === 'GET' && url.pathname === '/checkin') return serveStatic(res, 'checkin.html');
+    if (method === 'GET' && url.pathname === '/book') return serveStatic(res, 'book.html');
     if (method === 'GET' && url.pathname === '/sensors') return serveStatic(res, 'sensors.html');
     if (method === 'GET' && parts[0] === 'static') return serveStatic(res, parts.slice(1).join('/'));
     if (method === 'GET' && url.pathname === '/healthz') return send(res, 200, { ok: true });
@@ -241,10 +242,18 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     // --- Employee endpoints (QR code on each desk opens /checkin?seat=ID) ---
     if (method === 'GET' && url.pathname === '/api/checkin-options') {
       const { checkinDurationMinutes, checkinMaxMinutes } = engine.rules;
-      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams });
+      const projects = engine.listProjects().map(({ name, code, color, slot }) => ({ name, code, color, slot }));
+      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams, projects });
     }
     if (method === 'GET' && url.pathname === '/api/project-teams') {
       return send(res, 200, engine.projectTeams);
+    }
+    // Floors, zones and drawings for the self-service booking page (/book); no personal data.
+    if (method === 'GET' && url.pathname === '/api/floors') {
+      const plans = new Map(floorPlans.map((f) => [f.id, f.plan]));
+      return send(res, 200, engine.summary().floors.map((f) => ({
+        id: f.id, name: f.name, zones: f.zones.map((z) => ({ id: z.id, name: z.name })), plan: plans.get(f.id) ?? null,
+      })));
     }
     if (method === 'GET' && url.pathname === '/api/availability') {
       return send(res, 200, engine.list({ floor: url.searchParams.get('floor') ?? undefined }).map(publicView));

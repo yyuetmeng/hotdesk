@@ -37,14 +37,14 @@ export function renderLabelsPage({ seats, baseUrl, buildingName }) {
   const labels = seats
     .map((s) => {
       const url = checkinUrl(baseUrl, s.id);
-      return `<div class="label">
+      return `<a class="label" href="${esc(url)}" target="hotdesk-phone" title="Open ${esc(s.id)}'s check-in page (as if scanned)">
   ${qrSvg(url)}
   <div class="text">
     <div class="id">${esc(s.id)}</div>
     <div class="where">${esc(s.floorName)}<br>${esc(s.zoneName)}</div>
     <div class="cta">Scan to check in</div>
   </div>
-</div>`;
+</a>`;
     })
     .join('\n');
 
@@ -66,7 +66,8 @@ export function renderLabelsPage({ seats, baseUrl, buildingName }) {
     width: 210mm; margin: 0 auto 24px; padding: 15.1mm 7.2mm; background: #fff;
     display: grid; grid-template-columns: repeat(3, 63.5mm); grid-auto-rows: 38.1mm; column-gap: 2.5mm;
   }
-  .label { display: flex; align-items: center; gap: 2.5mm; padding: 2.5mm 3mm; overflow: hidden; break-inside: avoid; outline: 0.2mm dashed #d0cfca; }
+  .label { display: flex; align-items: center; gap: 2.5mm; padding: 2.5mm 3mm; overflow: hidden; break-inside: avoid; outline: 0.2mm dashed #d0cfca; color: inherit; text-decoration: none; }
+  @media screen { .label { cursor: pointer; border-radius: 1mm; transition: background 0.15s; } .label:hover { background: #eef3fd; } }
   .label svg { width: 31mm; height: 31mm; flex: none; }
   .text { min-width: 0; }
   .id { font-size: 13pt; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; }
@@ -88,12 +89,23 @@ export function renderLabelsPage({ seats, baseUrl, buildingName }) {
   <div style="flex:1;min-width:200px">
     <h1>${esc(buildingName)}: ${seats.length} desk label${seats.length === 1 ? '' : 's'}</h1>
     <p>QR codes open ${esc(baseUrl.replace(/\/+$/, ''))}/checkin?seat=&lt;desk&gt;</p>
+    <p>Click a label to open its check-in page in a phone-sized window, as if its QR code was scanned.</p>
   </div>
   <button type="button" onclick="print()">Print</button>
 </div>
 <div class="sheet">
 ${labels}
 </div>
+<script>
+  // A click stands in for a scan: open the desk's check-in page in a phone-sized window.
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a.label');
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    e.preventDefault();
+    const w = window.open(a.href, 'hotdesk-phone', 'popup,width=400,height=820');
+    if (w) w.focus(); else location.href = a.href;
+  });
+</script>
 </body>
 </html>
 `;

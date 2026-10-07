@@ -9,6 +9,8 @@ and gives administrators a live dashboard of seat availability.
 - **Admin dashboard:** interactive live floor plan (hover a seat to preview it, click to select it and check someone
   in, extend or check out from the side panel), KPIs that follow the floor filter, 24 h occupancy trend,
   per-zone utilisation, activity feed.
+- **For employees:** a self-service booking page (`/book`) with the floor plan, and a phone check-in page
+  (`/checkin`) that a desk's QR code opens, or that takes a typed desk ID.
 
 ![Admin dashboard](docs/dashboard.png)
 
@@ -268,6 +270,31 @@ Admin API (token required):
 | `DELETE /api/projects/:name` | | Delete it and release its seats |
 | `PUT /api/projects/:name/seats` | `{ "seats": ["L1-DF-01", …] }` | Replace its allocated seats (400 for unknown seats, 409 for seats held by another project) |
 
+## Ways to book a desk
+
+| Way | Who | Page |
+|---|---|---|
+| Scan the QR code on the desk | Anyone | `/checkin?seat=<desk>` opens with the desk chosen |
+| Type the desk ID printed on the label (when a camera won't scan) | Anyone | `/checkin`: enter the ID, e.g. `L1-DF-07`; suggestions show each desk's status |
+| Pick a desk on the floor plan | Anyone | `/book`: choose your project (its pre-allocated desks are highlighted), tap a free chair, enter your name and time |
+| Check someone in, or book several seats for a team | Admin | The dashboard's side panel |
+
+`/book` and `/checkin` need no admin token and show no names. `/book` remembers the person's project and,
+after booking, shows **You are checked in at … until …** with **I'm leaving** to check out. It refreshes every 10 seconds.
+
+### Demo on one laptop (no phone needed)
+
+1. `npm run demo`, then open `http://localhost:3000` (the dashboard).
+2. Click a seat, then **Open check-in page** in its panel. Or open **Print desk labels** and click a label. Either
+   opens that desk's check-in page in a phone-sized window, just as scanning its QR code would. Check in there and
+   the seat changes on the dashboard.
+3. **Desk check-in (phone)** in the sidebar opens the same window without a desk, to show typing a desk ID.
+4. **Book a desk** in the sidebar opens the self-service booking page.
+
+To scan with a real phone, both devices must be on the same Wi-Fi: open the dashboard at the laptop's network
+address (e.g. `http://192.168.1.23:3000`, from `ipconfig`) so the labels encode it, and allow Node through the
+Windows firewall on private networks.
+
 ## Desk labels (QR codes)
 
 Each desk gets a printable label with a QR code that opens its check-in page, plus the desk ID and location.
@@ -277,6 +304,7 @@ works too (cut along the dashed guides shown on screen).
 - **From the running app:** click **Print desk labels** on the dashboard, or open `/labels` (admin only).
   Filter with `/labels?floor=L1` or `/labels?floor=L1&zone=DF`. The QR codes use `PUBLIC_URL` if set,
   otherwise the address you opened the page at (in Codespaces that is the forwarded URL).
+- **Simulate a scan:** on screen, clicking a label opens its check-in page in a phone-sized window.
 - **Without a server:** `PUBLIC_URL=https://hotdesk.example.com npm run labels` writes
   `labels/desk-labels.html`. Open it in a browser and print at 100% scale (no "fit to page").
 

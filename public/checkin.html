@@ -8,71 +8,102 @@
   // Apply the theme chosen on the dashboard before the page paints (no flash). No choice: follow the system.
   try { const t = localStorage.getItem('hotdesk.theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}
 </script>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/static/app.css">
 <style>
-  :root {
-    color-scheme: light;
-    --bg: #f4f4f2; --card: #fcfcfb; --border: #e2e1dc;
-    --text: #0b0b0b; --muted: #52514e;
-    --available: #0ca30c; --occupied: #2a78d6; --away: #fab219; --offline: #a9a8a2; --danger: #d03b3b;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { color-scheme: dark; --bg: #111110; --card: #1a1a19; --border: #2e2e2b; --text: #fff; --muted: #c3c2b7; --occupied: #3987e5; --offline: #5c5b56; }
-  }
-  :root[data-theme="dark"] { color-scheme: dark; --bg: #111110; --card: #1a1a19; --border: #2e2e2b; --text: #fff; --muted: #c3c2b7; --occupied: #3987e5; --offline: #5c5b56; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 420px; margin: 0 auto; padding: 24px 16px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .muted { color: var(--muted); font-size: 14px; }
-  .status { display: inline-flex; align-items: center; gap: 8px; margin: 16px 0; font-weight: 600; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; }
-  label { display: block; font-size: 14px; color: var(--muted); margin: 12px 0 4px; }
-  select { width: 100%; font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
-  input { width: 100%; font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
-  .row { display: flex; gap: 8px; margin-top: 16px; }
-  button { flex: 1; font: inherit; font-weight: 600; padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; background: var(--card); color: var(--text); }
-  button.primary { background: var(--text); color: var(--card); border-color: var(--text); }
-  #msg { margin-top: 12px; font-size: 14px; min-height: 1.5em; }
-  #msg.err { color: var(--danger); }
-  #msg.warn { color: var(--text); background: rgb(242 176 30 / 0.14); border: 1px solid rgb(242 176 30 / 0.55); border-radius: 8px; padding: 10px 12px; }
-  #msg.warn b { display: block; margin-bottom: 4px; }
+  body { font-size: 15px; }
+  main { max-width: 440px; margin: 0 auto; padding: 20px 16px 32px; display: grid; gap: 14px; }
+  .brandbar { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; }
+  .brandbar img { width: 28px; height: 28px; border-radius: 7px; }
+  .card h1 { font-size: 22px; margin: 0; letter-spacing: -0.02em; }
+  .where { color: var(--text-secondary); font-size: 14px; margin-top: 2px; }
+  .pill { font-size: 12px; margin: 12px 0 4px; }
+  .hint { color: var(--text-muted); font-size: 13px; margin: 6px 0 0; }
+  .pform { margin-top: 14px; }
+  .pform label { font-size: 13px; }
+  .pform input, .pform select { font-size: 16px; padding: 10px 12px; }
+  .pform select { padding-right: 32px; }
+  .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .btnrow .btn { padding: 11px 12px; font-size: 14px; }
+  #msg, #pickMsg { font-size: 14px; min-height: 0; }
+  #msg:empty, #pickMsg:empty { display: none; }
+  .ok { color: var(--text-primary); background: var(--available-soft); border: 1px solid color-mix(in srgb, var(--available) 35%, var(--surface)); border-radius: 10px; padding: 10px 12px; }
+  .err { color: #c62828; }
+  .warn { color: var(--text-primary); background: rgb(242 176 30 / 0.14); border: 1px solid rgb(242 176 30 / 0.55); border-radius: 10px; padding: 10px 12px; }
+  .warn b { display: block; margin-bottom: 4px; }
+  .links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+  .links a { color: var(--accent); text-decoration: none; font-weight: 500; }
+  .links a:hover { text-decoration: underline; }
+  .note { display: flex; gap: 8px; color: var(--text-muted); font-size: 13px; margin: 0; }
+  .note svg { width: 16px; height: 16px; margin-top: 2px; }
 </style>
 </head>
 <body>
 <main>
-  <div class="card">
+  <div class="brandbar"><img src="/static/logo.png" alt="">Hot Desk</div>
+
+  <!-- No desk in the link: type the desk ID printed on the label (a fallback when a QR code won't scan). -->
+  <section class="card" id="pick" hidden>
+    <h1>Check in to a desk</h1>
+    <p class="where">Enter the desk ID printed under the QR code on the desk.</p>
+    <form class="pform" id="pickForm" autocomplete="off">
+      <label>Desk ID
+        <input id="deskId" list="desks" placeholder="e.g. L1-DF-07" autocapitalize="characters" spellcheck="false" required>
+      </label>
+      <datalist id="desks"></datalist>
+      <button class="btn btn-primary btn-block" type="submit">Continue</button>
+      <div id="pickMsg" role="status"></div>
+      <p class="note"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Scanning the QR code on the desk opens this page with the desk already chosen.</p>
+    </form>
+  </section>
+
+  <section class="card" id="desk" hidden>
     <h1 id="title">Desk</h1>
-    <div class="muted" id="where"></div>
-    <div class="status"><span class="dot" id="dot"></span><span id="status">Loading…</span></div>
-    <div class="muted" id="hint"></div>
-    <label for="user">Your name or employee ID</label>
-    <input id="user" autocomplete="username">
-    <label for="team">Your project team</label>
-    <select id="team" required aria-required="true"><option value="">Choose your project team…</option></select>
-    <label for="duration">How long will you use this desk?</label>
-    <select id="duration"></select>
-    <div class="row">
-      <button class="primary" id="in" type="button">Check in</button>
-      <button id="out" type="button">I'm leaving</button>
+    <div class="where" id="where"></div>
+    <span class="pill" id="status">Loading…</span>
+    <p class="hint" id="hint"></p>
+    <div class="pform">
+      <label for="user">Your name or employee ID
+        <input id="user" autocomplete="username">
+      </label>
+      <label for="team">Your project team
+        <select id="team" required aria-required="true"><option value="">Choose your project team…</option></select>
+      </label>
+      <label for="duration">How long will you use this desk?
+        <select id="duration"></select>
+      </label>
+      <div class="btnrow">
+        <button class="btn btn-primary" id="in" type="button">Check in</button>
+        <button class="btn" id="out" type="button">I'm leaving</button>
+      </div>
+      <div id="msg" role="status"></div>
     </div>
-    <div id="msg" role="status"></div>
+  </section>
+
+  <div class="links">
+    <a href="/checkin" id="changeDesk" hidden>← Change desk</a>
+    <a href="/book">Book on the floor plan →</a>
   </div>
 </main>
 <script>
 const LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away — held for its user', offline: 'Sensor offline' };
-const seatId = new URLSearchParams(location.search).get('seat');
+let seatId = new URLSearchParams(location.search).get('seat');
 const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const fmtDuration = (m) => (m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)} h ` : ''}${m % 60} min` : `${m / 60} hour${m === 60 ? '' : 's'}`);
 try { $('user').value = localStorage.getItem('hotdesk.user') || ''; } catch {}
 const savedTeam = (() => { try { return localStorage.getItem('hotdesk.team') || ''; } catch { return ''; } })();
+const setMsg = (el, cls, html) => { el.className = cls; el.innerHTML = html; };
 
 function render(s) {
   $('title').textContent = `Desk ${s.id}`;
   $('where').textContent = `${[s.floorName, s.zoneName, s.teamName].filter(Boolean).join(' · ')}`;
-  $('status').textContent = LABEL[s.status] + (s.checkedInUntil ? ` · checked in until ${fmtTime(s.checkedInUntil)}` : '');
-  $('dot').style.background = `var(--${s.status})`;
+  $('status').textContent = LABEL[s.status] + (s.checkedInUntil ? ` · until ${fmtTime(s.checkedInUntil)}` : '');
+  $('status').className = `pill k-${s.status}`;
   $('hint').textContent = (s.allocatedTo ? `Pre-allocated to ${s.allocatedTo}. ` : '') + (s.hasSensor
     ? 'This desk has a presence sensor: it frees itself automatically once you have been away for a while.'
     : 'This desk has no sensor: please tap "I\'m leaving" when you go.');
@@ -80,7 +111,6 @@ function render(s) {
 
 async function loadDurations() {
   const { checkinDurationMinutes: def, checkinMaxMinutes: max, projectTeams = [] } = await call('/api/checkin-options');
-  const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   $('team').innerHTML = '<option value="">Choose your project team…</option>' +
     projectTeams.map((t) => `<option${t === savedTeam ? ' selected' : ''}>${esc(t)}</option>`).join('');
   const opts = new Set([def]);
@@ -96,6 +126,38 @@ async function call(path, body) {
   return data;
 }
 
+// ---- Desk ID entry (no desk in the link) ----
+let desks = [];
+async function showPicker() {
+  $('pick').hidden = false; $('desk').hidden = true; $('changeDesk').hidden = true; setMsg($('pickMsg'), '', '');
+  document.title = 'Desk Check-in';
+  desks = await call('/api/availability').catch(() => []);
+  $('desks').innerHTML = desks.map((d) => `<option value="${esc(d.id)}">${esc(`${d.floorName} · ${d.zoneName} · ${LABEL[d.status]}`)}</option>`).join('');
+  $('deskId').focus();
+}
+$('pickForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const typed = $('deskId').value.trim().toUpperCase().replace(/\s+/g, '');
+  const d = desks.find((x) => x.id.toUpperCase() === typed);
+  if (!d) { setMsg($('pickMsg'), 'err', typed ? `There is no desk "${esc(typed)}". Check the ID under the QR code.` : 'Enter a desk ID.'); return; }
+  history.pushState(null, '', `/checkin?seat=${encodeURIComponent(d.id)}`);
+  openDesk(d.id);
+});
+addEventListener('popstate', () => {
+  seatId = new URLSearchParams(location.search).get('seat');
+  if (seatId) openDesk(seatId); else showPicker();
+});
+
+function openDesk(id) {
+  seatId = id;
+  confirmedTeam = ''; $('in').textContent = IN_LABEL; setMsg($('msg'), '', '');
+  $('pick').hidden = true; $('desk').hidden = false; $('changeDesk').hidden = false;
+  document.title = `Desk ${id} · Check-in`;
+  call(`/api/seats/${encodeURIComponent(id)}`).then(render).catch((e) => {
+    $('title').textContent = `Desk ${id}`; $('status').textContent = e.message; $('status').className = 'pill k-offline';
+  });
+}
+
 // A desk that isn't pre-allocated to the person's project gets one warning first: they can
 // go to one of the project's free pre-allocated desks, or tap again to check in here anyway.
 let confirmedTeam = '';
@@ -107,26 +169,23 @@ async function allocationWarning(team) {
   if (!here || !mine.length || here.allocatedTo === team) return null;
   return { here, free: mine.filter((x) => x.status === 'available' || x.status === 'offline') };
 }
-$('team').addEventListener('change', () => { confirmedTeam = ''; $('in').textContent = IN_LABEL; $('msg').textContent = ''; $('msg').className = ''; });
+$('team').addEventListener('change', () => { confirmedTeam = ''; $('in').textContent = IN_LABEL; setMsg($('msg'), '', ''); });
 
 async function act(kind) {
   const user = $('user').value.trim();
-  $('msg').className = '';
   const projectTeam = $('team').value;
-  if (!user) { $('msg').className = 'err'; $('msg').textContent = 'Enter your name first.'; $('user').focus(); return; }
-  if (!projectTeam) { $('msg').className = 'err'; $('msg').textContent = 'Choose your project team.'; $('team').focus(); return; }
+  if (!user) { setMsg($('msg'), 'err', 'Enter your name first.'); $('user').focus(); return; }
+  if (!projectTeam) { setMsg($('msg'), 'err', 'Choose your project team.'); $('team').focus(); return; }
   try { localStorage.setItem('hotdesk.user', user); localStorage.setItem('hotdesk.team', projectTeam); } catch {}
   if (kind === 'checkin' && confirmedTeam !== projectTeam) {
     const w = await allocationWarning(projectTeam).catch(() => null);
     if (w) {
       confirmedTeam = projectTeam;
-      const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-      $('msg').className = 'warn';
-      $('msg').innerHTML = `<b>This desk is not pre-allocated to ${esc(projectTeam)}.</b>`
+      setMsg($('msg'), 'warn', `<b>This desk is not pre-allocated to ${esc(projectTeam)}.</b>`
         + (w.here.allocatedTo ? `It is pre-allocated to ${esc(w.here.allocatedTo)}. ` : '')
         + (w.free.length
           ? `Free desks pre-allocated to ${esc(projectTeam)}: ${w.free.slice(0, 10).map((x) => esc(x.id)).join(', ')}${w.free.length > 10 ? ' …' : ''}. Go to one of those, or check in here anyway.`
-          : `All of ${esc(projectTeam)}'s pre-allocated desks are taken right now. You can check in here anyway.`);
+          : `All of ${esc(projectTeam)}'s pre-allocated desks are taken right now. You can check in here anyway.`));
       $('in').textContent = 'Check in here anyway';
       return;
     }
@@ -136,17 +195,16 @@ async function act(kind) {
     const seat = await call(`/api/seats/${encodeURIComponent(seatId)}/${kind}`, body);
     render(seat);
     $('in').textContent = IN_LABEL;
-    $('msg').textContent = kind === 'checkin'
-      ? `You are checked in (${projectTeam}) until ${fmtTime(seat.checkedInUntil)}. Scan again before then to extend.`
-      : 'Thanks — the desk is free for others.';
-  } catch (e) { $('msg').className = 'err'; $('msg').textContent = e.message; }
+    setMsg($('msg'), 'ok', kind === 'checkin'
+      ? `You are checked in (${esc(projectTeam)}) until ${fmtTime(seat.checkedInUntil)}. Scan again before then to extend.`
+      : 'Thanks — the desk is free for others.');
+  } catch (e) { setMsg($('msg'), 'err', esc(e.message)); }
 }
 $('in').onclick = () => act('checkin');
 $('out').onclick = () => act('checkout');
 
 loadDurations().catch(() => {});
-if (!seatId) { $('status').textContent = 'No desk specified — scan the QR code on the desk.'; }
-else call(`/api/seats/${encodeURIComponent(seatId)}`).then(render).catch((e) => { $('status').textContent = e.message; });
+if (seatId) openDesk(seatId); else showPicker();
 </script>
 </body>
 </html>

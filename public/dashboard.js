@@ -787,6 +787,7 @@ function panelDetails(s) {
       <li>${ICON.pin}<span><b>${esc(s.floorName)}</b> · ${esc(s.zoneName)}</span></li>
       ${hasTeams() ? `<li>${ICON.users}<span>${s.teamName ? `Assigned to <b>${esc(s.teamName)}</b>` : 'Unassigned (open hot desk)'}</span></li>` : ''}
       ${sensor}
+      <li>${ICON.qr}<span><a href="/checkin?seat=${encodeURIComponent(s.id)}" data-phone title="The page this desk's QR code opens, in a phone-sized window">Open check-in page</a> <span class="muted">· phone view</span></span></li>
     </ul>
     ${usage.length ? `<div class="usage">${usage.map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}</div>` : ''}
     ${flash}`;
@@ -1367,3 +1368,12 @@ async function start() {
   }
 }
 start();
+
+// "Open check-in page" links: show the desk's QR check-in page in a phone-sized window (a demo stand-in for a scan).
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-phone]');
+  if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  const w = window.open(a.href, 'hotdesk-phone', 'popup,width=400,height=820');
+  if (w) w.focus(); else location.href = a.href;
+});

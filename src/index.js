@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { networkInterfaces } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { OccupancyEngine, expandLayout } from './occupancy.js';
@@ -51,6 +52,9 @@ engine.sweep();
 const port = Number(env.PORT ?? 3000);
 server.listen(port, () => {
   console.log(`Hot desk monitor for ${building.name} on http://localhost:${port}`);
+  // Phones on the same network reach the app (and desk QR codes work) through these addresses.
+  const lan = Object.values(networkInterfaces()).flat().filter((a) => a && a.family === 'IPv4' && !a.internal).map((a) => `http://${a.address}:${port}`);
+  if (lan.length) console.log(`On this network (for phones): ${lan.join(', ')}  ·  employee booking: /book`);
   if (!env.ADMIN_TOKEN) console.warn('ADMIN_TOKEN not set: admin dashboard is open to anyone who can reach it.');
   if (!env.SENSOR_API_KEY) console.warn('SENSOR_API_KEY not set: sensor ingestion is unauthenticated.');
 });
