@@ -29,6 +29,7 @@ const engine = new OccupancyEngine({
   projectTeams: building.projectTeams,
 });
 engine.on('change', () => store.scheduleSave(() => engine.snapshot()));
+engine.on('projects', () => store.scheduleSave(() => engine.snapshot()));
 engine.on('unlinked', (u) => {
   store.scheduleSave(() => engine.snapshot());
   console.log(`Sensor ${u.sensorId}${u.name ? ` (${u.name})` : ''} is reporting but not linked to a desk. Link it on /sensors.`);

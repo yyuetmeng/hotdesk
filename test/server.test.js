@@ -78,6 +78,26 @@ test('floor-plan drawing data is admin-only', async () => {
   assert.deepEqual(plans, [{ id: 'L1', plan: { width: 40, height: 20, zones: { A: { x: 2, y: 2, w: 20, h: 12 } } } }]);
 });
 
+test('projects and seat allocation API is admin-only and validates input', async () => {
+  const json = (body) => ({ method: 'POST', headers: { ...admin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal((await fetch(`${base}/api/projects`)).status, 401);
+  assert.equal((await post('/api/projects', { name: 'Ops' })).status, 401);
+  let res = await fetch(`${base}/api/projects`, json({ name: 'Ops Team', color: '#336699' }));
+  assert.equal(res.status, 201);
+  assert.equal((await res.json()).code, 'OT');
+  assert.equal((await fetch(`${base}/api/projects`, json({ name: 'ops team' }))).status, 409);
+  res = await fetch(`${base}/api/projects/${encodeURIComponent('Ops Team')}/seats`, { ...json({ seats: ['L1-A-01'] }), method: 'PUT' });
+  assert.deepEqual((await res.json()).seats, ['L1-A-01']);
+  assert.equal((await fetch(`${base}/api/projects/G%26C/seats`, { ...json({ seats: ['L1-A-01'] }), method: 'PUT' })).status, 409);
+  res = await fetch(`${base}/api/projects/${encodeURIComponent('Ops Team')}`, { ...json({ color: '#ff0000' }), method: 'PATCH' });
+  assert.equal((await res.json()).color, '#ff0000');
+  assert.equal((await (await fetch(`${base}/api/seats/L1-A-01`)).json()).allocatedTo, 'Ops Team');
+  const opts = await (await fetch(`${base}/api/checkin-options`)).json();
+  assert.ok(opts.projectTeams.includes('Ops Team'), 'new projects can be chosen at check-in');
+  res = await fetch(`${base}/api/projects/${encodeURIComponent('Ops Team')}`, { headers: admin, method: 'DELETE' });
+  assert.deepEqual((await res.json()).released, ['L1-A-01']);
+});
+
 test('serves dashboard and check-in pages; blocks traversal', async () => {
   assert.equal((await fetch(`${base}/`)).status, 200);
   assert.equal((await fetch(`${base}/checkin?seat=L1-A-01`)).status, 200);

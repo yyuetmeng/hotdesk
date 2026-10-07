@@ -22,6 +22,7 @@ const ICON = {
   close: svg('<path d="M6 6l12 12M18 6 6 18"/>', 'i'),
   info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>', 'i'),
   pointer: svg('<path d="m5 3 14 7-6 2-2 6z"/>', 'i'),
+  trash: svg('<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/>', 'i'),
   okCircle: svg('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/>', 'i'),
 };
 const STATUS_ICON = { available: ICON.seat, occupied: ICON.person.replace('<svg class=""', '<svg class="i"'), away: ICON.clock.replace('<svg class=""', '<svg class="i"'), offline: ICON.alert };
@@ -34,6 +35,8 @@ let token = params.get('token') || safeGet('hotdesk.token') || '';
 const state = {
   seats: new Map(), summary: null, projects: [], options: null, plans: new Map(),
   floor: safeGet('hotdesk.floor') || '', status: '', team: '', project: '', mode: safeGet('hotdesk.mode') || 'project',
+  // 'live' shows seat status; 'alloc' pre-allocates seats to projects.
+  view: safeGet('hotdesk.view') === 'alloc' ? 'alloc' : 'live', allocProjects: [], activeProject: null,
   selected: null, flash: null,
 };
 const $ = (id) => document.getElementById(id);
@@ -46,6 +49,18 @@ const narrow = () => matchMedia('(max-width: 1180px)').matches;
 function withToken(path) {
   if (!token) return path;
   return path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
+}
+
+/** Admin write call (POST/PATCH/PUT/DELETE) with the token; throws the server's message. */
+async function apiSend(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
 }
 
 async function api(path) {
@@ -273,6 +288,11 @@ function revealSeat(id, behavior = 'smooth') {
 
 /** How a seat looks in the current colour mode: classes on the workstation, plus a colour. */
 function seatLook(s) {
+  if (state.view === 'alloc') {
+    const t = allocProject(s.allocatedTo);
+    if (!t) return { cls: 'alloc-free', color: '' };
+    return { cls: `alloc ${t.name === state.activeProject ? 'alloc-mine' : 'alloc-other'}`, color: projectColor(t) };
+  }
   const base = { cls: `st-${s.status}`, color: '' };
   if (state.mode === 'team') {
     const color = teamInfo(s.team)?.color;
@@ -287,6 +307,7 @@ function seatLook(s) {
 
 function seatLabel(s) {
   const parts = [`Seat ${s.id}`, STATUS[s.status].label, s.zoneName];
+  if (s.allocatedTo) parts.push(`allocated to ${s.allocatedTo}`);
   if (s.projectTeam) parts.push(s.projectTeam);
   if (hasTeams()) parts.push(s.teamName ? `assigned to ${s.teamName}` : 'unassigned');
   if (state.selected === s.id) parts.push('selected');
@@ -296,8 +317,8 @@ function seatLabel(s) {
 function patchSeat(el, s = state.seats.get(el.dataset.seat)) {
   if (!s) return;
   const look = seatLook(s);
-  const sel = state.selected === s.id;
-  const dim = !matches(s);
+  const sel = state.view === 'live' && state.selected === s.id;
+  const dim = state.view === 'live' ? !matches(s) : !inFloor(s);
   const sig = [look.cls, look.color, sel, dim].join('|');
   if (el.dataset.sig !== sig) {
     el.dataset.sig = sig;
@@ -314,7 +335,7 @@ function patchAllSeats() {
   for (const el of $('plan').querySelectorAll('.seat')) patchSeat(el);
   for (const z of $('plan').querySelectorAll('.fp-zone')) updateRoving(z);
   const any = [...state.seats.values()].some((s) => inFloor(s) && matches(s));
-  $('noMatch').hidden = any || !state.seats.size;
+  $('noMatch').hidden = any || !state.seats.size || state.view === 'alloc';
 }
 
 /** One tab stop per zone: the selected seat, else the last focused, else the first enabled seat. */
@@ -360,18 +381,23 @@ function select(id) {
   if (id) revealSeat(id);
 }
 
+/** A seat was clicked or Enter was pressed on it. */
+function activate(id) {
+  hidePop();
+  if (state.view === 'alloc') toggleAllocation(id);
+  else select(state.selected === id ? null : id);
+}
 $('plan').addEventListener('click', (e) => {
   const b = e.target.closest('.seat'); if (!b || !isOn(b)) return;
-  hidePop();
-  select(state.selected === b.dataset.seat ? null : b.dataset.seat);
+  activate(b.dataset.seat);
 });
 
 const KEYS = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0] };
 $('plan').addEventListener('keydown', (e) => {
   const b = e.target.closest('.seat'); if (!b) return;
   if (e.key === 'Enter' || e.key === ' ') {
-    e.preventDefault(); hidePop();
-    select(state.selected === b.dataset.seat ? null : b.dataset.seat);
+    e.preventDefault();
+    activate(b.dataset.seat);
     return;
   }
   const dir = KEYS[e.key]; if (!dir) return;
@@ -405,6 +431,7 @@ const pop = $('pop');
 let popFor = null, popTimer = null;
 function seatDetails(s, el) {
   const rows = [`${s.zoneName} · ${s.floorName}`];
+  if (s.allocatedTo) rows.push(`Allocated to ${s.allocatedTo}`);
   if (s.checkedInBy) rows.push(`Name: ${s.checkedInBy}`);
   if (s.projectTeam) rows.push(`Project team: ${s.projectTeam}`);
   if (hasTeams()) rows.push(s.teamName ? `Assigned to ${s.teamName}` : 'Open hot desk');
@@ -471,6 +498,8 @@ function teamOptions(current) {
 
 function renderPanel() {
   const panel = $('panel');
+  if (state.view === 'alloc') { panel.classList.remove('open'); renderAllocPanel(); return; }
+  if (panelKey.startsWith('alloc')) { panel.innerHTML = ''; panelKey = ''; }
   const s = state.selected && state.seats.get(state.selected);
   panel.classList.toggle('open', Boolean(s));
   if (!s) {
@@ -612,9 +641,202 @@ async function reloadSeats() {
   refreshSummarySoon();
 }
 
+// ---------- Seat allocation (pre-booking) ----------
+// Projects are the project teams people check in under. Here an admin adds, recolours
+// and deletes them, and pre-allocates seats to them by clicking the plan or typing ids.
+let allocSaving = 0;           // PUTs in flight: live project events wait until they finish
+let allocMsg = { text: '', kind: '' };
+let allocLoaded = false;
+const allocProject = (name) => (name ? state.allocProjects.find((t) => t.name === name) : undefined);
+const PALETTE_SLOTS = 8;
+
+function setAllocProjects(list) {
+  state.allocProjects = list;
+  if (!allocProject(state.activeProject)) state.activeProject = list[0]?.name ?? null;
+  if (state.view !== 'alloc') return;
+  patchAllSeats(); renderLegend(); renderPanel();
+}
+
+async function loadAllocProjects() {
+  try { const list = await api('/api/projects'); allocLoaded = true; setAllocProjects(list); } catch (e) { setAllocMsg(e.message, 'err'); }
+}
+
+function setAllocMsg(text, kind = 'ok') {
+  allocMsg = { text, kind };
+  const el = $('allocMsg');
+  if (el) { el.textContent = text; el.className = `alloc-msg ${kind}`; }
+}
+
+function switchView(view) {
+  state.view = view; safeSet('hotdesk.view', view);
+  $('floorplan').classList.toggle('alloc-view', view === 'alloc');
+  for (const b of $('planView').children) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+  $('planHint').textContent = view === 'alloc'
+    ? 'Click a seat to allocate it to the chosen project; click again to remove it.'
+    : 'Hover a seat to preview it, click to select it.';
+  hidePop();
+  if (view === 'alloc') { state.selected = null; loadAllocProjects(); }
+  patchAllSeats(); renderLegend(); renderPanel();
+}
+$('planView').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) switchView(b.dataset.view); });
+$('allocLink').addEventListener('click', () => switchView('alloc'));
+
+/** A colour for a new project: the first palette colour no project uses yet. */
+function suggestColor() {
+  const used = new Set(state.allocProjects.map((t) => projectColor(t).toLowerCase()));
+  for (let i = 0; i < PALETTE_SLOTS; i++) {
+    const c = projectColor({ slot: i }).toLowerCase();
+    if (!used.has(c)) return c;
+  }
+  return '#64748b';
+}
+
+function projectItem(t) {
+  const c = projectColor(t), active = t.name === state.activeProject;
+  return `<li class="proj${active ? ' active' : ''}">
+    <button type="button" class="proj-pick" data-pick="${esc(t.name)}" aria-pressed="${active}">
+      <span class="proj-sw" style="background:${c}"></span>
+      <span class="proj-text"><span class="proj-name">${esc(t.name)}</span><span class="proj-meta">${esc(t.code)} · ${t.seats.length} seat${t.seats.length === 1 ? '' : 's'}</span></span>
+    </button>
+    <input type="color" class="proj-color" data-color="${esc(t.name)}" value="${c}" aria-label="Colour for ${esc(t.name)}" title="Change colour">
+    <button type="button" class="btn btn-ghost proj-del" data-del="${esc(t.name)}" aria-label="Delete ${esc(t.name)}" title="Delete project">${ICON.trash}</button>
+  </li>`;
+}
+
+function seatsEditor(t) {
+  if (!t) return '<p class="muted">Add a project to start allocating seats.</p>';
+  return `<label class="alloc-label" for="allocSeats">Seats allocated to <b>${esc(t.name)}</b> (${t.seats.length})</label>
+    <textarea id="allocSeats" rows="4" spellcheck="false" placeholder="e.g. L1-DF-01, L1-DF-02">${esc(t.seats.join(', '))}</textarea>
+    <div class="btnrow">
+      <button type="button" class="btn btn-primary" id="allocSave">Save seats</button>
+      <button type="button" class="btn" id="allocClear"${t.seats.length ? '' : ' disabled'}>Clear all</button>
+    </div>
+    <p class="note">${ICON.info}<span>Click seats on the plan to add or remove them, or type seat IDs separated by commas or spaces.</span></p>`;
+}
+
+function renderAllocPanel() {
+  const panel = $('panel');
+  const t = allocProject(state.activeProject);
+  if (!panelKey.startsWith('alloc')) {
+    panel.innerHTML = `<div class="panel-inner alloc-panel">
+      <h2 class="alloc-title">Seat allocation</h2>
+      <p class="lead muted">Pre-allocate seats to projects for pre-booking. Choose a project, then click seats on the plan.</p>
+      <ul class="proj-list" id="projList"></ul>
+      <details class="add-proj" id="addProjBox">
+        <summary>Add a project</summary>
+        <form class="pform" id="addProj" novalidate>
+          <label>Project name<input name="name" maxlength="40" required autocomplete="off"></label>
+          <div class="pair">
+            <label>Short code<input name="code" maxlength="4" placeholder="auto" autocomplete="off"></label>
+            <label>Colour<input type="color" name="color"></label>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Add project</button>
+        </form>
+      </details>
+      <div class="alloc-seats" id="allocSeatsBox"></div>
+      <div class="alloc-msg" id="allocMsg" role="status"></div>
+    </div>`;
+    panel.querySelector('#addProj [name=color]').value = suggestColor();
+    panelKey = 'alloc';
+  }
+  $('projList').innerHTML = state.allocProjects.map(projectItem).join('') || '<li class="muted">No projects yet.</li>';
+  if (allocLoaded && !state.allocProjects.length) $('addProjBox').open = true;
+  // Don't overwrite seat ids the admin is typing; refresh once they leave the box.
+  const editing = document.activeElement?.id === 'allocSeats' && $('allocSeatsBox').dataset.project === (t?.name ?? '');
+  if (!editing) { $('allocSeatsBox').innerHTML = seatsEditor(t); $('allocSeatsBox').dataset.project = t?.name ?? ''; }
+  setAllocMsg(allocMsg.text, allocMsg.kind);
+}
+
+/** Save a project's full seat list. Saves run one after another, newest list wins. */
+let allocQueue = Promise.resolve();
+function saveAllocation(name, seats) {
+  allocSaving++;
+  allocQueue = allocQueue.then(() => apiSend('PUT', `/api/projects/${encodeURIComponent(name)}/seats`, { seats }))
+    .then((p) => { setAllocMsg(`Saved: ${p.name} has ${p.seats.length} seat${p.seats.length === 1 ? '' : 's'}.`); })
+    .catch((e) => { setAllocMsg(e.message, 'err'); })
+    .finally(() => { if (--allocSaving === 0) loadAllocProjects(); });
+  return allocQueue;
+}
+
+function toggleAllocation(id) {
+  const s = state.seats.get(id), t = allocProject(state.activeProject);
+  if (!s) return;
+  if (!t) { setAllocMsg('Choose or add a project first, then click seats.', 'err'); return; }
+  if (s.allocatedTo && s.allocatedTo !== t.name) {
+    setAllocMsg(`${id} is allocated to ${s.allocatedTo}. Remove it from that project first.`, 'err');
+    return;
+  }
+  // Show the change straight away; the server confirms it (or the reload puts it back).
+  const seats = new Set(t.seats);
+  if (seats.has(id)) seats.delete(id); else seats.add(id);
+  t.seats = [...seats].sort();
+  s.allocatedTo = seats.has(id) ? t.name : null;
+  const el = seatEl(id); if (el) patchSeat(el, s);
+  renderAllocPanel(); renderLegend();
+  saveAllocation(t.name, t.seats);
+}
+
+$('panel').addEventListener('click', async (e) => {
+  if (state.view !== 'alloc') return;
+  const pick = e.target.closest('[data-pick]'), del = e.target.closest('[data-del]');
+  if (pick) {
+    state.activeProject = pick.dataset.pick; setAllocMsg('');
+    patchAllSeats(); renderAllocPanel();
+  } else if (del) {
+    const t = allocProject(del.dataset.del); if (!t) return;
+    const n = t.seats.length;
+    if (!confirm(`Delete project "${t.name}"?${n ? ` Its ${n} allocated seat${n === 1 ? '' : 's'} will be released.` : ''} People can no longer choose it at check-in; its history stays in the reports.`)) return;
+    try {
+      await apiSend('DELETE', `/api/projects/${encodeURIComponent(t.name)}`);
+      setAllocMsg(`Deleted ${t.name}.`);
+      await loadAllocProjects(); loadProjects();
+    } catch (err) { setAllocMsg(err.message, 'err'); }
+  } else if (e.target.id === 'allocSave') {
+    const t = allocProject(state.activeProject); if (!t) return;
+    const ids = $('allocSeats').value.split(/[\s,;]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
+    $('allocSeats').blur();
+    saveAllocation(t.name, ids);
+  } else if (e.target.id === 'allocClear') {
+    const t = allocProject(state.activeProject); if (!t) return;
+    if (confirm(`Remove all ${t.seats.length} seats from ${t.name}?`)) saveAllocation(t.name, []);
+  }
+});
+
+$('panel').addEventListener('change', async (e) => {
+  const input = e.target.closest('[data-color]'); if (!input || state.view !== 'alloc') return;
+  try {
+    await apiSend('PATCH', `/api/projects/${encodeURIComponent(input.dataset.color)}`, { color: input.value });
+    setAllocMsg(`Colour updated for ${input.dataset.color}.`);
+    await loadAllocProjects(); loadProjects();
+  } catch (err) { setAllocMsg(err.message, 'err'); }
+});
+
+$('panel').addEventListener('submit', async (e) => {
+  if (e.target.id !== 'addProj') return;
+  e.preventDefault();
+  const f = e.target;
+  const name = f.elements.name.value.trim();
+  if (!name) { setAllocMsg('Enter a project name.', 'err'); f.elements.name.focus(); return; }
+  try {
+    const p = await apiSend('POST', '/api/projects', { name, code: f.elements.code.value.trim(), color: f.elements.color.value });
+    state.activeProject = p.name;
+    f.reset();
+    setAllocMsg(`Added ${p.name}. Click seats on the plan to allocate them.`);
+    await loadAllocProjects();
+    f.elements.color.value = suggestColor();
+    loadProjects();
+  } catch (err) { setAllocMsg(err.message, 'err'); }
+});
+
 // ---------- Legend ----------
 function renderLegend() {
   const ws = (cls, style = '') => FloorPlan.sampleSVG(cls, style);
+  if (state.view === 'alloc') {
+    $('legend').innerHTML = `<div class="lgroup"><b>Allocated to</b>${state.allocProjects.map((t) =>
+      `<span class="litem">${ws('alloc alloc-mine', `--c:${projectColor(t)}`)}${esc(t.name)} <span class="muted">${t.seats.length}</span></span>`).join('')}
+      <span class="litem">${ws('alloc-free')}Not allocated</span></div>`;
+    return;
+  }
   const project = state.mode === 'project';
   const status = `<div class="lgroup"><b>Workstations</b>
     <span class="litem">${ws('st-available')}Available</span>
@@ -791,6 +1013,7 @@ function connect() {
     liveOn = true; renderLive('Live'); renderUpdated();
     renderFloorFilter(); renderStatusFilter(); renderTeamFilter(); syncFilterControls();
     renderKpis(); renderLegend(); renderPlan(); renderPanel(); renderZones(); renderTeams();
+    if (state.view === 'alloc' && !state.allocProjects.length) switchView('alloc');
   });
   es.addEventListener('seat', (e) => {
     const s = JSON.parse(e.data);
@@ -801,6 +1024,10 @@ function connect() {
     if (state.selected === s.id || !state.selected) renderPanel();
     $('noMatch').hidden = [...state.seats.values()].some((x) => inFloor(x) && matches(x));
     refreshSummarySoon();
+  });
+  es.addEventListener('projects', (e) => {
+    if (!allocSaving) setAllocProjects(JSON.parse(e.data));
+    loadProjects();
   });
   es.onerror = () => { liveOn = false; renderLive('Reconnecting…'); };
 }

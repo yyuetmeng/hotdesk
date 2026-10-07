@@ -154,26 +154,51 @@ activity feed records it:
 
 Every requester belongs to a **project team**, which they choose when they **check in and when they check out**
 (both refuse to continue without one). The default teams are **External, Bolt On, eWorkplace, G&C, STREAM,
-SAP, ITGC, DDAP**. Change them in `config/building.json` → `"projectTeams"` and restart.
+SAP, ITGC, DDAP**. Manage them on the dashboard (see *Seat allocation* below), or in `config/building.json` →
+`"projectTeams"`. Once the list has been edited on the dashboard, the saved list is used and the file's list is
+ignored.
 
 - **Check-in page:** a required *Your project team* dropdown. The phone remembers the person's team for next time.
 - **Admin dashboard → Project teams:** per team, the number checked in now, check-ins and check-outs today, and
   its requesters (expand to see who is at which desk until when). A *project team* filter on the floor plan
   highlights that team's desks, and tooltips and the activity feed show each person's team.
-- **Colour by project team (default floor-plan view):** each occupied desk is filled with its team's colour and
-  shows the team's short code (EXT, BO, eWP, G&C, STR, SAP, ITGC, DDAP). The code means colour is never the only
-  cue, which matters because eight colours can't all be told apart at a glance, especially with colour blindness.
-  A desk whose person has stepped away is a dashed outline in the team's colour. Desks occupied without a
-  check-in are grey, available desks are a green outline with ✓, and offline sensors are dotted. **Status**
-  switches back to colouring by availability.
-  Each team's code and colour can be set in `config/building.json`, e.g.
-  `{ "name": "SAP", "code": "SAP", "color": "#0a6ebd" }`. Without `color`, teams take the dashboard's
-  8-colour palette in list order, with separate light- and dark-mode shades.
+- **Colour by project team (default floor-plan view):** the person seated at an occupied desk, and the desk's
+  status light, take their team's colour. Desks occupied without a check-in use the plain occupied blue.
+  **Status** switches back to colouring by availability only. Without a chosen colour, teams take the dashboard's
+  8-colour palette (no greens, so a team can't be mistaken for a free seat), with separate light and dark shades.
 - **Download requesters (CSV):** every requester with their project team, current desk, last desk, last
   check-in/out and totals (`/api/requesters.csv`, admin only).
 - A requester's team is the one they gave most recently, so someone who moves to another team is re-grouped at
   their next check-in or check-out. A team removed from the list still appears in reports, marked
   *no longer offered*.
+
+## Seat allocation (pre-booking)
+
+On the dashboard, switch the floor plan to **Seat allocation** (or use *Seat allocation* in the sidebar). The
+plan then shows which project each seat is allocated to, in that project's colour. The side panel manages the
+projects:
+
+- **Choose a project**, then **click seats** on the plan to add or remove them. You can also type seat IDs
+  (`L1-DF-01, L1-DF-02 …`) and press **Save seats**.
+- **Add a project:** name, optional short code (made from the name if left empty) and colour. New projects can
+  be chosen on the check-in page straight away.
+- **Change a colour** with the swatch next to the project. **Delete** a project with the bin icon. Its seats are
+  released, people can no longer choose it at check-in, and its history stays in the reports.
+- A seat belongs to at most one project. Seats allocated to another project can't be taken until they are
+  removed from that project.
+
+Allocations are saved with the app's state (`data/state.json`). Each seat's view carries `allocatedTo`, for
+features built on pre-booking. Allocating a seat does not yet change its live status or who may check in.
+
+Admin API (token required):
+
+| Method and path | Body | Does |
+|---|---|---|
+| `GET /api/projects` | | Projects with `name`, `code`, `color`, `slot` and allocated `seats` |
+| `POST /api/projects` | `{ "name", "code"?, "color"? }` | Add a project (409 if the name exists) |
+| `PATCH /api/projects/:name` | `{ "code"?, "color"? }` | Change its short code or colour (`#rrggbb`) |
+| `DELETE /api/projects/:name` | | Delete it and release its seats |
+| `PUT /api/projects/:name/seats` | `{ "seats": ["L1-DF-01", …] }` | Replace its allocated seats (400 for unknown seats, 409 for seats held by another project) |
 
 ## Desk labels (QR codes)
 

@@ -46,11 +46,16 @@ function parseProjectTeams(list) {
     if (!name || seen.has(name.toLowerCase())) continue;
     seen.add(name.toLowerCase());
     const code = String(t.code ?? '').trim().slice(0, 4) || teamCode(name);
-    if (t.color !== undefined && !HEX.test(t.color)) throw new Error(`Project team ${name}: color must look like #1a2b3c`);
-    teams.push({ name, code, color: t.color ?? null, slot: teams.length });
+    if (t.color !== undefined && t.color !== null && !HEX.test(t.color)) throw new Error(`Project team ${name}: color must look like #1a2b3c`);
+    // A saved list keeps each team's slot, so deleting one doesn't shift the others' default colours.
+    const slot = Number.isInteger(t.slot) && !teams.some((x) => x.slot === t.slot) ? t.slot : nextSlot(teams);
+    teams.push({ name, code, color: t.color ?? null, slot });
   }
   return teams;
 }
+
+const nextSlot = (teams) => teams.reduce((m, t) => Math.max(m, t.slot + 1), 0);
+const MAX_PROJECT_NAME = 40;
 
 const MINUTE = 60_000;
 const TEAM_DAYS_KEPT = 62;
@@ -158,13 +163,16 @@ export class OccupancyEngine extends EventEmitter {
    * @param {object} [opts.state]  persisted snapshot from snapshot(); its `sensorLinks`
    *   (desk id -> sensor id, or null for none) override the layout's default sensor ids
    * @param {(string|{name: string, code?: string, color?: string})[]} [opts.projectTeams]
-   *   teams requesters must pick from (default DEFAULT_PROJECT_TEAMS)
+   *   teams requesters must pick from (default DEFAULT_PROJECT_TEAMS). Once the list has
+   *   been edited in the dashboard, the saved list in `state.projects` is used instead.
    * @param {() => number} [opts.clock]
    */
   constructor({ seats, rules = {}, state = {}, clock = Date.now, projectTeams = DEFAULT_PROJECT_TEAMS }) {
     super();
     this.rules = { ...DEFAULT_RULES, ...rules };
-    this.projectTeamInfo = parseProjectTeams(projectTeams);
+    // The project list as edited in the dashboard wins over the configured one.
+    this.projectsEdited = Array.isArray(state.projects) && state.projects.length > 0;
+    this.projectTeamInfo = parseProjectTeams(this.projectsEdited ? state.projects : projectTeams);
     this.projectTeams = this.projectTeamInfo.map((t) => t.name);
     if (!this.projectTeams.length) throw new Error('At least one project team is required');
     // Everyone who has checked in, by lower-cased name: their project team and last desk.
@@ -191,8 +199,104 @@ export class OccupancyEngine extends EventEmitter {
       this.seats.set(seat.id, seat);
       if (seat.sensorId) this.bySensor.set(seat.sensorId, seat);
     }
+    // Seats pre-allocated to a project (seat id -> project name), for pre-booking.
+    this.allocations = new Map(Object.entries(state.allocations ?? {})
+      .filter(([id, team]) => this.seats.has(id) && this.projectTeams.includes(team)));
     const now = this.clock();
     for (const seat of this.seats.values()) this.lastStatus.set(seat.id, deriveStatus(seat, now, this.rules));
+  }
+
+  // ---------- Projects and seat pre-allocation ----------
+
+  /** Every project with its code, colour and pre-allocated seats. */
+  listProjects() {
+    return this.projectTeamInfo.map((t) => ({
+      ...t,
+      seats: [...this.allocations].filter(([, team]) => team === t.name).map(([id]) => id).sort(),
+    }));
+  }
+
+  #findProject(name) {
+    const wanted = String(name ?? '').trim().toLowerCase();
+    const t = this.projectTeamInfo.find((x) => x.name.toLowerCase() === wanted);
+    if (!t) throw new NotFoundError(`Unknown project "${name}"`);
+    return t;
+  }
+
+  #checkColor(color) {
+    if (color === undefined || color === null || color === '') return null;
+    if (!HEX.test(color)) throw new ValidationError('Colour must look like #1a2b3c');
+    return color.toLowerCase();
+  }
+
+  #projectsChanged() {
+    this.projectsEdited = true;
+    this.projectTeams = this.projectTeamInfo.map((t) => t.name);
+    this.emit('projects', this.listProjects());
+  }
+
+  /** Add a project people can check in under and seats can be allocated to. */
+  addProject({ name, code, color } = {}) {
+    name = String(name ?? '').trim();
+    if (!name) throw new ValidationError('Project name is required');
+    if (name.length > MAX_PROJECT_NAME) throw new ValidationError(`Project name must be at most ${MAX_PROJECT_NAME} characters`);
+    if (this.projectTeams.some((t) => t.toLowerCase() === name.toLowerCase())) throw new ConflictError(`Project "${name}" already exists`);
+    const t = { name, code: String(code ?? '').trim().slice(0, 4) || teamCode(name), color: this.#checkColor(color), slot: nextSlot(this.projectTeamInfo) };
+    this.projectTeamInfo.push(t);
+    this.#projectsChanged();
+    return this.listProjects().find((p) => p.name === name);
+  }
+
+  /** Change a project's short code or colour. */
+  updateProject(name, { code, color } = {}) {
+    const t = this.#findProject(name);
+    if (code !== undefined) t.code = String(code ?? '').trim().slice(0, 4) || teamCode(t.name);
+    if (color !== undefined) t.color = this.#checkColor(color);
+    this.#projectsChanged();
+    return this.listProjects().find((p) => p.name === t.name);
+  }
+
+  /**
+   * Remove a project from the list and release its allocated seats. People already
+   * checked in under it stay checked in, and its history stays in the reports.
+   */
+  deleteProject(name) {
+    const t = this.#findProject(name);
+    if (this.projectTeamInfo.length === 1) throw new ValidationError('At least one project is required');
+    this.projectTeamInfo = this.projectTeamInfo.filter((x) => x !== t);
+    const released = [...this.allocations].filter(([, team]) => team === t.name).map(([id]) => id);
+    for (const id of released) this.allocations.delete(id);
+    this.#projectsChanged();
+    this.#seatsChanged(released);
+    return { name: t.name, released };
+  }
+
+  /**
+   * Set the seats pre-allocated to a project (replacing its previous set). A seat can
+   * belong to only one project: seats held by another project are refused.
+   */
+  allocateSeats(name, seatIds) {
+    const t = this.#findProject(name);
+    if (!Array.isArray(seatIds)) throw new ValidationError('seats must be a list of seat ids');
+    const ids = [...new Set(seatIds.map((id) => String(id ?? '').trim().toUpperCase()).filter(Boolean))];
+    const unknown = ids.filter((id) => !this.seats.has(id));
+    if (unknown.length) throw new ValidationError(`Unknown seats: ${unknown.join(', ')}`);
+    const taken = ids.filter((id) => this.allocations.has(id) && this.allocations.get(id) !== t.name);
+    if (taken.length) {
+      throw new ConflictError(`Already allocated to another project: ${taken.map((id) => `${id} (${this.allocations.get(id)})`).join(', ')}`);
+    }
+    const before = [...this.allocations].filter(([, team]) => team === t.name).map(([id]) => id);
+    for (const id of before) this.allocations.delete(id);
+    for (const id of ids) this.allocations.set(id, t.name);
+    this.#projectsChanged();
+    this.#seatsChanged([...new Set([...before, ...ids])].filter((id) => before.includes(id) !== ids.includes(id)));
+    return this.listProjects().find((p) => p.name === t.name);
+  }
+
+  /** Tell listeners (live dashboards, persistence) that these seats' views changed. */
+  #seatsChanged(ids) {
+    const now = this.clock();
+    for (const id of ids) this.emit('change', this.view(this.seats.get(id), now));
   }
 
   getSeat(id) {
@@ -518,6 +622,7 @@ export class OccupancyEngine extends EventEmitter {
       projectTeam: seat.checkedInTeam,
       lastPresenceAt: seat.lastPresenceAt,
       holdExpiresAt,
+      allocatedTo: this.allocations.get(seat.id) ?? null,
     };
   }
 
@@ -589,6 +694,9 @@ export class OccupancyEngine extends EventEmitter {
       unlinkedSensors: Object.fromEntries(this.unlinked),
       requesters: Object.fromEntries(this.requesters),
       teamDays: this.teamDays,
+      allocations: Object.fromEntries(this.allocations),
+      // Saved only once edited, so building.json stays in charge until then.
+      ...(this.projectsEdited ? { projects: this.projectTeamInfo.map(({ name, code, color, slot }) => ({ name, code, color, slot })) } : {}),
     };
   }
 }

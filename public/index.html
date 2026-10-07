@@ -342,6 +342,50 @@
   .seat.is-selected .ws-num { display: inline; fill: var(--accent-strong); font-weight: 700; }
   .seat.is-dim { pointer-events: none; cursor: default; opacity: 0.2; }
 
+  /* Seat allocation view: furniture takes the project's colour; live status is hidden. */
+  .seg-view button[aria-pressed="true"] { background: var(--accent); color: #fff; box-shadow: none; }
+  .alloc-view .live-only { display: none !important; }
+  .alloc-view .ws-status, .alloc-view .ws-person { display: none; }
+  .alloc-view .st-offline .ws-chair { opacity: 1; }
+  .seat.alloc .ws-desk { fill: color-mix(in srgb, var(--c) 42%, transparent); }
+  .seat.alloc .ws-seat { fill: color-mix(in srgb, var(--c) 85%, var(--fp-chair-hi)); stroke: var(--c); }
+  .seat.alloc .ws-back, .seat.alloc .ws-arm { fill: var(--c); }
+  .seat.alloc-other { cursor: not-allowed; }
+  .seat.alloc-other .ws-chair, .seat.alloc-other .ws-desk { opacity: 0.55; }
+  .seat.alloc-mine .ws-chair { filter: drop-shadow(0 0 0.7px var(--c)); }
+  .alloc-view .seat.alloc-free:hover .ws-desk { fill: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .alloc-panel .alloc-title { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+  .alloc-panel .lead { margin: 4px 0 14px; font-size: 13px; }
+  .proj-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 320px; overflow: auto; }
+  .proj { display: flex; align-items: center; gap: 4px; border: 1px solid transparent; border-radius: 9px; padding: 2px 4px 2px 2px; transition: background-color 0.15s, border-color 0.15s; }
+  .proj:hover { background: var(--surface-2); }
+  .proj.active { border-color: var(--accent); background: var(--accent-soft); }
+  .proj-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: transparent; padding: 7px 8px; cursor: pointer; text-align: left; border-radius: 7px; }
+  .proj-sw { width: 14px; height: 14px; border-radius: 4px; flex: none; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15); }
+  .proj-text { display: grid; min-width: 0; }
+  .proj-name { font-weight: 600; font-size: 13px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proj-meta { font-size: 12px; color: var(--text-muted); }
+  .proj-color { width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 7px; background: none; cursor: pointer; flex: none; }
+  .proj-color::-webkit-color-swatch-wrapper { padding: 3px; } .proj-color::-webkit-color-swatch { border: 0; border-radius: 4px; }
+  .proj-del { padding: 6px; color: var(--text-muted); }
+  .proj-del:hover { color: #c62828; }
+  .add-proj { margin-top: 12px; border-top: 1px solid var(--grid); padding-top: 10px; }
+  .add-proj summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--accent-strong); }
+  .add-proj .pform { margin-top: 10px; padding-top: 0; border-top: 0; }
+  .add-proj .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .add-proj input[type="color"] { height: 38px; padding: 3px; cursor: pointer; }
+  .alloc-seats { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--grid); display: grid; gap: 8px; }
+  .alloc-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .alloc-seats textarea { width: 100%; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-primary); resize: vertical; }
+  .alloc-seats textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .alloc-seats .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .alloc-seats .note { margin: 0; font-size: 12px; color: var(--text-muted); display: flex; gap: 6px; }
+  .alloc-seats .note svg { width: 14px; height: 14px; margin-top: 2px; flex: none; }
+  .alloc-msg { margin-top: 10px; font-size: 13px; min-height: 1em; }
+  .alloc-msg:empty { display: none; }
+  .alloc-msg.ok { color: var(--seat-available); }
+  .alloc-msg.err { color: #c62828; }
+
   /* Legend */
   .legend { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--grid); }
   .lgroup { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
@@ -500,6 +544,7 @@
     <nav class="nav" id="nav" aria-label="Dashboard sections">
       <div class="nav-label">Workspace</div>
       <a href="#floorplan" data-section="floorplan" aria-current="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 10h8M11 3v18M15 14h6"/></svg>Floor plan</a>
+      <a href="#floorplan" id="allocLink"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg>Seat allocation</a>
       <a href="#teams" data-section="teams"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>Project teams</a>
       <a href="#trends" data-section="trends"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>Occupancy &amp; activity</a>
       <a href="#utilisation" data-section="utilisation"><svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Utilisation</a>
@@ -527,8 +572,12 @@
         <div><h2>Floor plan</h2><p class="sub" id="planSub">Each chair is a desk where it sits in the office. Its colour and symbol show its live status.</p></div>
       </div>
       <div class="filterbar" role="toolbar" aria-label="Floor plan filters">
+        <div class="fgroup"><div class="seg seg-view" id="planView" role="group" aria-label="Floor plan view">
+          <button type="button" data-view="live" aria-pressed="true">Live status</button>
+          <button type="button" data-view="alloc" aria-pressed="false">Seat allocation</button>
+        </div></div>
         <div class="fgroup"><div class="seg" id="floorFilter" role="group" aria-label="Floor"></div></div>
-        <div class="fgroup">
+        <div class="fgroup live-only">
           <span class="flabel" id="modeLabel">Colour by</span>
           <div class="seg" id="viewMode" role="group" aria-labelledby="modeLabel">
             <button type="button" data-mode="project" aria-pressed="true">Project team</button>
@@ -536,15 +585,15 @@
             <button type="button" data-mode="team" aria-pressed="false" id="layoutTeamMode">Team assignment</button>
           </div>
         </div>
-        <select id="projectFilter" aria-label="Project team filter"><option value="">All project teams</option></select>
-        <select id="teamFilter" aria-label="Team filter"><option value="">All teams</option></select>
-        <div class="chips" id="statusFilter" role="group" aria-label="Status filter"></div>
-        <button type="button" class="btn btn-ghost" id="clearFilters" hidden>Clear filters</button>
+        <select id="projectFilter" class="live-only" aria-label="Project team filter"><option value="">All project teams</option></select>
+        <select id="teamFilter" class="live-only" aria-label="Team filter"><option value="">All teams</option></select>
+        <div class="chips live-only" id="statusFilter" role="group" aria-label="Status filter"></div>
+        <button type="button" class="btn btn-ghost live-only" id="clearFilters" hidden>Clear filters</button>
       </div>
       <div class="planwrap" id="planwrap">
         <div style="min-width:0">
           <div class="fp-tools">
-            <span>Hover a seat to preview it, click to select it. Keys: <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> move, <kbd>Enter</kbd> select, <kbd>Esc</kbd> clear.</span>
+            <span><span id="planHint">Hover a seat to preview it, click to select it.</span> Keys: <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> move, <kbd>Enter</kbd> select, <kbd>Esc</kbd> clear.</span>
             <span class="spacer"></span>
             <div class="zoom" id="zoom" role="group" aria-label="Zoom the floor plan">
               <button type="button" data-zoom="out" aria-label="Zoom out">−</button><output id="zoomLevel" aria-live="polite">100%</output><button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="fit" style="font-size:12px">Fit</button>

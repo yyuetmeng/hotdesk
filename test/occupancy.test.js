@@ -386,3 +386,58 @@ test('project teams can carry a short code and a colour', () => {
   });
   assert.throws(() => new OccupancyEngine({ seats: [], projectTeams: [{ name: 'X', color: 'red' }] }), /color must look like/);
 });
+
+test('projects can be added, recoloured and deleted; the edited list is saved', () => {
+  const { engine } = setup();
+  const events = [];
+  engine.on('projects', (p) => events.push(p));
+  const p = engine.addProject({ name: 'Data Lake', color: '#1A2B3C' });
+  assert.equal(p.code, 'DL');
+  assert.equal(p.color, '#1a2b3c');
+  assert.ok(engine.projectTeams.includes('Data Lake'), 'new project can be checked in under');
+  assert.throws(() => engine.addProject({ name: 'data lake' }), ConflictError);
+  assert.throws(() => engine.addProject({ name: '' }), ValidationError);
+  assert.throws(() => engine.addProject({ name: 'X', color: 'red' }), ValidationError);
+
+  engine.updateProject('Data Lake', { code: 'DLK', color: '#00ff00' });
+  assert.equal(engine.listProjects().find((t) => t.name === 'Data Lake').code, 'DLK');
+  assert.throws(() => engine.updateProject('Nope', {}), NotFoundError);
+
+  const slots = Object.fromEntries(engine.listProjects().map((t) => [t.name, t.slot]));
+  engine.deleteProject('SAP');
+  assert.ok(!engine.projectTeams.includes('SAP'));
+  assert.throws(() => engine.checkIn('L1-A-01', 'alice', { team: 'SAP' }), ValidationError);
+  for (const t of engine.listProjects()) assert.equal(t.slot, slots[t.name], 'other projects keep their colour slot');
+  assert.equal(events.length, 3, 'one event per successful change');
+
+  // The edited list survives a restart and wins over the configured one.
+  const restored = new OccupancyEngine({ seats: expandLayout(building), state: JSON.parse(JSON.stringify(engine.snapshot())), projectTeams: ['Only'] });
+  assert.deepEqual(restored.projectTeams, engine.projectTeams);
+  // An unedited list is not saved, so building.json stays in charge.
+  assert.equal(setup().engine.snapshot().projects, undefined);
+});
+
+test('seats can be pre-allocated to one project each', () => {
+  const { engine, changes } = setup();
+  engine.addProject({ name: 'Data Lake', color: '#123456' });
+  const p = engine.allocateSeats('Data Lake', ['l1-a-01', 'L1-A-02', 'L1-A-02']);
+  assert.deepEqual(p.seats, ['L1-A-01', 'L1-A-02']);
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).allocatedTo, 'Data Lake');
+  assert.deepEqual(changes.map((c) => c.id).sort(), ['L1-A-01', 'L1-A-02'], 'allocated seats are broadcast');
+
+  assert.throws(() => engine.allocateSeats('SAP', ['L1-A-02']), ConflictError);
+  assert.throws(() => engine.allocateSeats('SAP', ['ZZ-1']), ValidationError);
+  assert.throws(() => engine.allocateSeats('Nope', []), NotFoundError);
+
+  // Replacing the set releases seats no longer listed.
+  engine.allocateSeats('Data Lake', ['L1-A-02', 'L1-Q-01']);
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).allocatedTo, null);
+  assert.equal(engine.allocateSeats('SAP', ['L1-A-01']).seats[0], 'L1-A-01');
+
+  const restored = new OccupancyEngine({ seats: expandLayout(building), state: JSON.parse(JSON.stringify(engine.snapshot())) });
+  assert.equal(restored.view(restored.getSeat('L1-Q-01')).allocatedTo, 'Data Lake');
+
+  // Deleting a project releases its seats.
+  assert.deepEqual(engine.deleteProject('Data Lake').released.sort(), ['L1-A-02', 'L1-Q-01']);
+  assert.equal(engine.view(engine.getSeat('L1-A-02')).allocatedTo, null);
+});

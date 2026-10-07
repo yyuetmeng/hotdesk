@@ -80,6 +80,10 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     const payload = `event: seat\ndata: ${JSON.stringify(seat)}\n\n`;
     for (const res of streams) res.write(payload);
   });
+  engine.on('projects', (projects) => {
+    const payload = `event: projects\ndata: ${JSON.stringify(projects)}\n\n`;
+    for (const res of streams) res.write(payload);
+  });
 
   const requireAdmin = (req, url) => {
     if (!adminToken) return;
@@ -203,6 +207,19 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
       requireAdmin(req, url);
       const body = await readJson(req);
       return send(res, 200, engine.linkSensor(parts[2], body.sensorId || null));
+    }
+
+    // --- Projects and seat pre-allocation (admin) ---
+    // GET/POST /api/projects, PATCH/DELETE /api/projects/:name, PUT /api/projects/:name/seats
+    if (parts[1] === 'projects') {
+      requireAdmin(req, url);
+      const name = parts[2] === undefined ? undefined : decodeURIComponent(parts[2]);
+      if (parts.length === 2 && method === 'GET') return send(res, 200, engine.listProjects());
+      if (parts.length === 2 && method === 'POST') return send(res, 201, engine.addProject(await readJson(req)));
+      if (parts.length === 3 && method === 'PATCH') return send(res, 200, engine.updateProject(name, await readJson(req)));
+      if (parts.length === 3 && method === 'DELETE') return send(res, 200, engine.deleteProject(name));
+      if (parts.length === 4 && parts[3] === 'seats' && method === 'PUT') return send(res, 200, engine.allocateSeats(name, (await readJson(req)).seats));
+      throw new HttpError(404, 'Not found');
     }
 
     // --- Employee endpoints (QR code on each desk opens /checkin?seat=ID) ---
