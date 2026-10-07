@@ -592,7 +592,8 @@ function setBookingFor(team) {
 
 /**
  * When the chosen seat is not one of the project's pre-allocated seats, say so and offer
- * the project's free pre-allocated seats instead, or continuing with this seat anyway.
+ * the project's free pre-allocated seats (or any seat clicked on the plan) instead, or
+ * continuing with this seat anyway.
  */
 function updateAllocWarning() {
   const box = $('allocWarn'), form = box?.closest('form');
@@ -621,7 +622,7 @@ function updateAllocWarning() {
       ? `<div class="aw-list"><span>${esc(team)}'s free pre-allocated seats:</span>${free.slice(0, 8).map((x) => `<button type="button" class="aw-seat" data-goto="${esc(x.id)}">${esc(x.id)}</button>`).join('')}${free.length > 8 ? `<span class="muted">+${free.length - 8} more</span>` : ''}</div>`
       : `<div class="aw-list muted">All of ${esc(team)}'s pre-allocated seats are taken right now.</div>`}
     <div class="aw-actions">
-      <button type="button" class="btn" data-aw="another">Choose another seat</button>
+      <span class="muted">Click another seat on the plan, or</span>
       <button type="button" class="btn btn-primary" data-aw="continue">Continue with this seat</button>
     </div>`;
   submit.disabled = true;
@@ -637,7 +638,6 @@ $('panel').addEventListener('click', (e) => {
   if (go) { select(go.dataset.goto); return; }
   if (!aw) return;
   if (aw.dataset.aw === 'continue') { state.allocAck = `${state.selected}|${state.bookingFor}`; updateAllocWarning(); }
-  else { select(null); $('floorplan').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
 });
 
 /** Shown while no seat is selected: what to do, and where seats are free right now. */

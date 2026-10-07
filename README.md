@@ -199,8 +199,8 @@ seats:
   4. **Check in.**
 
   If the seat isn't one of the project's, step 3 says so, names the project it belongs to (if any), lists the
-  project's free pre-allocated seats (click one to switch), and offers **Choose another seat** or **Continue
-  with this seat**. Check-in is held until one of them is chosen. Changing the project in step 1 re-checks the
+  project's free pre-allocated seats (click one to switch, or click any other seat on the plan), and offers
+  **Continue with this seat**. Check-in is held until another seat is chosen or that is pressed. Changing the project in step 1 re-checks the
   selected seat straight away. A project with no pre-allocated seats gets a note instead of a warning. Selecting
   a seat before choosing a project points back to step 1.
 - **QR check-in page:** a desk shows which project it's pre-allocated to. If someone checks in for a project that
