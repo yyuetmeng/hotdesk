@@ -57,12 +57,13 @@
     --seat-available: #22a447; --seat-occupied: #6f8fc4; --seat-away: #f2b01e; --seat-offline: #c3c5c9;
     --seat-glyph: #ffffff; --seat-away-ink: #6b4500; --seat-offline-ink: #50545a;
     /* Floor plan: flat vector style. Near-white floor, hairline walls, light neutral furniture. */
-    --fp-floor: #fcfcfd; --fp-wall: #3d4450; --fp-wall-soft: #9aa3af; --fp-glass: #cfe3f5;
-    --fp-room: #f3f4f6; --fp-wc: #eef0f3; --fp-lift: #f3f4f6; --fp-label: #6b7585; --fp-label-strong: #1f2733;
-    --fp-table: #eef0f3; --fp-table-line: #d8dce2; --fp-monitor: #7b8491;
-    --fp-chair: #d6dbe2; --fp-chair-edge: #c5cbd3; --fp-chair-back: #a3abb7;
-    --fp-cabinet: #f0f1f4; --fp-counter: #eef0f3; --fp-icon: #8f98a5; --fp-lift-car: #ffffff;
-    --fp-leaf: #5c9a6c; --fp-leaf-2: #82b88f; --fp-pot: #e7e4de; --fp-planter: #f1f2ee;
+    --fp-floor: #fafbfc; --fp-wall: #474e59; --fp-wall-soft: #9aa3af; --fp-glass: #cfe4f6; --fp-glass-line: #9cc3e6;
+    --fp-room: #f4f5f7; --fp-wc: #a3abb6; --fp-wc-icon: #ffffff; --fp-lift: #eef1f5; --fp-label: #5f6b7c; --fp-label-strong: #1c2533;
+    --fp-table-hi: #f7f1e6; --fp-table-lo: #ece2cf; --fp-table-edge: #d9cbb1; --fp-table-line: #e0d4bf; --fp-shadow: rgb(15 23 42 / 0.08);
+    --fp-monitor: #2f3641; --fp-stand: #a4abb5; --fp-chair-hi: #f1f3f6; --fp-chair-lo: #cdd2da; --fp-chair-edge: #b5bcc6;
+    --fp-back-lo: #59616d; --fp-back-hi: #7f8794; --fp-arm: #8d95a1; --fp-chair-shadow: rgb(15 23 42 / 0.1);
+    --fp-cabinet: #f1f2f4; --fp-counter: #f3ede2; --fp-icon: #8f98a5; --fp-badge: #eceff3; --fp-lift-car: #e3e7ec; --fp-lift-line: #b8c0ca;
+    --fp-leaf: #4c9560; --fp-leaf-2: #7cbf8a; --fp-pot: #e6e0d4; --fp-planter: #ede6d8;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -80,12 +81,13 @@
       --seat-available: #2fb457; --seat-occupied: #5d7fb8; --seat-away: #e3a51a; --seat-offline: #4b5058;
       --seat-glyph: #ffffff; --seat-away-ink: #3d2800; --seat-offline-ink: #c3c8cf;
       /* Floor plan: flat vector style, dark. */
-      --fp-floor: #171b21; --fp-wall: #8a93a0; --fp-wall-soft: #5d6673; --fp-glass: #2b4561;
-      --fp-room: #1e232b; --fp-wc: #20252d; --fp-lift: #1e232b; --fp-label: #8e98a6; --fp-label-strong: #e6eaf0;
-      --fp-table: #262c35; --fp-table-line: #333a45; --fp-monitor: #0b0e12;
-      --fp-chair: #4a525e; --fp-chair-edge: #5a6370; --fp-chair-back: #8b95a2;
-      --fp-cabinet: #232930; --fp-counter: #262c35; --fp-icon: #7f8a98; --fp-lift-car: #1b2027;
-      --fp-leaf: #4f8a5e; --fp-leaf-2: #6ea57b; --fp-pot: #3a404a; --fp-planter: #20262d;
+      --fp-floor: #171b21; --fp-wall: #8a93a0; --fp-wall-soft: #5d6673; --fp-glass: #2b4561; --fp-glass-line: #4a6f94;
+      --fp-room: #1e232b; --fp-wc: #3a414c; --fp-wc-icon: #c9d0d9; --fp-lift: #1e232b; --fp-label: #8e98a6; --fp-label-strong: #e6eaf0;
+      --fp-table-hi: #3b362f; --fp-table-lo: #312c26; --fp-table-edge: #4b4439; --fp-table-line: #4a4339; --fp-shadow: rgb(0 0 0 / 0.35);
+      --fp-monitor: #0b0e12; --fp-stand: #4b535f; --fp-chair-hi: #5d6673; --fp-chair-lo: #454d59; --fp-chair-edge: #6a7380;
+      --fp-back-lo: #252a32; --fp-back-hi: #353c46; --fp-arm: #2e343d; --fp-chair-shadow: rgb(0 0 0 / 0.35);
+      --fp-cabinet: #232930; --fp-counter: #2c2924; --fp-icon: #7f8a98; --fp-badge: #262c35; --fp-lift-car: #262c35; --fp-lift-line: #4a525e;
+      --fp-leaf: #4f8a5e; --fp-leaf-2: #6ea57b; --fp-pot: #3a404a; --fp-planter: #2a2722;
     }
   }
   :root[data-theme="dark"] {
@@ -103,12 +105,13 @@
     --seat-available: #2fb457; --seat-occupied: #5d7fb8; --seat-away: #e3a51a; --seat-offline: #4b5058;
     --seat-glyph: #ffffff; --seat-away-ink: #3d2800; --seat-offline-ink: #c3c8cf;
     /* Floor plan: flat vector style, dark. */
-    --fp-floor: #171b21; --fp-wall: #8a93a0; --fp-wall-soft: #5d6673; --fp-glass: #2b4561;
-    --fp-room: #1e232b; --fp-wc: #20252d; --fp-lift: #1e232b; --fp-label: #8e98a6; --fp-label-strong: #e6eaf0;
-    --fp-table: #262c35; --fp-table-line: #333a45; --fp-monitor: #0b0e12;
-    --fp-chair: #4a525e; --fp-chair-edge: #5a6370; --fp-chair-back: #8b95a2;
-    --fp-cabinet: #232930; --fp-counter: #262c35; --fp-icon: #7f8a98; --fp-lift-car: #1b2027;
-    --fp-leaf: #4f8a5e; --fp-leaf-2: #6ea57b; --fp-pot: #3a404a; --fp-planter: #20262d;
+    --fp-floor: #171b21; --fp-wall: #8a93a0; --fp-wall-soft: #5d6673; --fp-glass: #2b4561; --fp-glass-line: #4a6f94;
+    --fp-room: #1e232b; --fp-wc: #3a414c; --fp-wc-icon: #c9d0d9; --fp-lift: #1e232b; --fp-label: #8e98a6; --fp-label-strong: #e6eaf0;
+    --fp-table-hi: #3b362f; --fp-table-lo: #312c26; --fp-table-edge: #4b4439; --fp-table-line: #4a4339; --fp-shadow: rgb(0 0 0 / 0.35);
+    --fp-monitor: #0b0e12; --fp-stand: #4b535f; --fp-chair-hi: #5d6673; --fp-chair-lo: #454d59; --fp-chair-edge: #6a7380;
+    --fp-back-lo: #252a32; --fp-back-hi: #353c46; --fp-arm: #2e343d; --fp-chair-shadow: rgb(0 0 0 / 0.35);
+    --fp-cabinet: #232930; --fp-counter: #2c2924; --fp-icon: #7f8a98; --fp-badge: #262c35; --fp-lift-car: #262c35; --fp-lift-line: #4a525e;
+    --fp-leaf: #4f8a5e; --fp-leaf-2: #6ea57b; --fp-pot: #3a404a; --fp-planter: #2a2722;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -237,37 +240,45 @@
   /* Architecture: context only. Flat, precise lines on a near-white floor. */
   .fp-arch { pointer-events: none; }
   .fp-floor { fill: var(--fp-floor); }
-  .fp-outline { fill: none; stroke: var(--fp-wall); stroke-width: 0.5; stroke-linejoin: round; }
-  .fp-wall { stroke: var(--fp-wall); stroke-width: 0.32; stroke-linecap: round; }
-  .fp-window { fill: var(--fp-glass); stroke: var(--fp-floor); stroke-width: 0.12; }
-  .fp-door { stroke: var(--fp-wall-soft); stroke-width: 0.2; stroke-linecap: round; }
+  .fp-outline { fill: none; stroke: var(--fp-wall); stroke-width: 0.6; stroke-linejoin: round; }
+  .fp-wall { stroke: var(--fp-wall); stroke-width: 0.4; stroke-linecap: round; }
+  .fp-window { fill: var(--fp-glass); }
+  .fp-window-line { stroke: var(--fp-glass-line); stroke-width: 0.1; }
+  .fp-door { stroke: var(--fp-wall-soft); stroke-width: 0.22; stroke-linecap: round; }
   .fp-door-swing { fill: none; stroke: var(--fp-wall-soft); stroke-width: 0.1; stroke-dasharray: 0.45 0.35; }
   .fp-room { fill: var(--fp-room); }
   .fp-room-pantry { fill: var(--fp-room); }
   .fp-room-wc { fill: var(--fp-wc); }
   .fp-room-lift { fill: var(--fp-lift); }
-  .fp-room-label { font: 500 1.45px var(--font); fill: var(--fp-label); text-anchor: middle; letter-spacing: 0.02px; }
-  .fp-room-label-lg { font-size: 1.75px; }
-  .fp-lift-car { fill: var(--fp-lift-car); stroke: var(--fp-table-line); stroke-width: 0.12; }
-  .fp-lift-x { stroke: var(--fp-table-line); stroke-width: 0.08; }
-  .fp-counter { fill: var(--fp-counter); stroke: var(--fp-table-line); stroke-width: 0.1; }
-  .fp-sink { fill: var(--fp-floor); stroke: var(--fp-table-line); stroke-width: 0.12; }
-  .fp-cabinet { fill: var(--fp-cabinet); stroke: var(--fp-table-line); stroke-width: 0.1; }
-  .fp-cab-line { stroke: var(--fp-table-line); stroke-width: 0.08; }
-  .fp-icon { fill: none; stroke: var(--fp-icon); stroke-width: 0.2; stroke-linecap: round; stroke-linejoin: round; }
-  .fp-planter { fill: var(--fp-planter); stroke: var(--fp-table-line); stroke-width: 0.1; }
+  .fp-room-label { font: 500 1.5px var(--font); fill: var(--fp-label); text-anchor: middle; }
+  .fp-room-label-lg { font-size: 1.85px; font-weight: 600; fill: var(--fp-label-strong); }
+  .fp-lift-car { fill: var(--fp-lift-car); stroke: var(--fp-lift-line); stroke-width: 0.12; }
+  .fp-lift-x { stroke: var(--fp-lift-line); stroke-width: 0.1; }
+  .fp-counter { fill: var(--fp-counter); stroke: var(--fp-table-edge); stroke-width: 0.1; }
+  .fp-sink { fill: var(--fp-badge); stroke: var(--fp-stand); stroke-width: 0.12; }
+  .fp-badge { fill: var(--fp-badge); }
+  .fp-cabinet { fill: var(--fp-cabinet); stroke: var(--fp-chair-edge); stroke-width: 0.1; }
+  .fp-cab-line { stroke: var(--fp-chair-edge); stroke-width: 0.08; }
+  .fp-icon { fill: var(--fp-icon); }
+  .fp-icon-line { fill: none; stroke: var(--fp-icon); stroke-width: 0.28; stroke-linecap: round; }
+  .fp-room-wc .fp-icon, .fp-room-wc + .fp-icon { fill: var(--fp-wc-icon); }
+  .fp-planter { fill: var(--fp-planter); stroke: var(--fp-table-edge); stroke-width: 0.1; }
+  .fp-drop { fill: var(--fp-shadow); }
   .fp-pot { fill: var(--fp-pot); }
   .fp-leaf { fill: var(--fp-leaf); }
   .fp-leaf-2 { fill: var(--fp-leaf-2); }
   .fp-zone { --z: #2563eb; }
   .fp-zone-t1 { --z: #0d9488; } .fp-zone-t2 { --z: #7c3aed; } .fp-zone-t3 { --z: #d97706; }
-  .fp-zone-area { fill: color-mix(in srgb, var(--z) 2.5%, transparent); stroke: color-mix(in srgb, var(--z) 26%, transparent); stroke-width: 0.1; }
-  .fp-zone-dot { fill: var(--z); }
-  .fp-zone-label { font: 600 1.5px var(--font); fill: var(--fp-label-strong); letter-spacing: -0.01px; }
-  .fp-zone-count { font: 500 1.15px var(--font); fill: var(--fp-label); }
-  .fp-table { fill: var(--fp-table); stroke: var(--fp-table-line); stroke-width: 0.08; }
-  .fp-table-div { stroke: var(--fp-table-line); stroke-width: 0.06; }
-  .fp-table-spine { stroke: var(--fp-table-line); stroke-width: 0.08; }
+  .fp-zone-area { fill: color-mix(in srgb, var(--z) 4%, var(--fp-floor)); stroke: color-mix(in srgb, var(--z) 22%, transparent); stroke-width: 0.1; }
+  .fp-zone-bar { stroke: color-mix(in srgb, var(--z) 55%, transparent); stroke-width: 0.24; stroke-linecap: round; }
+  .fp-zone-label { font: 600 1.75px var(--font); fill: var(--fp-label-strong); letter-spacing: -0.01px; }
+  .fp-zone-count { font: 500 1.3px var(--font); fill: color-mix(in srgb, var(--z) 80%, var(--fp-label-strong)); }
+  .fp-table-shadow { fill: var(--fp-shadow); }
+  .fp-table { fill: url(#fpg-table); stroke: var(--fp-table-edge); stroke-width: 0.08; }
+  .fp-table-div, .fp-table-spine { stroke: var(--fp-table-line); stroke-width: 0.08; }
+  .fpg-table-hi { stop-color: var(--fp-table-hi); } .fpg-table-lo { stop-color: var(--fp-table-lo); }
+  .fpg-chair-hi { stop-color: var(--fp-chair-hi); } .fpg-chair-lo { stop-color: var(--fp-chair-lo); }
+  .fpg-back-hi { stop-color: var(--fp-back-hi); } .fpg-back-lo { stop-color: var(--fp-back-lo); }
 
   /* Workstations: neutral furniture, status as colour, interaction as highlight */
   .seat { cursor: pointer; outline: none; transform-box: fill-box; transform-origin: center;
@@ -275,8 +286,12 @@
   .seat .ws-hit { fill: transparent; }
   .seat .ws-desk { fill: transparent; transition: fill 0.18s; }
   .ws-monitor { fill: var(--fp-monitor); }
-  .ws-seat { fill: var(--fp-chair); stroke: var(--fp-chair-edge); stroke-width: 0.08; transition: fill 0.18s, stroke 0.18s; }
-  .ws-back { fill: none; stroke: var(--fp-chair-back); stroke-width: 0.34; stroke-linecap: round; transition: stroke 0.18s; }
+  .ws-stand { fill: var(--fp-stand); }
+  .ws-shadow { fill: var(--fp-chair-shadow); }
+  .ws-arm { fill: var(--fp-arm); }
+  .ws-seat { fill: url(#fpg-chair); stroke: var(--fp-chair-edge); stroke-width: 0.08; transition: fill 0.18s, stroke 0.18s; }
+  .ws-seat-hi { fill: none; stroke: rgb(255 255 255 / 0.55); stroke-width: 0.08; }
+  .ws-back { fill: url(#fpg-back); transition: fill 0.18s; }
   .ws-chair { transition: filter 0.18s; }
   .ws-chair-in { transition: transform 0.2s ease; }
   .ws-person { display: none; }
@@ -309,7 +324,8 @@
   .seat:focus-visible .ws-seat { stroke: var(--accent); stroke-dasharray: 0.5 0.35; }
   /* Selected: the chair itself turns blue and glows; nothing is boxed. */
   .seat.is-selected .ws-seat, .seat.is-selected:hover .ws-seat { fill: var(--accent); stroke: var(--accent-strong); stroke-width: 0.16; stroke-dasharray: none; }
-  .seat.is-selected .ws-back { stroke: var(--accent-strong); }
+  .seat.is-selected .ws-back, .seat.is-selected .ws-arm { fill: var(--accent-strong); }
+  .seat.is-selected .ws-seat-hi { stroke: rgb(255 255 255 / 0.35); }
   .seat.is-selected .ws-chair { filter: drop-shadow(0 0 0.8px var(--accent)) drop-shadow(0 0 2.2px rgb(37 99 235 / 0.55)); opacity: 1; }
   .seat.is-selected .ws-num { display: inline; fill: var(--accent-strong); font-weight: 700; }
   .seat.is-dim { pointer-events: none; cursor: default; opacity: 0.2; }
@@ -376,7 +392,7 @@
   .alloc-view .st-offline .ws-chair { opacity: 1; }
   .seat.alloc .ws-desk { fill: color-mix(in srgb, var(--c) 42%, transparent); }
   .seat.alloc .ws-seat { fill: color-mix(in srgb, var(--c) 85%, var(--fp-chair-hi)); stroke: var(--c); }
-  .seat.alloc .ws-back { stroke: var(--c); }
+  .seat.alloc .ws-back, .seat.alloc .ws-arm { fill: color-mix(in srgb, var(--c) 75%, #000); }
   .seat.alloc-other { cursor: not-allowed; }
   .seat.alloc-other .ws-chair, .seat.alloc-other .ws-desk { opacity: 0.55; }
   .seat.alloc-mine .ws-chair { filter: drop-shadow(0 0 0.7px var(--c)); }

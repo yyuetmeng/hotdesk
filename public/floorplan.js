@@ -9,7 +9,7 @@
  *
  * Each seat is drawn as a workstation: its own segment of a slim worktop with a monitor,
  * a small task chair, and a status light on the desk once it is taken (none while free).
- * Furniture is neutral and flat; status is colour; selection turns the chair itself blue.
+ * Furniture is neutral (light wood, grey chairs); status is colour; selection turns the chair blue.
  *
  * A floor may also carry a `plan` (outline, walls, windows, doors, rooms, fixtures,
  * plants and a box per zone, all in plan units of roughly 10 cm). Without one, zones
@@ -228,32 +228,38 @@ const FloorPlan = (() => {
   }
 
   // ---------- SVG ----------
-  // A flat, precise vector style: hairline walls, light neutral surfaces, small geometric
-  // furniture and status in colour. Colours come from CSS classes so both themes work.
-
-  /** A plant icon from above: a round pot and a few simple leaves (shared, used sparingly). */
+  // A polished vector style: thin walls, a light floor, light-wood desks and recognisable
+  // office chairs with soft shading and shadows. Colours come from CSS (fills and gradient
+  // stop classes) so the light and dark themes both work.
+  const LEAF = 'M0 0C0.78-0.38 0.86-1.4 0-2.05C-0.86-1.4-0.78-0.38 0 0Z';
+  const leaves = (n, scale, offset, cls) => Array.from({ length: n }, (_, i) =>
+    `<path class="${cls}" d="${LEAF}" transform="rotate(${r1(offset + (360 / n) * i)}) scale(${scale})"/>`).join('');
   const DEFS = `<defs>
+    <linearGradient id="fpg-chair" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="fpg-chair-hi"/><stop offset="1" class="fpg-chair-lo"/></linearGradient>
+    <linearGradient id="fpg-back" x1="0" y1="0" x2="1" y2="0"><stop offset="0" class="fpg-back-lo"/><stop offset="1" class="fpg-back-hi"/></linearGradient>
+    <linearGradient id="fpg-table" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="fpg-table-hi"/><stop offset="1" class="fpg-table-lo"/></linearGradient>
     <g id="fp-plant">
-      <circle class="fp-pot" r="1.15"/>
-      <path class="fp-leaf" d="M0 0C0.9-0.2 1.5-0.9 1.5-1.6C0.7-1.5 0.1-0.9 0 0Z"/>
-      <path class="fp-leaf" d="M0 0C-0.9-0.2-1.5-0.9-1.5-1.6C-0.7-1.5-0.1-0.9 0 0Z"/>
-      <path class="fp-leaf fp-leaf-2" d="M0 0C0.3 0.9 1.1 1.4 1.7 1.3C1.5 0.6 0.8 0.1 0 0Z"/>
-      <path class="fp-leaf fp-leaf-2" d="M0 0C-0.3 0.9-1.1 1.4-1.7 1.3C-1.5 0.6-0.8 0.1 0 0Z"/>
-      <path class="fp-leaf" d="M0 0C-0.35-0.7-0.3-1.5 0-2C0.3-1.5 0.35-0.7 0 0Z"/>
+      <circle class="fp-drop" cx="0.25" cy="0.35" r="1.55"/>
+      <circle class="fp-pot" r="1.25"/>
+      ${leaves(9, 0.9, 0, 'fp-leaf')}${leaves(7, 0.62, 22, 'fp-leaf fp-leaf-2')}<circle class="fp-leaf-2" r="0.35"/>
     </g>
   </defs>`;
 
   /**
-   * A contemporary task chair from above, drawn with its desk to the right (+x) in a
-   * CHAIR x CHAIR cell: a rounded seat and a slim curved back, deliberately small so the
-   * plan stays airy. The tilt group turns it a little (set per seat); the inner group lets
-   * CSS push it back (away status); the person is only shown while someone is there.
+   * A modern office chair seen from above, drawn with its desk to the right (+x) in a
+   * CHAIR x CHAIR cell: a soft shadow, armrests, a rounded cushioned seat and a curved
+   * backrest. The tilt group turns it a little (set per seat); the inner group lets CSS
+   * push it back (away status); the person is only shown while someone is there.
    */
-  const CHAIR_SHAPE = `<g class="ws-chair-in">
-        <rect class="ws-seat" x="1.05" y="0.85" width="1.95" height="1.9" rx="0.62"/>
-        <path class="ws-back" d="M0.95 0.72C0.55 0.95 0.42 1.35 0.42 1.8S0.55 2.65 0.95 2.88" />
+  const CHAIR_SHAPE = `<rect class="ws-shadow" x="0.5" y="0.55" width="2.95" height="2.95" rx="1"/>
+      <g class="ws-chair-in">
+        <rect class="ws-arm" x="1.15" y="0.3" width="1.75" height="0.42" rx="0.21"/>
+        <rect class="ws-arm" x="1.15" y="2.88" width="1.75" height="0.42" rx="0.21"/>
+        <rect class="ws-seat" x="0.75" y="0.62" width="2.4" height="2.36" rx="0.78"/>
+        <rect class="ws-seat-hi" x="1.25" y="1" width="1.55" height="1.6" rx="0.5"/>
+        <path class="ws-back" d="M1 0.32C0.42 0.44 0.1 1.05 0.1 1.8S0.42 3.16 1 3.28C1.2 3.3 1.32 3.12 1.24 2.95C0.9 2.7 0.74 2.3 0.74 1.8S0.9 0.9 1.24 0.65C1.32 0.48 1.2 0.3 1 0.32Z"/>
       </g>
-      <g class="ws-person"><ellipse class="ws-shoulders" cx="1.75" cy="1.8" rx="0.62" ry="1.05"/><circle class="ws-head" cx="2.3" cy="1.8" r="0.48"/></g>`;
+      <g class="ws-person"><ellipse class="ws-shoulders" cx="1.6" cy="1.8" rx="0.85" ry="1.32"/><circle class="ws-head" cx="2.2" cy="1.8" r="0.62"/></g>`;
 
   /** A stable small turn for some chairs, so the plan doesn't look machine-aligned. */
   function tiltFor(id) {
@@ -276,16 +282,19 @@ const FloorPlan = (() => {
     return { x: r1(x0), y: r1(y0), w: r1(x1 - x0), h: r1(y1 - y0) };
   }
 
-  const LIGHT = `<circle class="ws-light" r="0.55"/>
-    <path class="ws-glyph ws-glyph-away" d="M0 -0.28V0l0.2 0.15"/>
-    <path class="ws-glyph ws-glyph-off" d="M0 -0.3V0.05M0 0.24v0.02"/>`;
+  const LIGHT = `<circle class="ws-light" r="0.62"/>
+    <path class="ws-glyph ws-glyph-away" d="M0 -0.3V0l0.22 0.16"/>
+    <path class="ws-glyph ws-glyph-off" d="M0 -0.32V0.05M0 0.26v0.02"/>`;
 
-  /** A monitor from above: a slim bar facing the chair. */
+  /** A monitor from above: a slim dark screen on a small stand, facing the chair. */
   function monitorMarkup(m) {
     const vertical = m.h > m.w;
-    const x = vertical ? r1(m.x + m.w / 2 - 0.09) : r1(m.x + 0.4), y = vertical ? r1(m.y + 0.4) : r1(m.y + m.h / 2 - 0.09);
-    const w = vertical ? 0.18 : r1(m.w - 0.8), h = vertical ? r1(m.h - 0.8) : 0.18;
-    return `<rect class="ws-monitor" x="${x}" y="${y}" width="${w}" height="${h}" rx="0.09"/>`;
+    const x = vertical ? r1(m.x + m.w / 2 - 0.14) : r1(m.x + 0.3), y = vertical ? r1(m.y + 0.3) : r1(m.y + m.h / 2 - 0.14);
+    const w = vertical ? 0.28 : r1(m.w - 0.6), h = vertical ? r1(m.h - 0.6) : 0.28;
+    const stand = vertical
+      ? `<rect class="ws-stand" x="${r1(m.x + m.w / 2)}" y="${r1(m.y + m.h / 2 - 0.4)}" width="0.42" height="0.8" rx="0.14"/>`
+      : `<rect class="ws-stand" x="${r1(m.x + m.w / 2 - 0.4)}" y="${r1(m.y + m.h / 2)}" width="0.8" height="0.42" rx="0.14"/>`;
+    return `${stand}<rect class="ws-monitor" x="${x}" y="${y}" width="${w}" height="${h}" rx="0.12"/>`;
   }
 
   /** One interactive workstation. Its look is driven entirely by classes on the outer group. */
@@ -295,7 +304,7 @@ const FloorPlan = (() => {
     const tilt = tiltFor(p.id);
     return `<g class="seat" data-seat="${esc(p.id)}" data-side="${p.side}" data-kind="${esc(p.kind)}" data-table-seats="${p.tableSeats}" tabindex="-1" role="button">
       <rect class="ws-hit" x="${r1(b.x - 0.3)}" y="${r1(b.y - 0.3)}" width="${r1(b.w + 0.6)}" height="${r1(b.h + 0.6)}"/>
-      <rect class="ws-desk" x="${r1(p.desk.x + 0.15)}" y="${r1(p.desk.y + 0.15)}" width="${r1(p.desk.w - 0.3)}" height="${r1(p.desk.h - 0.3)}" rx="0.25"/>
+      <rect class="ws-desk" x="${r1(p.desk.x + 0.2)}" y="${r1(p.desk.y + 0.2)}" width="${r1(p.desk.w - 0.4)}" height="${r1(p.desk.h - 0.4)}" rx="0.3"/>
       ${monitorMarkup(p.monitor)}
       <g class="ws-chair" transform="${chairTransform(p)}"><g class="ws-tilt"${tilt ? ` transform="rotate(${tilt} 1.8 1.8)"` : ''}>${CHAIR_SHAPE}</g></g>
       <g class="ws-status" transform="translate(${p.light[0]} ${p.light[1]})">${LIGHT}</g>
@@ -312,28 +321,29 @@ const FloorPlan = (() => {
       .replace(/tabindex="-1" role="button"/, '').replace(/<text class="ws-num"[^]*?<\/text>/, '')
       .replace(/ transform="rotate\([^)]*\)"/, '');
     return `<svg class="ws-sample" viewBox="-0.6 -0.6 ${r1(CHAIR + DESK + 1.8)} 6.8" aria-hidden="true">${DEFS}
-      <rect class="fp-table" x="${CHAIR}" y="0" width="${DESK}" height="5.4" rx="0.3"/>${ws}</svg>`;
+      <rect class="fp-table-shadow" x="${r1(CHAIR + 0.2)}" y="0.3" width="${DESK}" height="5.4" rx="0.35"/>
+      <rect class="fp-table" x="${CHAIR}" y="0" width="${DESK}" height="5.4" rx="0.35"/>${ws}</svg>`;
   }
 
   /** A plant; `turn` varies the leaves so plants don't look stamped. */
   const plantMarkup = ([x, y], size = 1, turn = 0) =>
     `<use href="#fp-plant" class="fp-plant" transform="translate(${x} ${y}) scale(${size}) rotate(${turn})"/>`;
 
-  /** A worktop: one slim surface, with hairlines between workstations. */
+  /** A desk surface in light wood with a soft drop shadow, and hairlines between workstations. */
   function tableMarkup(t) {
     const lines = t.kind === 'counter'
-      ? t.dividers.map((x) => `<line class="fp-table-div" x1="${x}" y1="${r1(t.y + 0.5)}" x2="${x}" y2="${r1(t.y + t.h - 0.5)}"/>`)
-      : t.dividers.map((y) => `<line class="fp-table-div" x1="${r1(t.x + 0.5)}" y1="${y}" x2="${r1(t.x + t.w - 0.5)}" y2="${y}"/>`);
-    if (t.spine !== null) lines.push(`<line class="fp-table-spine" x1="${t.spine}" y1="${r1(t.y + 0.5)}" x2="${t.spine}" y2="${r1(t.y + t.h - 0.5)}"/>`);
-    return `<rect class="fp-table" x="${r1(t.x + 0.15)}" y="${r1(t.y + 0.15)}" width="${r1(t.w - 0.3)}" height="${r1(t.h - 0.3)}" rx="0.45"/>${lines.join('')}`;
+      ? t.dividers.map((x) => `<line class="fp-table-div" x1="${x}" y1="${r1(t.y + 0.4)}" x2="${x}" y2="${r1(t.y + t.h - 0.4)}"/>`)
+      : t.dividers.map((y) => `<line class="fp-table-div" x1="${r1(t.x + 0.4)}" y1="${y}" x2="${r1(t.x + t.w - 0.4)}" y2="${y}"/>`);
+    if (t.spine !== null) lines.push(`<line class="fp-table-spine" x1="${t.spine}" y1="${r1(t.y + 0.4)}" x2="${t.spine}" y2="${r1(t.y + t.h - 0.4)}"/>`);
+    return `<rect class="fp-table-shadow" x="${r1(t.x + 0.3)}" y="${r1(t.y + 0.45)}" width="${t.w}" height="${t.h}" rx="0.45"/>
+      <rect class="fp-table" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" rx="0.45"/>${lines.join('')}`;
   }
 
-  // Line icons (stroked, 2-unit grid) for facilities.
+  // Filled pictograms (2-unit grid) for facilities.
   const ICONS = {
-    man: '<circle cx="0" cy="-1.55" r="0.55"/><path d="M-0.75 -0.55h1.5v2.1M-0.75 -0.55v2.1M0 0.6v1.9"/>',
-    woman: '<circle cx="0" cy="-1.55" r="0.55"/><path d="M0 -0.6l-0.95 2.1h1.9zM-0.35 1.5v1M0.35 1.5v1"/>',
-    cup: '<path d="M-1.2 -0.6h2v1.3a1 1 0 0 1-1 1h0a1 1 0 0 1-1-1z"/><path d="M0.8 -0.2h0.3a0.5 0.5 0 0 1 0 1h-0.35"/>',
-    lift: '<path d="M-0.9 -1.6h1.8v3.2h-1.8zM0 -1.6v3.2"/><path d="M-1.9 -0.2l0.45-0.5 0.45 0.5M1.9 0.2l-0.45 0.5-0.45-0.5"/>',
+    man: '<circle cx="0" cy="-2" r="0.62"/><path d="M-0.95-1.15h1.9a0.35 0.35 0 0 1 0.35 0.35v1.75h-0.55v1.95h-0.6v-1.7h-0.3v1.7h-0.6v-1.95h-0.55v-1.75a0.35 0.35 0 0 1 0.35-0.35z"/>',
+    woman: '<circle cx="0" cy="-2" r="0.62"/><path d="M-0.55-1.15h1.1l1.1 2.35h-0.9v1.7h-0.55v-1.7h-0.4v1.7h-0.55v-1.7h-0.9z"/>',
+    cup: '<path d="M-1.15-0.75h2.05v1.15a1.02 1.02 0 0 1-1.02 1.02h0a1.02 1.02 0 0 1-1.03-1.02z"/><path class="fp-icon-line" d="M0.9-0.4h0.3a0.48 0.48 0 0 1 0 0.96h-0.38"/>',
   };
   const icon = (name, x, y, scale = 1) =>
     `<g class="fp-icon" transform="translate(${x} ${y}) scale(${scale})">${ICONS[name]}</g>`;
@@ -347,20 +357,21 @@ const FloorPlan = (() => {
         // A counter along the back wall with a sink, and a small round table.
         const cw = Math.min(r.w - 6, 16), ch = 2.6, x0 = r1(cx - cw / 2), y0 = r1(r.y + r.h - ch - 1.2);
         return `${base('fp-room-pantry')}
+          <rect class="fp-table-shadow" x="${r1(x0 + 0.2)}" y="${r1(y0 + 0.3)}" width="${r1(cw)}" height="${ch}" rx="0.35"/>
           <rect class="fp-counter" x="${x0}" y="${y0}" width="${r1(cw)}" height="${ch}" rx="0.35"/>
           <rect class="fp-sink" x="${r1(x0 + 1.2)}" y="${r1(y0 + 0.55)}" width="3" height="1.5" rx="0.45"/>
-          <circle class="fp-counter" cx="${cx}" cy="${r1(r.y + 5.2)}" r="2.2"/>
-          ${icon('cup', cx, r1(r.y + 5.2), 0.7)}
+          <circle class="fp-badge" cx="${cx}" cy="${r1(r.y + 5.2)}" r="2.2"/>
+          ${icon('cup', cx, r1(r.y + 5.3), 0.75)}
           ${label(r.label ?? 'Pantry', r1(r.y + 9.8))}`;
       }
       case 'toilet-m': case 'toilet-f':
-        return `${base('fp-room-wc')}${icon(r.kind === 'toilet-m' ? 'man' : 'woman', cx, r1(cy - 0.4), 1.15)}`;
+        return `${base('fp-room-wc')}${icon(r.kind === 'toilet-m' ? 'man' : 'woman', cx, r1(cy + 0.1), 1.25)}`;
       case 'lift': {
         // Lift cars along the back of the lobby, drawn the architectural way (a crossed box).
         const n = Math.max(1, Math.min(4, Math.floor(r.w / 9))), cw = 5.4, gap = (r.w - n * cw) / (n + 1);
         const cars = Array.from({ length: n }, (_, i) => {
           const x = r1(r.x + gap + i * (cw + gap)), y = r1(r.y + r.h - 5);
-          return `<rect class="fp-lift-car" x="${x}" y="${y}" width="${cw}" height="4.3" rx="0.3"/>
+          return `<rect class="fp-table-shadow" x="${r1(x + 0.2)}" y="${r1(y + 0.25)}" width="${cw}" height="4.3" rx="0.3"/><rect class="fp-lift-car" x="${x}" y="${y}" width="${cw}" height="4.3" rx="0.3"/>
             <path class="fp-lift-x" d="M${x} ${y}L${r1(x + cw)} ${r1(y + 4.3)}M${r1(x + cw)} ${y}L${x} ${r1(y + 4.3)}"/>`;
         }).join('');
         return `${base('fp-room-lift')}${cars}
@@ -375,7 +386,8 @@ const FloorPlan = (() => {
     if (f.kind === 'planter') {
       const n = Math.max(1, Math.floor(f.w / 7));
       const plants = Array.from({ length: n }, (_, i) => plantMarkup([r1(f.x + (f.w * (i + 0.5)) / n), r1(f.y + f.h / 2)], 0.8, i * 37)).join('');
-      return `<rect class="fp-planter" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="${r1(f.h / 2)}"/>${plants}`;
+      return `<rect class="fp-table-shadow" x="${r1(f.x + 0.2)}" y="${r1(f.y + 0.3)}" width="${f.w}" height="${f.h}" rx="0.6"/>
+        <rect class="fp-planter" x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="0.6"/>${plants}`;
     }
     // Storage: a cabinet with hairline door splits.
     const vertical = f.h > f.w, n = Math.max(1, Math.round((vertical ? f.h : f.w) / 4.5));
@@ -396,9 +408,12 @@ const FloorPlan = (() => {
   /** A window in the outer wall: a light glazing strip between two hairlines. */
   function windowMarkup([x1, y1, x2, y2]) {
     const vertical = x1 === x2, len = vertical ? Math.abs(y2 - y1) : Math.abs(x2 - x1);
-    const t = 0.7;
+    const t = 0.9;
     const x = vertical ? x1 - t / 2 : Math.min(x1, x2), y = vertical ? Math.min(y1, y2) : y1 - t / 2;
-    return `<rect class="fp-window" x="${r1(x)}" y="${r1(y)}" width="${r1(vertical ? t : len)}" height="${r1(vertical ? len : t)}"/>`;
+    const mid = vertical
+      ? `<line class="fp-window-line" x1="${r1(x1)}" y1="${r1(y + 0.2)}" x2="${r1(x1)}" y2="${r1(y + len - 0.2)}"/>`
+      : `<line class="fp-window-line" x1="${r1(x + 0.2)}" y1="${r1(y1)}" x2="${r1(x + len - 0.2)}" y2="${r1(y1)}"/>`;
+    return `<rect class="fp-window" x="${r1(x)}" y="${r1(y)}" width="${r1(vertical ? t : len)}" height="${r1(vertical ? len : t)}"/>${mid}`;
   }
 
   /** Walls, rooms and other context: drawn once, never interactive. */
@@ -416,7 +431,7 @@ const FloorPlan = (() => {
       ${outline}
       ${(p.windows ?? []).map(windowMarkup).join('')}
       ${(p.doors ?? []).map(doorMarkup).join('')}
-      ${(p.plants ?? []).map((pt, i) => plantMarkup(pt, 0.9, i * 53)).join('')}`;
+      ${(p.plants ?? []).map((pt, i) => plantMarkup(pt, 1, i * 53)).join('')}`;
   }
 
   /** The whole floor as one SVG string. Size is set by the caller (see dashboard.js). */
@@ -424,10 +439,10 @@ const FloorPlan = (() => {
     // Zones are areas of the same office: a faint tint, a thin accent edge, a name and its availability.
     const zones = fl.zones.map((z, i) => `
       <g class="fp-zone fp-zone-t${i % 4}" role="group" aria-label="${esc(z.name)}" data-zone="${esc(fl.id)}|${esc(z.id)}">
-        <rect class="fp-zone-area" x="${z.box.x}" y="${z.box.y}" width="${z.box.w}" height="${z.box.h}" rx="0.8"/>
-        <circle class="fp-zone-dot" cx="${r1(z.box.x + 1.9)}" cy="${r1(z.box.y + 2.25)}" r="0.42"/>
-        <text class="fp-zone-label" x="${r1(z.box.x + 2.8)}" y="${r1(z.box.y + 2.85)}">${esc(z.name)}</text>
-        <text class="fp-zone-count" x="${r1(z.box.x + 2.8)}" y="${r1(z.box.y + 4.65)}" data-zone-count="${esc(fl.id)}|${esc(z.id)}"></text>
+        <rect class="fp-zone-area" x="${z.box.x}" y="${z.box.y}" width="${z.box.w}" height="${z.box.h}" rx="0.6"/>
+        <line class="fp-zone-bar" x1="${r1(z.box.x + 0.6)}" y1="${r1(z.box.y + 0.12)}" x2="${r1(z.box.x + z.box.w - 0.6)}" y2="${r1(z.box.y + 0.12)}"/>
+        <text class="fp-zone-label" x="${r1(z.box.x + 2.2)}" y="${r1(z.box.y + 2.9)}">${esc(z.name)}</text>
+        <text class="fp-zone-count" x="${r1(z.box.x + 2.2)}" y="${r1(z.box.y + 4.75)}" data-zone-count="${esc(fl.id)}|${esc(z.id)}"></text>
         <g transform="translate(${z.ox} ${z.oy})">
           ${z.layout.tables.map(tableMarkup).join('')}
           ${z.layout.seats.map(seatMarkup).join('')}
