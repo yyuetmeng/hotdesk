@@ -221,7 +221,8 @@ function renderPlan() {
   $('plan').innerHTML = layouts.map((fl) => `
     <div class="floor">
       <div class="floor-head"><h3>${esc(fl.name)}</h3><span class="count" data-floor-count="${esc(fl.id)}"></span>
-        ${fl.plan ? '' : '<span class="fp-note">Walls and facilities are not mapped for this floor yet.</span>'}</div>
+        ${state.planError ? '<span class="fp-note warn">The server did not send the floor-plan drawing. Restart it to load the latest version.</span>'
+          : fl.plan.generic ? '<span class="fp-note">Generic outline: walls and facilities are not mapped for this floor yet.</span>' : ''}</div>
       <div class="fp-scroll">${FloorPlan.floorSVG(fl)}</div>
     </div>`).join('') || '<div class="empty">No seats configured.</div>';
   // Restart the fade so a floor switch reads as a transition.
@@ -817,7 +818,8 @@ async function start() {
     $('labelsLink').href = withToken('/labels');
     $('sensorsLink').href = withToken('/sensors');
     $('requestersCsv').href = withToken('/api/requesters.csv');
-    state.plans = new Map((await api('/api/floorplan').catch(() => [])).map((f) => [f.id, f.plan]));
+    // An older server has no /api/floorplan: say so rather than quietly drawing bare floors.
+    state.plans = new Map((await api('/api/floorplan').catch(() => { state.planError = true; return []; })).map((f) => [f.id, f.plan]));
     fetch('/api/checkin-options').then((r) => r.json()).then((o) => { state.options = o; panelKey = ''; renderPanel(); }).catch(() => {});
     loadProjects();
     connect();

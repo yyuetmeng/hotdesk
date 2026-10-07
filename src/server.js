@@ -99,7 +99,8 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     if (!path.startsWith(publicDir + sep)) throw new HttpError(404, 'Not found');
     try {
       const body = await readFile(path);
-      res.writeHead(200, { 'content-type': MIME[extname(path)] ?? 'application/octet-stream' });
+      // no-cache: browsers revalidate, so an updated dashboard script is picked up straight away.
+      res.writeHead(200, { 'content-type': MIME[extname(path)] ?? 'application/octet-stream', 'cache-control': 'no-cache' });
       res.end(body);
     } catch {
       throw new HttpError(404, 'Not found');

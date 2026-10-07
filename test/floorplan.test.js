@@ -53,10 +53,11 @@ test('chairs do not overlap each other or the tables', () => {
   }
 });
 
-test('a floor without a plan still lays out its zones side by side', () => {
+test('a floor without a plan gets its zones inside a generic office shell', () => {
   const floor = building.floors.find((f) => f.id === 'L2');
   const fl = FloorPlan.layoutFloor(floor, seats, null);
-  assert.equal(fl.plan, null);
+  assert.equal(fl.plan.generic, true);
+  for (const z of fl.zones) assert.ok(z.box.x > 0 && z.box.y > 0 && z.box.x + z.box.w < fl.w && z.box.y + z.box.h < fl.h, `${z.id} inside the walls`);
   assert.ok(fl.w > 0 && fl.h > 0);
   const svg = FloorPlan.floorSVG(fl);
   assert.equal((svg.match(/class="seat"/g) ?? []).length, zone('L2', 'GO').length);

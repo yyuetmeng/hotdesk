@@ -129,7 +129,12 @@ To draw walls and facilities, give the floor a `"plan"`. All numbers are plan un
   `planter` and `storage`.
 
 Level 1's plan is traced from the Digital Factory floor-plan drawing. A floor without a `plan` (Level 2 for
-now) still shows its zones and tables, on a plain floor.
+now) still shows its zones and tables, inside a generic office outline with windows, plants and storage. The
+dashboard labels that outline as generic.
+
+The plan is served by `GET /api/floorplan`. After updating the app, restart the server so it serves the new
+drawing data (in a Codespace: `bash scripts/codespace.sh start`). If it can't, the dashboard shows a warning
+above the plan.
 
 ## Check-in duration
 

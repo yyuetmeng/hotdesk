@@ -43,7 +43,7 @@
     --seat-occ-ink: #64748b;
     --line: #2a78d6;
     /* Project team colours: the validated 8-slot categorical palette, assigned in team order. */
-    --team-1: #2a78d6; --team-2: #eb6834; --team-3: #9b5de5; --team-4: #eda100;
+    --team-1: #0891b2; --team-2: #eb6834; --team-3: #9b5de5; --team-4: #eda100;
     --team-5: #e87ba4; --team-6: #a0663a; --team-7: #4a3aa7; --team-8: #e34948;
     --anon: #7a7974;
     /* Seat chairs on the floor plan: status is the chair colour plus a glyph. */
@@ -53,7 +53,13 @@
     --fp-floor: #fbf6ec; --fp-wall: #5b6068; --fp-window: #a6cbea; --fp-room: #e3e4e7; --fp-wc: #8d9299;
     --fp-lift: #edeef1; --fp-fixture: #dcd6cb; --fp-table: #efe4cf; --fp-table-line: #d3c2a2;
     --fp-chair: #d3d8df; --fp-chair-edge: #a9b2be; --fp-chair-dark: #8a94a2; --fp-monitor: #3a414c;
-    --fp-plant: #4c8a3a; --fp-plant-2: #7cb35f; --fp-zone: rgb(37 99 235 / 0.03); --fp-zone-line: #cfd8e6; --fp-label: #5b6676;
+    /* Furniture and fixtures, top-down: lit from the top left, soft shadows to the bottom right. */
+    --fp-chair-hi: #eef1f5; --fp-chair-lo: #bcc4cf; --fp-chair-back: #7d8794; --fp-chair-arm: #98a1ad;
+    --fp-table-hi: #f8f2e6; --fp-table-lo: #e3d5bc; --fp-cab-hi: #f1efea; --fp-cab-lo: #d5d0c5; --fp-cab-line: #b8b0a2;
+    --fp-leaf-hi: #86c463; --fp-leaf-lo: #2f6d2b; --fp-leaf-core: #2a5a26; --fp-pot: #c9c1b4; --fp-soil-hi: #7b5b3f; --fp-soil-lo: #4a3525;
+    --fp-drop: rgb(15 23 42 / 0.1); --fp-glass: #d6eaf8; --fp-frame: #8ea4ba; --fp-counter: #e9e4da;
+    --fp-appliance: #4a515b; --fp-lift-car: #dfe2e6; --fp-lift-line: #a9afb7;
+    --fp-zone: rgb(37 99 235 / 0.03); --fp-zone-line: #cfd8e6; --fp-label: #5b6676;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -65,7 +71,7 @@
       --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3); --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.6);
       --available-soft: rgb(12 163 12 / 0.14); --away-ink: #fab219; --away-line: #fab219;
       --occupied: #3987e5; --offline: #5c5b56; --seat-occ: #2b3340; --seat-occ-ink: #8b97a7; --line: #3987e5;
-      --team-1: #3987e5; --team-2: #d95926; --team-3: #b07cf0; --team-4: #c98500;
+      --team-1: #22b3d3; --team-2: #d95926; --team-3: #b07cf0; --team-4: #c98500;
       --team-5: #d55181; --team-6: #c08552; --team-7: #9085e9; --team-8: #e66767;
       --anon: #8f8e86;
       --seat-available: #2fb457; --seat-occupied: #5d7fb8; --seat-away: #e3a51a; --seat-offline: #4b5058;
@@ -74,7 +80,12 @@
       --fp-lift: #2a3039; --fp-fixture: #333944; --fp-table: #3a3631; --fp-table-line: #514a40;
       --fp-chair: #59616d; --fp-chair-edge: #6f7885; --fp-chair-dark: #7d8794; --fp-monitor: #0f1318;
       --fp-chair: #59616d; --fp-chair-edge: #6f7885; --fp-chair-dark: #7d8794; --fp-monitor: #0f1318;
-    --fp-plant: #3f7a33; --fp-plant-2: #5f9a4a; --fp-zone: rgb(79 140 255 / 0.04); --fp-zone-line: #343d4a; --fp-label: #9aa5b4;
+    --fp-chair-hi: #6b7480; --fp-chair-lo: #474e59; --fp-chair-back: #8b95a2; --fp-chair-arm: #7a8390;
+    --fp-table-hi: #47423b; --fp-table-lo: #353029; --fp-cab-hi: #3b414b; --fp-cab-lo: #2d323a; --fp-cab-line: #505763;
+    --fp-leaf-hi: #6aa94c; --fp-leaf-lo: #24561f; --fp-leaf-core: #1d461a; --fp-pot: #4d535c; --fp-soil-hi: #5a4330; --fp-soil-lo: #33261b;
+    --fp-drop: rgb(0 0 0 / 0.35); --fp-glass: #2c4c68; --fp-frame: #6f8aa5; --fp-counter: #343a43;
+    --fp-appliance: #0f1318; --fp-lift-car: #313741; --fp-lift-line: #4c535e;
+    --fp-zone: rgb(79 140 255 / 0.04); --fp-zone-line: #343d4a; --fp-label: #9aa5b4;
     }
   }
   :root[data-theme="dark"] {
@@ -86,14 +97,19 @@
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3); --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.6);
     --available-soft: rgb(12 163 12 / 0.14); --away-ink: #fab219; --away-line: #fab219;
     --occupied: #3987e5; --offline: #5c5b56; --seat-occ: #2b3340; --seat-occ-ink: #8b97a7; --line: #3987e5;
-    --team-1: #3987e5; --team-2: #d95926; --team-3: #b07cf0; --team-4: #c98500;
+    --team-1: #22b3d3; --team-2: #d95926; --team-3: #b07cf0; --team-4: #c98500;
     --team-5: #d55181; --team-6: #c08552; --team-7: #9085e9; --team-8: #e66767;
     --anon: #8f8e86;
     --seat-available: #2fb457; --seat-occupied: #5d7fb8; --seat-away: #e3a51a; --seat-offline: #4b5058;
     --seat-glyph: #ffffff; --seat-away-ink: #3d2800; --seat-offline-ink: #c3c8cf;
     --fp-floor: #1b1f26; --fp-wall: #79818d; --fp-window: #3f6c94; --fp-room: #262b33; --fp-wc: #3c434e;
     --fp-lift: #2a3039; --fp-fixture: #333944; --fp-table: #3a3631; --fp-table-line: #514a40;
-    --fp-plant: #3f7a33; --fp-plant-2: #5f9a4a; --fp-zone: rgb(79 140 255 / 0.04); --fp-zone-line: #343d4a; --fp-label: #9aa5b4;
+    --fp-chair-hi: #6b7480; --fp-chair-lo: #474e59; --fp-chair-back: #8b95a2; --fp-chair-arm: #7a8390;
+    --fp-table-hi: #47423b; --fp-table-lo: #353029; --fp-cab-hi: #3b414b; --fp-cab-lo: #2d323a; --fp-cab-line: #505763;
+    --fp-leaf-hi: #6aa94c; --fp-leaf-lo: #24561f; --fp-leaf-core: #1d461a; --fp-pot: #4d535c; --fp-soil-hi: #5a4330; --fp-soil-lo: #33261b;
+    --fp-drop: rgb(0 0 0 / 0.35); --fp-glass: #2c4c68; --fp-frame: #6f8aa5; --fp-counter: #343a43;
+    --fp-appliance: #0f1318; --fp-lift-car: #313741; --fp-lift-line: #4c535e;
+    --fp-zone: rgb(79 140 255 / 0.04); --fp-zone-line: #343d4a; --fp-label: #9aa5b4;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -212,40 +228,63 @@
   .floor-head h3 { margin: 0; font-size: 14px; font-weight: 650; }
   .floor-head .count { color: var(--text-muted); font-size: 13px; }
   .fp-note { font-size: 12px; color: var(--text-muted); }
+  .fp-note.warn { color: #b45309; font-weight: 600; }
   .fp-scroll { overflow: auto; max-width: 100%; border-radius: 10px; padding: 2px; overscroll-behavior: contain; }
   svg.fp { display: block; margin: 0 auto; }
 
-  /* Architecture: context only */
+  /* Architecture: context only, drawn as a soft top-down view */
   .fp-arch { pointer-events: none; }
   .fp-floor { fill: var(--fp-floor); }
-  .fp-floor-plain { stroke: var(--fp-zone-line); stroke-width: 0.25; }
-  .fp-outline { fill: none; stroke: var(--fp-wall); stroke-width: 1.3; }
+  .fp-floor-edge { fill: none; stroke: var(--fp-drop); stroke-width: 1.8; }
+  .fp-outline { fill: none; stroke: var(--fp-wall); stroke-width: 1.3; stroke-linejoin: miter; }
   .fp-wall { stroke: var(--fp-wall); stroke-width: 0.8; stroke-linecap: square; }
-  .fp-window { stroke: var(--fp-window); stroke-width: 1.1; }
-  .fp-window-in { stroke: var(--surface); stroke-width: 0.3; }
-  .fp-door { stroke: var(--fp-wall); stroke-width: 0.3; }
-  .fp-door-swing { fill: none; stroke: var(--fp-wall); stroke-width: 0.18; stroke-dasharray: 0.5 0.4; opacity: 0.7; }
+  .fp-window { fill: var(--fp-glass); stroke: var(--fp-frame); stroke-width: 0.16; }
+  .fp-window-glass { stroke: var(--surface); stroke-width: 0.22; opacity: 0.85; }
+  .fp-window-mullion { stroke: var(--fp-frame); stroke-width: 0.2; }
+  .fp-door { stroke: var(--fp-wall); stroke-width: 0.32; stroke-linecap: round; }
+  .fp-door-sweep { fill: var(--fp-drop); opacity: 0.35; }
+  .fp-door-swing { fill: none; stroke: var(--fp-wall); stroke-width: 0.14; stroke-dasharray: 0.5 0.4; opacity: 0.6; }
+  .fp-drop { fill: var(--fp-drop); }
+  .fp-bevel { fill: none; stroke: rgb(255 255 255 / 0.45); stroke-width: 0.14; }
   .fp-room { fill: var(--fp-room); }
   .fp-room-pantry { fill: var(--fp-floor); }
-  .fp-room-wc { fill: var(--fp-wc); stroke: var(--fp-floor); stroke-width: 0.3; }
+  .fp-room-wc { fill: var(--fp-wc); }
+  .fp-wc-inner { fill: none; stroke: rgb(255 255 255 / 0.18); stroke-width: 0.2; }
   .fp-room-lift { fill: var(--fp-lift); }
+  .fp-lift-car { fill: var(--fp-lift-car); stroke: var(--fp-lift-line); stroke-width: 0.2; }
+  .fp-lift-x { stroke: var(--fp-lift-line); stroke-width: 0.12; }
+  .fp-lift-door { fill: var(--fp-wall); }
   .fp-room-label { font: 600 1.8px var(--font); fill: var(--fp-label); text-anchor: middle; letter-spacing: 0.04px; }
   .fp-room-label-lg { font-size: 2.3px; }
-  .fp-fixture, .fp-fixture-dark { fill: var(--fp-fixture); stroke: var(--fp-table-line); stroke-width: 0.2; }
-  .fp-fixture-dark { fill: var(--fp-wc); stroke: none; opacity: 0.85; }
-  .fp-icon { fill: var(--fp-floor); stroke: var(--fp-floor); }
+  .fp-counter { fill: var(--fp-counter); stroke: var(--fp-cab-line); stroke-width: 0.15; }
+  .fp-sink { fill: var(--fp-lift-car); stroke: var(--fp-lift-line); stroke-width: 0.2; }
+  .fp-appliance { fill: var(--fp-appliance); }
+  .fp-appliance-hi { fill: var(--fp-lift-line); }
+  .fp-cabinet { fill: url(#fpg-cab); stroke: var(--fp-cab-line); stroke-width: 0.15; }
+  .fp-cab-line { stroke: var(--fp-cab-line); stroke-width: 0.12; }
+  .fp-cab-handle { stroke: var(--fp-chair-back); stroke-width: 0.22; stroke-linecap: round; }
+  .fp-icon { fill: var(--fp-lift-line); stroke: var(--fp-lift-line); }
   .fp-icon-wc { fill: #e9ebee; stroke: none; }
-  .fp-planter { fill: var(--fp-fixture); }
-  .fp-plant .leaf { fill: var(--fp-plant); }
-  .fp-plant .leaf2 { fill: var(--fp-plant-2); }
+  .fp-planter { fill: var(--fp-pot); stroke: var(--fp-cab-line); stroke-width: 0.15; }
+  .fp-soil { fill: var(--fp-soil-lo); }
+  .fp-pot { fill: var(--fp-pot); }
+  .fp-leaf { fill: url(#fpg-leaf); stroke: var(--fp-leaf-lo); stroke-width: 0.05; }
+  .fp-leaf-in { opacity: 0.92; }
+  .fp-leaf-core { fill: var(--fp-leaf-core); }
+  .fpg-chair-hi { stop-color: var(--fp-chair-hi); } .fpg-chair-lo { stop-color: var(--fp-chair-lo); }
+  .fpg-table-hi { stop-color: var(--fp-table-hi); } .fpg-table-lo { stop-color: var(--fp-table-lo); }
+  .fpg-cab-hi { stop-color: var(--fp-cab-hi); } .fpg-cab-lo { stop-color: var(--fp-cab-lo); }
+  .fpg-leaf-hi { stop-color: var(--fp-leaf-hi); } .fpg-leaf-lo { stop-color: var(--fp-leaf-lo); }
+  .fpg-soil-hi { stop-color: var(--fp-soil-hi); } .fpg-soil-lo { stop-color: var(--fp-soil-lo); }
   .fp-zone { --z: #2563eb; }
   .fp-zone-t1 { --z: #059669; } .fp-zone-t2 { --z: #7c3aed; } .fp-zone-t3 { --z: #d97706; }
   .fp-zone-area { fill: color-mix(in srgb, var(--z) 3%, transparent); stroke: color-mix(in srgb, var(--z) 22%, transparent); stroke-width: 0.16; }
   .fp-zone-tab { fill: color-mix(in srgb, var(--z) 45%, transparent); }
   .fp-zone-label { font: 700 1.75px var(--font); fill: color-mix(in srgb, var(--z) 55%, var(--fp-label)); letter-spacing: 0.02px; }
   .fp-zone-count { font: 600 1.45px var(--font); fill: var(--seat-available); }
-  .fp-table { fill: var(--fp-table); stroke: var(--fp-table-line); stroke-width: 0.16; }
-  .fp-table-shadow { fill: rgb(15 23 42 / 0.07); }
+  .fp-table { fill: url(#fpg-table); stroke: var(--fp-table-line); stroke-width: 0.16; }
+  .fp-table-shadow { fill: var(--fp-drop); }
+  .fp-table-edge { fill: none; stroke: rgb(255 255 255 / 0.5); stroke-width: 0.12; }
   .fp-table-div, .fp-table-spine { stroke: var(--fp-table-line); stroke-width: 0.12; }
   .fp-table-spine { stroke-width: 0.18; }
 
@@ -255,12 +294,19 @@
   .seat .ws-hit { fill: transparent; }
   .seat .ws-desk { fill: transparent; transition: fill 0.18s; }
   .ws-monitor { fill: var(--fp-monitor); }
-  .ws-seat { fill: var(--fp-chair); stroke: var(--fp-chair-edge); stroke-width: 0.12; transition: fill 0.18s, stroke 0.18s; }
-  .ws-back, .ws-arm { fill: var(--fp-chair-dark); transition: fill 0.18s; }
+  .ws-stand { fill: var(--fp-chair-back); }
+  .ws-shadow { fill: var(--fp-drop); }
+  .ws-seat { fill: url(#fpg-chair); stroke: var(--fp-chair-lo); stroke-width: 0.12; transition: fill 0.18s, stroke 0.18s; }
+  .ws-seat-hi { fill: rgb(255 255 255 / 0.22); }
+  .ws-back { fill: var(--fp-chair-back); transition: fill 0.18s; }
+  .ws-arm { fill: var(--fp-chair-arm); transition: fill 0.18s; }
   .ws-chair { transition: filter 0.18s; }
   .ws-chair-in { transition: transform 0.2s ease; }
-  .ws-person { display: none; fill: var(--seat-occupied); stroke: var(--fp-floor); stroke-width: 0.14; }
-  .ws-light { fill: var(--k, var(--seat-offline)); stroke: var(--fp-table); stroke-width: 0.22; }
+  .ws-person { display: none; }
+  .ws-shoulders { fill: var(--pc, var(--seat-occupied)); stroke: rgb(0 0 0 / 0.18); stroke-width: 0.1; }
+  .ws-head { fill: var(--pc, var(--seat-occupied)); stroke: rgb(255 255 255 / 0.65); stroke-width: 0.14; }
+  .ws-light { fill: var(--k, var(--seat-offline)); stroke: var(--fp-table-hi); stroke-width: 0.22; }
+  .ws-light-hi { fill: rgb(255 255 255 / 0.5); }
   .ws-light-halo { fill: var(--k, transparent); opacity: 0.2; }
   .ws-glyph { display: none; fill: none; stroke: #fff; stroke-width: 0.26; stroke-linecap: round; }
   .ws-num { display: none; font: 600 0.82px var(--font); fill: var(--fp-label); text-anchor: middle; dominant-baseline: central; }
@@ -273,13 +319,13 @@
   .st-away { --k: var(--seat-away); }
   .st-away .ws-chair-in { transform: translateX(-0.75px) rotate(-8deg); transform-box: fill-box; transform-origin: center; }
   .st-away .ws-glyph-away { display: inline; stroke: var(--seat-away-ink); }
+  .st-away .ws-light-hi, .st-offline .ws-light-hi { display: none; }
   .st-offline .ws-light { fill: var(--fp-table); stroke: var(--seat-offline-ink); stroke-width: 0.2; stroke-dasharray: 0.4 0.3; }
   .st-offline .ws-light-halo { opacity: 0; }
   .st-offline .ws-glyph-off { display: inline; stroke: var(--seat-offline-ink); }
   .st-offline .ws-chair { opacity: 0.55; }
   /* Project team view: the person and the light take the team's colour. */
-  .team { --k: var(--c); }
-  .team .ws-person { fill: var(--c); }
+  .team { --k: var(--c); --pc: var(--c); }
   /* Team assignment view: the desk itself carries the team's colour. */
   .layout .ws-desk { fill: color-mix(in srgb, var(--c) 32%, transparent); }
 
