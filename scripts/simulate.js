@@ -25,7 +25,7 @@ const START_SEATED = 0.45;      // share of people already at a desk when the si
 const ARRIVE = 1 / 10;          // someone who is out comes back after about 10 minutes
 const LEAVE = 1 / 20;           // someone stays at a desk for about 20 minutes
 const CHECK_IN = 0.85;          // share of arrivals who check in with their project
-const CHECK_OUT = 0.7;          // share of leavers who check out (the rest are released by the away grace)
+const CHECK_OUT = 0.85;         // share of leavers who check out (the rest are held as away for the grace, then freed)
 const PREFER_ALLOCATED = 0.8;   // chance to pick their project's pre-allocated seat when one is free
 const TEAM_BOOKING = 1 / 4;     // a team lead books seats for the team about every 4 minutes
 const BOOKING_MINUTES = 60;
@@ -155,7 +155,7 @@ async function tick() {
     }
   }
   for (const v of visitors) {
-    if (v.seat && Math.random() < chance(LEAVE * 2)) { stand(v.seat); taken.delete(v.seat); v.seat = null; }
+    if (v.seat && Math.random() < chance(LEAVE)) { stand(v.seat); taken.delete(v.seat); v.seat = null; }
     else if (!v.seat && Math.random() < (round === 1 ? START_SEATED : chance(ARRIVE))) {
       const free = sensored.filter((s) => !taken.has(s.id) && avail.get(s.id)?.status === 'available' && !avail.get(s.id)?.allocatedTo);
       if (free.length) { v.seat = pick(free).id; taken.add(v.seat); sit(v.seat); }
