@@ -281,8 +281,9 @@ Admin API (token required):
 
 `/book` and `/checkin` need no admin token and show no names. `/book` remembers the person's project and,
 after booking, shows **You are checked in at … until …** with **I'm leaving** to check out. It refreshes every 10 seconds.
-In demo mode (`npm run demo`, or `DEMO_MODE=1`, or `/book?demo`), the name is filled with a random sample name from
-a list of 50 Chinese names, with **Another sample name** to pick a different one; `/book?demo=0` turns it off.
+In demo mode (`npm run demo`, or `DEMO_MODE=1`, or `?demo` on the page), `/book` and `/checkin` fill the name with a
+random sample name from a list of 50 Chinese names (`public/demo-names.js`), with **Another sample name** to pick a
+different one. Each desk or booking gets a new name, and sample names are not remembered; `?demo=0` turns it off.
 
 ### Demo on one laptop (no phone needed)
 

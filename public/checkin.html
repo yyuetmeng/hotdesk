@@ -37,6 +37,7 @@
   .links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; }
   .links a { color: var(--accent); text-decoration: none; font-weight: 500; }
   .links a:hover { text-decoration: underline; }
+  .demo-name { justify-self: start; padding: 2px 6px; margin-top: -4px; font-size: 12px; color: var(--accent); }
   .note { display: flex; gap: 8px; color: var(--text-muted); font-size: 13px; margin: 0; }
   .note svg { width: 16px; height: 16px; margin-top: 2px; }
 </style>
@@ -69,6 +70,7 @@
       <label for="user">Your name or employee ID
         <input id="user" autocomplete="username">
       </label>
+      <button type="button" class="btn btn-ghost demo-name" id="rename" hidden>↻ Another sample name</button>
       <label for="team">Your project team
         <select id="team" required aria-required="true"><option value="">Choose your project team…</option></select>
       </label>
@@ -88,6 +90,7 @@
     <a href="/book">Book on the floor plan →</a>
   </div>
 </main>
+<script src="/static/demo-names.js"></script>
 <script>
 const LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away — held for its user', offline: 'Sensor offline' };
 let seatId = new URLSearchParams(location.search).get('seat');
@@ -96,6 +99,14 @@ const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const fmtDuration = (m) => (m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)} h ` : ''}${m % 60} min` : `${m / 60} hour${m === 60 ? '' : 's'}`);
 try { $('user').value = localStorage.getItem('hotdesk.user') || ''; } catch {}
+// Demo mode (npm run demo, or ?demo): each desk opened gets a random sample name, which is not saved.
+let demoMode = demoFromUrl === true;
+function demoNameForDesk() {
+  if (!demoMode) return;
+  $('rename').hidden = false;
+  $('user').value = randomDemoName($('user').value);
+}
+$('rename').onclick = () => { $('user').value = randomDemoName($('user').value); };
 const savedTeam = (() => { try { return localStorage.getItem('hotdesk.team') || ''; } catch { return ''; } })();
 const setMsg = (el, cls, html) => { el.className = cls; el.innerHTML = html; };
 
@@ -110,7 +121,8 @@ function render(s) {
 }
 
 async function loadDurations() {
-  const { checkinDurationMinutes: def, checkinMaxMinutes: max, projectTeams = [] } = await call('/api/checkin-options');
+  const { checkinDurationMinutes: def, checkinMaxMinutes: max, projectTeams = [], demo } = await call('/api/checkin-options');
+  if (demo && demoFromUrl !== false && !demoMode) { demoMode = true; if (seatId) demoNameForDesk(); }
   $('team').innerHTML = '<option value="">Choose your project team…</option>' +
     projectTeams.map((t) => `<option${t === savedTeam ? ' selected' : ''}>${esc(t)}</option>`).join('');
   const opts = new Set([def]);
@@ -153,6 +165,7 @@ function openDesk(id) {
   confirmedTeam = ''; $('in').textContent = IN_LABEL; setMsg($('msg'), '', '');
   $('pick').hidden = true; $('desk').hidden = false; $('changeDesk').hidden = false;
   document.title = `Desk ${id} · Check-in`;
+  demoNameForDesk();
   call(`/api/seats/${encodeURIComponent(id)}`).then(render).catch((e) => {
     $('title').textContent = `Desk ${id}`; $('status').textContent = e.message; $('status').className = 'pill k-offline';
   });
@@ -176,7 +189,7 @@ async function act(kind) {
   const projectTeam = $('team').value;
   if (!user) { setMsg($('msg'), 'err', 'Enter your name first.'); $('user').focus(); return; }
   if (!projectTeam) { setMsg($('msg'), 'err', 'Choose your project team.'); $('team').focus(); return; }
-  try { localStorage.setItem('hotdesk.user', user); localStorage.setItem('hotdesk.team', projectTeam); } catch {}
+  try { if (!demoMode) localStorage.setItem('hotdesk.user', user); localStorage.setItem('hotdesk.team', projectTeam); } catch {}
   if (kind === 'checkin' && confirmedTeam !== projectTeam) {
     const w = await allocationWarning(projectTeam).catch(() => null);
     if (w) {

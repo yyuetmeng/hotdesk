@@ -14,19 +14,10 @@ const store = {
   set: (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch {} },
 };
 
-// Demo mode (npm run demo, or /book?demo): the name field is filled with a random sample name.
-const DEMO_NAMES = [
-  'Tan Wei Ming', 'Lim Hui Min', 'Lee Jia Hao', 'Ng Mei Ling', 'Wong Kai Xuan', 'Chua Li Ting', 'Goh Jun Jie', 'Teo Xin Yi',
-  'Ong Zhi Hao', 'Koh Shu Fen', 'Chan Wen Jie', 'Low Pei Shan', 'Yeo Jian Wei', 'Sim Hui Ying', 'Chong Yi Xuan', 'Toh Kah Wai',
-  'Ho Siew Ling', 'Seah Ming Hui', 'Quek Jia Ying', 'Tay Zheng Yang', 'Foo Li Na', 'Chew Boon Kiat', 'Heng Xiao Wen', 'Phua Kai Ling',
-  'Soh Wei Jie', 'Kwek Mei Xuan', 'Liew Chee Keong', 'Pang Hui Wen', 'Yap Jun Wei', 'Loh Shi Min', 'Ang Yong Sheng', 'Tham Su Ling',
-  'Neo Jia Le', 'Leong Wai Kit', 'Poh Xin Hui', 'Choo Wen Hao', 'Kang Li Xin', 'Tng Kok Leong', 'Gan Pei Yi', 'Lau Zhi Wei',
-  'Huang Yi Ting', 'Zhang Wei', 'Wang Fang', 'Li Na', 'Liu Yang', 'Chen Jing', 'Yang Xiu Ying', 'Zhao Lei', 'Wu Min', 'Zhou Jie',
-];
-const demoParam = new URLSearchParams(location.search).get('demo');
-let demoMode = demoParam !== null && demoParam !== '0';
+// Demo mode (npm run demo, or /book?demo): the name field is filled with a random sample name (demo-names.js).
+let demoMode = demoFromUrl === true;
 let demoName = '';
-const randomName = () => { let n; do n = DEMO_NAMES[Math.floor(Math.random() * DEMO_NAMES.length)]; while (n === demoName && DEMO_NAMES.length > 1); return n; };
+const randomName = () => randomDemoName(demoName);
 
 const STATUS = { available: 'Available', occupied: 'Taken', away: 'Taken (person away)', offline: 'Available (sensor offline)' };
 const BOOKABLE = new Set(['available', 'offline']);
@@ -313,7 +304,7 @@ async function init() {
   try {
     const [floors, list, options] = await Promise.all([call('/api/floors'), call('/api/availability'), call('/api/checkin-options')]);
     state.floors = floors; state.options = options;
-    if (options.demo && demoParam !== '0') demoMode = true;
+    if (options.demo && demoFromUrl !== false) demoMode = true;
     state.seats = new Map(list.map((s) => [s.id, s]));
     renderProjects(); renderFloors(); renderPlan(); renderLegend(); renderMine(); renderPanel();
     $('live').className = 'live on';
