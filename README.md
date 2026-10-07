@@ -34,6 +34,12 @@ npm run simulate             # in a second terminal: fake sensors + check-ins
 npm test
 ```
 
+**For a demo, one command:** `npm run demo` starts the server and the simulator together at **10x speed**. People
+come and go within a minute or two, team bookings appear, and away holds clear within 2 minutes. It keeps your
+projects and seat allocations. Add `-- --fresh` to start from an empty floor (`npm run demo -- --fresh`), or
+`-- --speed=20` for another speed. Stop your normal server first (it uses the same port), and press Ctrl+C to stop
+the demo. Its shortened hold times last only while the demo runs: `npm start` uses the normal ones again.
+
 The simulator plays an office day:
 
 - **People:** 70 people from the project teams (the server's current list, including projects added or deleted

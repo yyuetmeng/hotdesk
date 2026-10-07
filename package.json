@@ -11,6 +11,7 @@
     "start": "node src/index.js",
     "simulate": "node scripts/simulate.js",
     "simulate:fresh": "node scripts/simulate.js --reset",
+    "demo": "node scripts/demo.js",
     "test": "node --test",
     "labels": "node scripts/labels.js",
     "codespace": "bash scripts/codespace.sh start",

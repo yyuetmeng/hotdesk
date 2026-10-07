@@ -4,6 +4,8 @@
 // checking in; two sensors break so their desks show offline.
 //
 // Usage: node scripts/simulate.js [baseUrl] [--reset]
+//   --speed=N  run N times faster than real time (e.g. 10 for a demo; see scripts/demo.js,
+//              which also shortens the server's hold times to match)
 //   --reset  first clear every seat's live state (who sits where, check-ins, team bookings,
 //            away holds) on the server, keeping projects and seat allocations. Use only on a
 //            demo server: it also clears real people's check-ins.
@@ -16,6 +18,7 @@ import { expandLayout } from '../src/occupancy.js';
 const args = process.argv.slice(2);
 const base = args.find((a) => !a.startsWith('--')) ?? process.env.BASE_URL ?? 'http://localhost:3000';
 const reset = args.includes('--reset');
+const SPEED = Math.max(0.1, Number(args.find((a) => a.startsWith('--speed='))?.split('=')[1] ?? process.env.SIM_SPEED ?? 1) || 1);
 const interval = Number(process.env.SIM_INTERVAL_MS ?? 3000);
 const building = JSON.parse(readFileSync(new URL('../config/building.json', import.meta.url), 'utf8'));
 const seats = expandLayout(building);
@@ -23,7 +26,8 @@ const seatById = new Map(seats.map((s) => [s.id, s]));
 const sensored = seats.filter((s) => s.sensorId);
 const qrOnly = seats.filter((s) => !s.sensorId);
 
-// Rates are per minute of real time, so the simulation looks the same at any SIM_INTERVAL_MS.
+// Rates are per minute of simulated time (real time x SPEED), so the picture is the same at any
+// SIM_INTERVAL_MS; SPEED makes the day pass faster.
 const PEOPLE = 70;              // people in the project teams
 const VISITORS = 8;             // people who sit down without checking in
 const START_SEATED = 0.45;      // share of people already at a desk when the simulation starts
@@ -32,10 +36,11 @@ const LEAVE = 1 / 20;           // someone stays at a desk for about 20 minutes
 const CHECK_IN = 0.85;          // share of arrivals who check in with their project
 const CHECK_OUT = 0.85;         // share of leavers who check out (the rest are held as away for the grace, then freed)
 const PREFER_ALLOCATED = 0.8;   // chance to pick their project's pre-allocated seat when one is free
-const TEAM_BOOKING = 1 / 4;     // a team lead books seats for the team about every 4 minutes
-const BOOKING_MINUTES = 60;
+const TEAM_BOOKING = 1 / 12;    // a team lead books seats for the team about every 12 minutes
+const MAX_BOOKINGS = 3;         // ...while fewer than this many team bookings are running
+const BOOKING_MINUTES = Math.max(1, Math.round(60 / SPEED));
 /** The chance of something that happens `perMinute` times a minute happening in one round. */
-const chance = (perMinute) => 1 - Math.exp(-perMinute * interval / 60_000);
+const chance = (perMinute) => 1 - Math.exp(-perMinute * SPEED * interval / 60_000);
 
 // Sensors that break: they report once, then go silent, so their desks turn "sensor offline".
 const broken = new Set(sensored.slice(-2).map((s) => s.sensorId));
@@ -47,7 +52,8 @@ let teams = (building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C
   .map((t) => (typeof t === 'string' ? t : t.name));
 const people = Array.from({ length: PEOPLE }, (_, i) => ({ name: `employee${i + 1}`, team: null, seat: null, checkedIn: false }));
 const visitors = Array.from({ length: VISITORS }, () => ({ seat: null }));
-const teamBooked = new Map(); // seat id -> { team, until } for seats our team leads booked
+const teamBooked = new Map(); // seat id -> { team, until, booking } for seats our team leads booked
+let bookingCount = 0;
 
 const headers = { 'content-type': 'application/json' };
 if (process.env.SENSOR_API_KEY) headers['x-api-key'] = process.env.SENSOR_API_KEY;
@@ -129,7 +135,8 @@ async function bookForTeam(avail, taken) {
   }
   if (!res.ok) return; // a seat was taken in the meantime: another round will try again
   const until = Date.now() + BOOKING_MINUTES * 60_000;
-  for (const id of chosen) teamBooked.set(id, { team, until });
+  const booking = ++bookingCount;
+  for (const id of chosen) teamBooked.set(id, { team, until, booking });
 }
 
 let round = 0;
@@ -178,7 +185,8 @@ async function tick() {
   for (const c of checkouts) await post(`/api/seats/${c.seat}/checkout`, { user: c.user, projectTeam: c.projectTeam });
 
   // One booking right away so it shows from the start, then every few minutes.
-  if (teamBookings && (round === 2 || Math.random() < chance(TEAM_BOOKING))) await bookForTeam(await availability(), taken);
+  const running = new Set([...teamBooked.values()].map((b) => b.booking)).size;
+  if (teamBookings && running < MAX_BOOKINGS && (round === 2 || Math.random() < chance(TEAM_BOOKING))) await bookForTeam(await availability(), taken);
 }
 
 try {
@@ -202,6 +210,6 @@ if (reset) {
 }
 await syncTeams();
 setInterval(syncTeams, 60_000);
-console.log(`Simulating ${PEOPLE} people in ${teams.length} project teams, ${VISITORS} visitors, ${sensored.length} sensors (${broken.size} breaking) and ${qrOnly.length} QR-only desks against ${base}`);
+console.log(`Simulating${SPEED === 1 ? '' : ` at ${SPEED}x speed`}: ${PEOPLE} people in ${teams.length} project teams, ${VISITORS} visitors, ${sensored.length} sensors (${broken.size} breaking) and ${qrOnly.length} QR-only desks against ${base}`);
 await tick();
 setInterval(() => tick().catch((e) => console.error(e.message)), interval);
