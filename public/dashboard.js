@@ -243,8 +243,9 @@ function projectColor(t) {
 // ---------- Floor plan ----------
 // Each floor is one SVG (public/floorplan.js). Seats are its only interactive parts; the
 // office around them is context. Scale: fit the card width, but never below TAP_SCALE
-// (MOUSE_SCALE with a mouse) px per plan unit so chairs stay easy to hit; past that the plan scrolls.
-const MIN_SCALE = 3.5, MOUSE_SCALE = 4.2, TAP_SCALE = 6, FIT_CAP = 8, MAX_SCALE = 18;
+// px per plan unit on touch screens so chairs stay easy to tap; past that the plan scrolls.
+// With a mouse it always fits (MOUSE_SCALE is only a floor for tiny windows); zoom in for detail.
+const MIN_SCALE = 2.5, MOUSE_SCALE = 2.5, TAP_SCALE = 6, FIT_CAP = 8, MAX_SCALE = 18;
 let layouts = [];
 let zoom = 1;
 
@@ -268,7 +269,10 @@ function renderPlan() {
 }
 
 function baseScale(fl) {
-  const avail = $('plan').clientWidth - 24;
+  // The plan box's own padding and border are not drawing space.
+  const box = $('plan').querySelector('.fp-scroll'), cs = box && getComputedStyle(box);
+  const inset = cs ? parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth) : 30;
+  const avail = $('plan').clientWidth - inset - 1;
   // Touch needs bigger targets than a mouse; below this size the plan scrolls instead.
   const min = matchMedia('(pointer: coarse)').matches ? TAP_SCALE : MOUSE_SCALE;
   return Math.min(FIT_CAP, Math.max(min, avail / (fl.w + 2)));
@@ -1083,8 +1087,8 @@ function renderLegend() {
   const status = `<div class="lgroup"><b>Workstations</b>
     <span class="litem">${ws('st-available')}Available</span>
     <span class="litem">${ws('st-available is-selected')}Selected</span>
-    <span class="litem">${ws('st-occupied')}Occupied${project ? ', not checked in' : ''}</span>
-    <span class="litem">${ws('st-away')}Away (held), chair pushed back</span>
+    <span class="litem">${ws('st-occupied')}Occupied${project ? ', no check-in' : ''}</span>
+    <span class="litem" title="The chair is pushed back while the seat is held">${ws('st-away')}Away (held)</span>
     <span class="litem">${ws('st-offline')}Sensor offline</span></div>`;
   let extra = '';
   if (project) {
