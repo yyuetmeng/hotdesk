@@ -716,11 +716,27 @@ function projectField() {
     <button type="button" class="link-btn" data-change-team>Change</button></div>`;
 }
 
+/**
+ * The project of an existing check-in, shown as a fixed line: extending or checking out
+ * keeps it. Only if that project has since been deleted is a dropdown shown, because the
+ * server needs a current project to record.
+ */
+function checkedInProject(s) {
+  const team = s.projectTeam;
+  if (!team || !(state.options?.projectTeams ?? []).includes(team)) {
+    return `<label>Project team${team ? ` <span class="muted">(${esc(team)} is no longer offered)</span>` : ''}<select name="team" required>${teamOptions('')}</select></label>`;
+  }
+  const t = projectInfo(team);
+  return `<div class="book-line"><input type="hidden" name="team" value="${esc(team)}">
+    <span class="muted">Project</span>
+    <span class="book-line-name"><span class="book-sw" style="background:${t ? projectColor(t) : 'var(--accent)'}"></span>${esc(team)}</span></div>`;
+}
+
 function manageForm(s) {
   return `<form class="pform" data-kind="manage" novalidate>
     <h3>Manage this check-in</h3>
     <p class="lead">Extend restarts the check-in from now. Check out frees the desk straight away.</p>
-    <label>Project team<select name="team" required>${teamOptions(s.projectTeam)}</select></label>
+    ${checkedInProject(s)}
     <label>Duration (for extend)<select name="minutes">${durationOptions()}</select></label>
     <div class="form-msg" role="alert"></div>
     <div class="btnrow">
