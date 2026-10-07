@@ -177,6 +177,7 @@ test('check-in options expose the default and maximum duration', async () => {
   });
   // Project colours for the booking page: name, code, colour and palette slot only (no allocated seats).
   assert.deepEqual(Object.keys(projects[0]).sort(), ['code', 'color', 'name', 'slot']);
+  assert.equal(rest.demo, undefined); // demo mode is off unless DEMO_MODE=1
   assert.equal(projects.length, 8);
 });
 

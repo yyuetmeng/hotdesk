@@ -72,8 +72,9 @@ function publicView(v) {
  * @param {string} [opts.publicUrl]     base URL printed in desk QR codes (default: the URL the page was opened at)
  * @param {string} [opts.buildingName]
  * @param {{id: string, plan: object|null}[]} [opts.floorPlans]  drawing data per floor for the dashboard (building.json `plan`)
+ * @param {boolean} [opts.demo]          demo mode (DEMO_MODE=1, set by `npm run demo`): /book fills in sample names
  */
-export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicUrl, buildingName = 'Desk labels', floorPlans = [] }) {
+export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicUrl, buildingName = 'Desk labels', floorPlans = [], demo = false }) {
   const streams = new Set();
 
   engine.on('change', (seat) => {
@@ -243,7 +244,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     if (method === 'GET' && url.pathname === '/api/checkin-options') {
       const { checkinDurationMinutes, checkinMaxMinutes } = engine.rules;
       const projects = engine.listProjects().map(({ name, code, color, slot }) => ({ name, code, color, slot }));
-      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams, projects });
+      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams, projects, ...(demo ? { demo: true } : {}) });
     }
     if (method === 'GET' && url.pathname === '/api/project-teams') {
       return send(res, 200, engine.projectTeams);

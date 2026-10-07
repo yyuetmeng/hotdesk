@@ -14,6 +14,20 @@ const store = {
   set: (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch {} },
 };
 
+// Demo mode (npm run demo, or /book?demo): the name field is filled with a random sample name.
+const DEMO_NAMES = [
+  'Tan Wei Ming', 'Lim Hui Min', 'Lee Jia Hao', 'Ng Mei Ling', 'Wong Kai Xuan', 'Chua Li Ting', 'Goh Jun Jie', 'Teo Xin Yi',
+  'Ong Zhi Hao', 'Koh Shu Fen', 'Chan Wen Jie', 'Low Pei Shan', 'Yeo Jian Wei', 'Sim Hui Ying', 'Chong Yi Xuan', 'Toh Kah Wai',
+  'Ho Siew Ling', 'Seah Ming Hui', 'Quek Jia Ying', 'Tay Zheng Yang', 'Foo Li Na', 'Chew Boon Kiat', 'Heng Xiao Wen', 'Phua Kai Ling',
+  'Soh Wei Jie', 'Kwek Mei Xuan', 'Liew Chee Keong', 'Pang Hui Wen', 'Yap Jun Wei', 'Loh Shi Min', 'Ang Yong Sheng', 'Tham Su Ling',
+  'Neo Jia Le', 'Leong Wai Kit', 'Poh Xin Hui', 'Choo Wen Hao', 'Kang Li Xin', 'Tng Kok Leong', 'Gan Pei Yi', 'Lau Zhi Wei',
+  'Huang Yi Ting', 'Zhang Wei', 'Wang Fang', 'Li Na', 'Liu Yang', 'Chen Jing', 'Yang Xiu Ying', 'Zhao Lei', 'Wu Min', 'Zhou Jie',
+];
+const demoParam = new URLSearchParams(location.search).get('demo');
+let demoMode = demoParam !== null && demoParam !== '0';
+let demoName = '';
+const randomName = () => { let n; do n = DEMO_NAMES[Math.floor(Math.random() * DEMO_NAMES.length)]; while (n === demoName && DEMO_NAMES.length > 1); return n; };
+
 const STATUS = { available: 'Available', occupied: 'Taken', away: 'Taken (person away)', offline: 'Available (sensor offline)' };
 const BOOKABLE = new Set(['available', 'offline']);
 const ICON = {
@@ -175,7 +189,7 @@ function renderPanel() {
   }
   panel.innerHTML = `<div class="panel-inner">${head}${flash}${body}</div>`;
   const name = panel.querySelector('input[name=user]');
-  if (name) name.value = store.get('hotdesk.user') || '';
+  if (name) name.value = demoMode ? (demoName ||= randomName()) : store.get('hotdesk.user') || '';
 }
 
 function emptyPanel() {
@@ -214,6 +228,7 @@ function bookingForm(s) {
     <h3><span class="step">3</span>Your details</h3>
     <p class="lead">Starts now and lasts for the time you choose.</p>
     <label>Your name or employee ID<input name="user" autocomplete="username" required></label>
+    ${demoMode ? '<button type="button" class="btn btn-ghost demo-name" data-act="rename">↻ Another sample name</button>' : ''}
     <label>How long?<select name="minutes">${[...opts].sort((a, b) => a - b).map((m) => `<option value="${m}"${m === def ? ' selected' : ''}>${fmtDuration(m)}${m === def ? ' (default)' : ''}</option>`).join('')}</select></label>
     <button class="btn btn-primary btn-block" type="submit"${blocked ? ' disabled' : ''}>Book desk ${esc(s.id)}</button>
     <div class="form-msg" id="formMsg"></div>
@@ -226,6 +241,7 @@ $('panel').addEventListener('click', async (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'close') select(null);
   if (act === 'ack') { state.ack = state.selected; renderPanel(); }
+  if (act === 'rename') { demoName = randomName(); const i = $('panel').querySelector('input[name=user]'); if (i) i.value = demoName; }
   if (act === 'leave') await leave();
 });
 $('panel').addEventListener('submit', async (e) => {
@@ -233,13 +249,14 @@ $('panel').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target, user = f.elements.user.value.trim(), id = state.selected;
   if (!user) { $('formMsg').textContent = 'Enter your name first.'; f.elements.user.focus(); return; }
-  store.set('hotdesk.user', user);
+  if (!demoMode) store.set('hotdesk.user', user);
   f.querySelector('button[type=submit]').disabled = true;
   try {
     const seat = await call(`/api/seats/${encodeURIComponent(id)}/checkin`, { user, projectTeam: state.project, minutes: Number(f.elements.minutes.value) });
     state.seats.set(seat.id, { ...state.seats.get(seat.id), ...seat });
     state.mine = { seat: seat.id, user, team: state.project, until: seat.checkedInUntil };
     store.set('hotdesk.mine', JSON.stringify(state.mine));
+    demoName = ''; // the next booking gets a new sample name
     state.flash = { seat: seat.id, html: `Booked. You are checked in at <b>${esc(seat.id)}</b> until <b>${fmtTime(seat.checkedInUntil)}</b>.` };
     patchSeats(); updateCounts(); renderMine(); renderPanel(); renderProjectSummary();
   } catch (err) {
@@ -296,6 +313,7 @@ async function init() {
   try {
     const [floors, list, options] = await Promise.all([call('/api/floors'), call('/api/availability'), call('/api/checkin-options')]);
     state.floors = floors; state.options = options;
+    if (options.demo && demoParam !== '0') demoMode = true;
     state.seats = new Map(list.map((s) => [s.id, s]));
     renderProjects(); renderFloors(); renderPlan(); renderLegend(); renderMine(); renderPanel();
     $('live').className = 'live on';

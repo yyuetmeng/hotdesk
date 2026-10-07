@@ -44,6 +44,7 @@ const server = createApp({
   publicUrl: env.PUBLIC_URL,
   buildingName: building.name,
   floorPlans: building.floors.map((f) => ({ id: f.id, plan: f.plan ?? null })),
+  demo: env.DEMO_MODE === '1',
 });
 
 const sweep = setInterval(() => engine.sweep(), 15_000);

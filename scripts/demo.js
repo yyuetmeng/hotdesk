@@ -29,6 +29,8 @@ const env = {
   AWAY_GRACE_MINUTES: process.env.AWAY_GRACE_MINUTES ?? minutes(20),
   SENSOR_OFFLINE_MINUTES: process.env.SENSOR_OFFLINE_MINUTES ?? minutes(15),
   CHECKIN_CONFIRM_MINUTES: process.env.CHECKIN_CONFIRM_MINUTES ?? minutes(15),
+  // Demo mode: the booking page (/book) fills in a random sample name.
+  DEMO_MODE: process.env.DEMO_MODE ?? '1',
 };
 console.log(`Demo at ${speed}x speed: away holds ${env.AWAY_GRACE_MINUTES} min, sensor offline after ${env.SENSOR_OFFLINE_MINUTES} min.`);
 
