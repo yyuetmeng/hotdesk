@@ -56,6 +56,7 @@ A Codespace starts the whole app by itself. There's nothing to install or type.
    | `ADMIN_TOKEN` | Dashboard password. If not set, one is generated and shown when the Codespace starts |
    | `SENSOR_API_KEY` | Key for sensor webhooks. Generated if not set |
    | `HOTDESK_DEMO` = `1` | Also runs the sensor simulator, so the dashboard has live demo data |
+   | `HOTDESK_DEMO` = `fresh` | Same, but first clears all seats (who sits where, check-ins, bookings, away holds); projects and seat allocations are kept |
    | `HOTDESK_PUBLIC` = `1` | Makes the app's address public, which phones scanning QR labels and sensor webhooks need |
 
 2. Click the button above, or **Code → Codespaces → Create codespace on main**.
@@ -83,6 +84,7 @@ Commands inside the Codespace:
 | `npm run codespace:stop` | Stop it |
 | `bash scripts/codespace.sh logs` | Follow the app log |
 | `HOTDESK_DEMO=1 npm run codespace` | Restart with demo sensor data |
+| `HOTDESK_DEMO=fresh npm run codespace` | Restart the demo from an empty floor, keeping projects and seat allocations |
 | `AWAY_GRACE_MINUTES=1 HOTDESK_DEMO=1 npm run codespace` | Demo where desks free themselves within a minute |
 
 **Who can open it.** A Codespace's forwarded address is **private** by default: only you, signed in to GitHub,

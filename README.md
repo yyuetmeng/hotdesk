@@ -49,7 +49,13 @@ The simulator plays an office day:
 
 If the server was started with `SENSOR_API_KEY`, give the simulator the same key: `SENSOR_API_KEY=... npm run
 simulate`. Team bookings need the admin token too, if the server has one: `ADMIN_TOKEN=... SENSOR_API_KEY=... npm
-run simulate`. Without it, the simulator says so and carries on without team bookings. To point it at another address:
+run simulate`. Without it, the simulator says so and carries on without team bookings.
+
+To start again from an empty floor without losing your projects and seat allocations, run
+`npm run simulate:fresh` instead. It first clears every seat's live state (who sits where, check-ins, team
+bookings, *away* holds), then simulates as usual. Use it only on a demo server: it also clears real people's
+check-ins. It needs the admin token if the server has one. In a Codespace: `HOTDESK_DEMO=fresh npm run codespace`.
+Behind it is `POST /api/seats/reset` (admin). To point it at another address:
 `npm run simulate -- http://host:port`. In a Codespace, set the `HOTDESK_DEMO` secret to `1`, or run
 `HOTDESK_DEMO=1 npm run codespace`; the right key and token are passed for you.
 

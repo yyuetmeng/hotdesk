@@ -10,6 +10,7 @@
 # Optional settings (Codespaces secrets, or environment variables):
 #   ADMIN_TOKEN, SENSOR_API_KEY  passwords; generated and kept in data/ if not set
 #   HOTDESK_DEMO=1               also run the sensor simulator so the dashboard has live data
+#   HOTDESK_DEMO=fresh           same, but first clear all seats (projects and allocations are kept)
 #   HOTDESK_PUBLIC=1             make port 3000 public (phones scanning QR labels, sensor webhooks)
 #   AWAY_GRACE_MINUTES, CHECKIN_DURATION_MINUTES, ...  any setting from the README
 set -euo pipefail
@@ -110,8 +111,10 @@ start() {
     exit 1
   fi
 
-  if [[ "${HOTDESK_DEMO:-}" == 1 ]]; then
-    SENSOR_API_KEY="$key" ADMIN_TOKEN="$admin" nohup node scripts/simulate.js "http://localhost:${PORT}" >> "$DATA/simulator.log" 2>&1 < /dev/null &
+  # HOTDESK_DEMO=1 runs the simulator; HOTDESK_DEMO=fresh first clears all seats (keeps projects and allocations).
+  if [[ "${HOTDESK_DEMO:-}" == 1 || "${HOTDESK_DEMO:-}" == fresh ]]; then
+    local reset=(); [[ "${HOTDESK_DEMO}" == fresh ]] && reset=(--reset)
+    SENSOR_API_KEY="$key" ADMIN_TOKEN="$admin" nohup node scripts/simulate.js "http://localhost:${PORT}" "${reset[@]}" >> "$DATA/simulator.log" 2>&1 < /dev/null &
     echo $! > "$DATA/sim.pid"
     disown
   fi

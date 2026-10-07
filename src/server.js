@@ -222,6 +222,12 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
       throw new HttpError(404, 'Not found');
     }
 
+    // --- Clear all seats' live state, keeping projects and allocations (admin) ---
+    if (method === 'POST' && url.pathname === '/api/seats/reset') {
+      requireAdmin(req, url);
+      return send(res, 200, engine.resetSeats());
+    }
+
     // --- Booking several seats for a project team under one name (admin) ---
     if (method === 'POST' && url.pathname === '/api/bookings') {
       requireAdmin(req, url);

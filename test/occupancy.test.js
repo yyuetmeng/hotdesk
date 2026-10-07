@@ -484,3 +484,28 @@ test('booking several seats for a team: all or nothing, held, exempt from the on
   assert.equal(engine.view(engine.getSeat('L1-A-01')).teamBooking, false);
   assert.ok(engine.activity.some((a) => a.type === 'book' && a.seatId === 'L1-A-01' && a.team === 'SAP'));
 });
+
+test('resetting seats clears live state but keeps projects and allocations', () => {
+  const { engine, clock } = setup();
+  engine.addProject({ name: 'Data Lake', color: '#123456' });
+  engine.allocateSeats('Data Lake', ['L1-A-01']);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-02', presence: true });
+  clock.advance(1);
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-02', presence: false }); // now away
+  engine.bookSeats(['L1-A-01'], 'ana', { team: 'SAP' });
+  engine.checkIn('L1-Q-01', 'bob', { team: 'SAP' });
+  assert.equal(engine.view(engine.getSeat('L1-A-02')).status, 'away');
+
+  assert.deepEqual(engine.resetSeats(), { cleared: 3 });
+  for (const id of ['L1-A-01', 'L1-A-02', 'L1-Q-01']) {
+    const v = engine.view(engine.getSeat(id));
+    assert.equal(v.status, 'available', id);
+    assert.equal(v.checkedInBy, null);
+    assert.equal(v.teamBooking, false);
+  }
+  assert.equal(engine.view(engine.getSeat('L1-A-01')).allocatedTo, 'Data Lake');
+  assert.ok(engine.projectTeams.includes('Data Lake'));
+  // A reading from the sensor after the reset counts again.
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-02', presence: true });
+  assert.equal(engine.view(engine.getSeat('L1-A-02')).status, 'occupied');
+});

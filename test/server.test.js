@@ -106,6 +106,13 @@ test('booking several seats for a team is admin-only', async () => {
   assert.equal((await post('/api/bookings', { ...body, user: '' }, admin)).status, 400);
 });
 
+test('clearing seats is admin-only', async () => {
+  assert.equal((await post('/api/seats/reset', {})).status, 401);
+  const res = await post('/api/seats/reset', {}, admin);
+  assert.equal(res.status, 200);
+  assert.equal(typeof (await res.json()).cleared, 'number');
+});
+
 test('serves dashboard and check-in pages; blocks traversal', async () => {
   assert.equal((await fetch(`${base}/`)).status, 200);
   assert.equal((await fetch(`${base}/checkin?seat=L1-A-01`)).status, 200);

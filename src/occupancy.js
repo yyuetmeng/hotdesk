@@ -508,6 +508,29 @@ export class OccupancyEngine extends EventEmitter {
     return ids.map((id) => this.view(this.seats.get(id), now));
   }
 
+  /**
+   * Clear every seat's live state (presence, away holds, check-ins and team bookings) so
+   * the floor starts empty, e.g. to restart a demo. Projects, seat allocations, sensor links,
+   * history and reports are kept. Readings from real sensors bring presence back at once.
+   */
+  resetSeats() {
+    const now = this.clock();
+    let cleared = 0;
+    for (const seat of this.seats.values()) {
+      if (seat.presence || seat.lastPresenceAt || seat.checkedInBy) cleared++;
+      seat.presence = false;
+      seat.lastPresenceAt = null;
+      seat.checkedInBy = null;
+      seat.checkedInAt = null;
+      seat.checkedInUntil = null;
+      seat.checkedInTeam = null;
+      seat.teamBooking = false;
+      this.lastStatus.set(seat.id, deriveStatus(seat, now, this.rules));
+      this.emit('change', this.view(seat, now));
+    }
+    return { cleared };
+  }
+
   checkOut(seatId, user, { team } = {}) {
     team = this.projectTeam(team);
     const seat = this.getSeat(seatId);

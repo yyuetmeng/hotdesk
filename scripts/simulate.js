@@ -3,14 +3,19 @@
 // team leads now and then book a few seats for their team; a few visitors sit without
 // checking in; two sensors break so their desks show offline.
 //
-// Usage: node scripts/simulate.js [baseUrl]
+// Usage: node scripts/simulate.js [baseUrl] [--reset]
+//   --reset  first clear every seat's live state (who sits where, check-ins, team bookings,
+//            away holds) on the server, keeping projects and seat allocations. Use only on a
+//            demo server: it also clears real people's check-ins.
 // Env:   SENSOR_API_KEY  the server's sensor key (needed if the server has one)
 //        ADMIN_TOKEN     the server's admin token (needed for team bookings if the server has one)
 //        SIM_INTERVAL_MS time between rounds (default 3000)
 import { readFileSync } from 'node:fs';
 import { expandLayout } from '../src/occupancy.js';
 
-const base = process.argv[2] ?? process.env.BASE_URL ?? 'http://localhost:3000';
+const args = process.argv.slice(2);
+const base = args.find((a) => !a.startsWith('--')) ?? process.env.BASE_URL ?? 'http://localhost:3000';
+const reset = args.includes('--reset');
 const interval = Number(process.env.SIM_INTERVAL_MS ?? 3000);
 const building = JSON.parse(readFileSync(new URL('../config/building.json', import.meta.url), 'utf8'));
 const seats = expandLayout(building);
@@ -181,6 +186,15 @@ try {
 } catch {
   console.error(`No Hot Desk server at ${base}. Start it first (npm start), or pass its address: npm run simulate -- http://host:port`);
   process.exit(1);
+}
+if (reset) {
+  const res = await fetch(`${base}/api/seats/reset`, { method: 'POST', headers: { ...headers, ...adminHeaders } });
+  if (res.status === 401) {
+    console.error('Clearing the seats needs the admin token: run with the same ADMIN_TOKEN as the server.');
+    process.exit(1);
+  }
+  if (!res.ok) { console.error('Could not clear the seats:', res.status, await res.text()); process.exit(1); }
+  console.log(`Cleared ${(await res.json()).cleared} seats (projects and seat allocations kept).`);
 }
 await syncTeams();
 setInterval(syncTeams, 60_000);
