@@ -37,6 +37,8 @@ const state = {
   floor: safeGet('hotdesk.floor') || '', status: '', team: '', project: '', mode: safeGet('hotdesk.mode') || 'project',
   // 'live' shows seat status; 'alloc' pre-allocates seats to projects.
   view: safeGet('hotdesk.view') === 'alloc' ? 'alloc' : 'live', allocProjects: [], activeProject: null,
+  // The project someone is booking for: its pre-allocated seats are highlighted on the plan.
+  bookingFor: safeGet('hotdesk.bookingFor') || '', allocAck: '',
   selected: null, flash: null,
 };
 const $ = (id) => document.getElementById(id);
@@ -309,6 +311,15 @@ function seatLook(s) {
     if (!t) return { cls: 'alloc-free', color: '' };
     return { cls: `alloc ${t.name === state.activeProject ? 'alloc-mine' : 'alloc-other'}`, color: projectColor(t) };
   }
+  const look = liveLook(s);
+  if (state.bookingFor && s.allocatedTo === state.bookingFor) {
+    const t = projectInfo(state.bookingFor);
+    return { ...look, cls: `${look.cls} prealloc`, pa: t ? projectColor(t) : 'var(--accent)' };
+  }
+  return look;
+}
+
+function liveLook(s) {
   const base = { cls: `st-${s.status}`, color: '' };
   if (state.mode === 'team') {
     const color = teamInfo(s.team)?.color;
@@ -335,11 +346,12 @@ function patchSeat(el, s = state.seats.get(el.dataset.seat)) {
   const look = seatLook(s);
   const sel = state.view === 'live' && state.selected === s.id;
   const dim = state.view === 'live' ? !matches(s) : !inFloor(s);
-  const sig = [look.cls, look.color, sel, dim].join('|');
+  const sig = [look.cls, look.color, look.pa, sel, dim].join('|');
   if (el.dataset.sig !== sig) {
     el.dataset.sig = sig;
     el.setAttribute('class', `seat ${look.cls}${sel ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`);
     if (look.color) el.style.setProperty('--c', look.color); else el.style.removeProperty('--c');
+    if (look.pa) el.style.setProperty('--pa', look.pa); else el.style.removeProperty('--pa');
     el.setAttribute('aria-pressed', String(sel));
     if (dim) el.setAttribute('aria-disabled', 'true'); else el.removeAttribute('aria-disabled');
   }
@@ -520,9 +532,15 @@ function renderPanel() {
   panel.classList.toggle('open', Boolean(s));
   if (!s) {
     const html = idlePanel();
-    if (panelKey === 'idle') panel.querySelector('.panel-empty').outerHTML = html;
-    else panel.innerHTML = html;
+    if (panelKey === 'idle') {
+      panel.querySelector('.panel-empty').outerHTML = html;
+      if (document.activeElement?.id !== 'bookFor') panel.querySelector('#bookFor').innerHTML = bookingOptions();
+    } else {
+      panel.innerHTML = `<div class="book-bar"><label for="bookFor">Booking for project</label>
+        <select id="bookFor">${bookingOptions()}</select><div class="book-sum" id="bookSum"></div></div>${html}`;
+    }
     panelKey = 'idle';
+    renderBookingSummary();
     return;
   }
   // The form only re-renders when what it does changes, so live updates never wipe typed input.
@@ -531,13 +549,90 @@ function renderPanel() {
   const details = panelDetails(s);
   if (key === panelKey && panel.querySelector('[data-details]')) {
     panel.querySelector('[data-details]').innerHTML = details;
+    updateAllocWarning();
     return;
   }
   panelKey = key;
   panel.innerHTML = `<div class="panel-inner"><div data-details>${details}</div>${s.checkedInBy ? manageForm(s) : checkinForm(s)}</div>`;
   const form = panel.querySelector('form');
   form?.addEventListener('submit', onPanelSubmit);
+  updateAllocWarning();
 }
+
+// ---------- Booking for a project: pre-allocated seats ----------
+const allocatedTo = (team) => [...state.seats.values()].filter((x) => x.allocatedTo === team);
+const freeOf = (list) => list.filter((x) => x.status === 'available' || x.status === 'offline');
+
+function bookingOptions() {
+  const teams = state.options?.projectTeams ?? [];
+  return `<option value="">Any project</option>` + teams.map((t) => {
+    const n = allocatedTo(t).length;
+    return `<option value="${esc(t)}"${t === state.bookingFor ? ' selected' : ''}>${esc(t)}${n ? ` (${n} pre-allocated)` : ''}</option>`;
+  }).join('');
+}
+
+function renderBookingSummary() {
+  const el = $('bookSum'); if (!el) return;
+  const team = state.bookingFor;
+  if (!team) { el.innerHTML = ''; return; }
+  const mine = allocatedTo(team), free = freeOf(mine);
+  const t = projectInfo(team);
+  el.innerHTML = mine.length
+    ? `<span class="book-sw" style="background:${t ? projectColor(t) : 'var(--accent)'}"></span><span><b>${mine.length}</b> seat${mine.length === 1 ? '' : 's'} pre-allocated to ${esc(team)} are highlighted · <b>${free.length}</b> free now</span>`
+    : `<span>${esc(team)} has no pre-allocated seats. Any free seat can be chosen.</span>`;
+}
+
+function setBookingFor(team) {
+  state.bookingFor = team; state.allocAck = '';
+  if (team) safeSet('hotdesk.bookingFor', team); else { try { localStorage.removeItem('hotdesk.bookingFor'); } catch {} }
+  patchAllSeats(); renderBookingSummary(); updateAllocWarning();
+}
+
+/**
+ * When the chosen seat is not one of the project's pre-allocated seats, say so and offer
+ * the project's free pre-allocated seats instead, or continuing with this seat anyway.
+ */
+function updateAllocWarning() {
+  const box = $('allocWarn'), form = box?.closest('form');
+  if (!box || !form) return;
+  const s = state.seats.get(state.selected), team = form.elements.team.value;
+  const submit = form.querySelector('button[type=submit]');
+  const mine = team ? allocatedTo(team) : [];
+  if (!s || !mine.length || s.allocatedTo === team) { box.hidden = true; box.innerHTML = ''; submit.disabled = false; return; }
+  box.hidden = false;
+  if (state.allocAck === `${s.id}|${team}`) {
+    box.className = 'alloc-warn ack';
+    box.innerHTML = `${ICON.info}<span>Continuing with ${esc(s.id)}, which is not pre-allocated to ${esc(team)}.</span>`;
+    submit.disabled = false;
+    return;
+  }
+  const free = freeOf(mine).filter((x) => x.id !== s.id);
+  box.className = 'alloc-warn';
+  box.innerHTML = `<div class="aw-head">${ICON.alert}<span><b>${esc(s.id)} is not pre-allocated to ${esc(team)}.</b>
+      ${s.allocatedTo ? `It is pre-allocated to ${esc(s.allocatedTo)}.` : 'It is not pre-allocated to any project.'}</span></div>
+    ${free.length
+      ? `<div class="aw-list"><span>${esc(team)}'s free pre-allocated seats:</span>${free.slice(0, 8).map((x) => `<button type="button" class="aw-seat" data-goto="${esc(x.id)}">${esc(x.id)}</button>`).join('')}${free.length > 8 ? `<span class="muted">+${free.length - 8} more</span>` : ''}</div>`
+      : `<div class="aw-list muted">All of ${esc(team)}'s pre-allocated seats are taken right now.</div>`}
+    <div class="aw-actions">
+      <button type="button" class="btn" data-aw="another">Choose another seat</button>
+      <button type="button" class="btn btn-primary" data-aw="continue">Continue with this seat</button>
+    </div>`;
+  submit.disabled = true;
+}
+
+$('panel').addEventListener('change', (e) => {
+  if (state.view !== 'live') return;
+  if (e.target.id === 'bookFor') setBookingFor(e.target.value);
+  else if (e.target.name === 'team' && e.target.closest('form[data-kind="checkin"]')) setBookingFor(e.target.value);
+});
+$('panel').addEventListener('click', (e) => {
+  if (state.view !== 'live') return;
+  const go = e.target.closest('[data-goto]'), aw = e.target.closest('[data-aw]');
+  if (go) { select(go.dataset.goto); return; }
+  if (!aw) return;
+  if (aw.dataset.aw === 'continue') { state.allocAck = `${state.selected}|${state.bookingFor}`; updateAllocWarning(); }
+  else { select(null); $('floorplan').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+});
 
 /** Shown while no seat is selected: what to do, and where seats are free right now. */
 function idlePanel() {
@@ -590,8 +685,9 @@ function checkinForm(s) {
   return `<form class="pform" data-kind="checkin" novalidate>
     <h3>Check in to this seat</h3>
     <p class="lead">${lead}</p>
+    <div class="alloc-warn" id="allocWarn" role="alert" hidden></div>
     <label>Name or employee ID<input name="user" autocomplete="off" maxlength="100" required></label>
-    <label>Project team<select name="team" required>${teamOptions('')}</select></label>
+    <label>Project team<select name="team" required>${teamOptions(state.bookingFor)}</select></label>
     <label>Duration<select name="minutes">${durationOptions()}</select></label>
     <div class="form-msg" role="alert"></div>
     <button type="submit" class="btn btn-primary btn-block" value="checkin">Check in to this seat</button>
@@ -1044,6 +1140,7 @@ function connect() {
   es.addEventListener('projects', (e) => {
     if (!allocSaving) setAllocProjects(JSON.parse(e.data));
     loadProjects();
+    loadOptions();
   });
   es.onerror = () => { liveOn = false; renderLive('Reconnecting…'); };
 }
@@ -1052,6 +1149,16 @@ function renderLoading() {
   $('kpis').innerHTML = Array.from({ length: 5 }, () =>
     '<div class="card kpi loading" aria-hidden="true"><div class="icon"></div><div class="label">Loading</div><div class="value">00</div><div class="sub">loading seats</div></div>').join('');
   renderPanel();
+}
+
+/** Check-in choices (durations, project list); refreshed when projects change. */
+function loadOptions() {
+  return fetch('/api/checkin-options').then((r) => r.json()).then((o) => {
+    state.options = o;
+    if (state.bookingFor && !o.projectTeams.includes(state.bookingFor)) setBookingFor('');
+    if (!state.selected) panelKey = '';
+    renderPanel();
+  }).catch(() => {});
 }
 
 async function start() {
@@ -1063,7 +1170,7 @@ async function start() {
     $('requestersCsv').href = withToken('/api/requesters.csv');
     // An older server has no /api/floorplan: say so rather than quietly drawing bare floors.
     state.plans = new Map((await api('/api/floorplan').catch(() => { state.planError = true; return []; })).map((f) => [f.id, f.plan]));
-    fetch('/api/checkin-options').then((r) => r.json()).then((o) => { state.options = o; panelKey = ''; renderPanel(); }).catch(() => {});
+    loadOptions();
     loadProjects();
     connect();
     renderFeed();

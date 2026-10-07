@@ -187,8 +187,21 @@ projects:
 - A seat belongs to at most one project. Seats allocated to another project can't be taken until they are
   removed from that project.
 
-Allocations are saved with the app's state (`data/state.json`). Each seat's view carries `allocatedTo`, for
-features built on pre-booking. Allocating a seat does not yet change its live status or who may check in.
+Allocations are saved with the app's state (`data/state.json`), and each seat's view carries `allocatedTo`.
+
+**Booking against allocations.** Pre-allocation guides people to their project's seats but doesn't block other
+seats:
+
+- **Dashboard:** choose the project under **Booking for project** in the side panel. Its pre-allocated seats are
+  highlighted on the plan in the project's colour, with how many are free. Selecting a seat starts its check-in
+  form with that project. If the seat isn't one of the project's, the panel says so, lists the project's free
+  pre-allocated seats (click one to switch), and offers **Choose another seat** or **Continue with this seat**.
+  Check-in is held until one of them is chosen. Changing the project in the form updates the highlight and the
+  warning.
+- **QR check-in page:** a desk shows which project it's pre-allocated to. If someone checks in for a project that
+  has pre-allocated desks elsewhere, the first tap warns them and lists that project's free pre-allocated desks.
+  They can go to one of those, or tap **Check in here anyway**.
+- A project with no pre-allocated seats never gets a warning.
 
 Admin API (token required):
 

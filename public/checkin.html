@@ -35,6 +35,8 @@
   button.primary { background: var(--text); color: var(--card); border-color: var(--text); }
   #msg { margin-top: 12px; font-size: 14px; min-height: 1.5em; }
   #msg.err { color: var(--danger); }
+  #msg.warn { color: var(--text); background: rgb(242 176 30 / 0.14); border: 1px solid rgb(242 176 30 / 0.55); border-radius: 8px; padding: 10px 12px; }
+  #msg.warn b { display: block; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -71,9 +73,9 @@ function render(s) {
   $('where').textContent = `${[s.floorName, s.zoneName, s.teamName].filter(Boolean).join(' · ')}`;
   $('status').textContent = LABEL[s.status] + (s.checkedInUntil ? ` · checked in until ${fmtTime(s.checkedInUntil)}` : '');
   $('dot').style.background = `var(--${s.status})`;
-  $('hint').textContent = s.hasSensor
+  $('hint').textContent = (s.allocatedTo ? `Pre-allocated to ${s.allocatedTo}. ` : '') + (s.hasSensor
     ? 'This desk has a presence sensor: it frees itself automatically once you have been away for a while.'
-    : 'This desk has no sensor: please tap "I\'m leaving" when you go.';
+    : 'This desk has no sensor: please tap "I\'m leaving" when you go.');
 }
 
 async function loadDurations() {
@@ -94,6 +96,19 @@ async function call(path, body) {
   return data;
 }
 
+// A desk that isn't pre-allocated to the person's project gets one warning first: they can
+// go to one of the project's free pre-allocated desks, or tap again to check in here anyway.
+let confirmedTeam = '';
+const IN_LABEL = 'Check in';
+async function allocationWarning(team) {
+  const seats = await call('/api/availability');
+  const here = seats.find((x) => x.id === seatId);
+  const mine = seats.filter((x) => x.allocatedTo === team);
+  if (!here || !mine.length || here.allocatedTo === team) return null;
+  return { here, free: mine.filter((x) => x.status === 'available' || x.status === 'offline') };
+}
+$('team').addEventListener('change', () => { confirmedTeam = ''; $('in').textContent = IN_LABEL; $('msg').textContent = ''; $('msg').className = ''; });
+
 async function act(kind) {
   const user = $('user').value.trim();
   $('msg').className = '';
@@ -101,10 +116,26 @@ async function act(kind) {
   if (!user) { $('msg').className = 'err'; $('msg').textContent = 'Enter your name first.'; $('user').focus(); return; }
   if (!projectTeam) { $('msg').className = 'err'; $('msg').textContent = 'Choose your project team.'; $('team').focus(); return; }
   try { localStorage.setItem('hotdesk.user', user); localStorage.setItem('hotdesk.team', projectTeam); } catch {}
+  if (kind === 'checkin' && confirmedTeam !== projectTeam) {
+    const w = await allocationWarning(projectTeam).catch(() => null);
+    if (w) {
+      confirmedTeam = projectTeam;
+      const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+      $('msg').className = 'warn';
+      $('msg').innerHTML = `<b>This desk is not pre-allocated to ${esc(projectTeam)}.</b>`
+        + (w.here.allocatedTo ? `It is pre-allocated to ${esc(w.here.allocatedTo)}. ` : '')
+        + (w.free.length
+          ? `Free desks pre-allocated to ${esc(projectTeam)}: ${w.free.slice(0, 10).map((x) => esc(x.id)).join(', ')}${w.free.length > 10 ? ' …' : ''}. Go to one of those, or check in here anyway.`
+          : `All of ${esc(projectTeam)}'s pre-allocated desks are taken right now. You can check in here anyway.`);
+      $('in').textContent = 'Check in here anyway';
+      return;
+    }
+  }
   try {
     const body = kind === 'checkin' ? { user, projectTeam, minutes: Number($('duration').value) } : { user, projectTeam };
     const seat = await call(`/api/seats/${encodeURIComponent(seatId)}/${kind}`, body);
     render(seat);
+    $('in').textContent = IN_LABEL;
     $('msg').textContent = kind === 'checkin'
       ? `You are checked in (${projectTeam}) until ${fmtTime(seat.checkedInUntil)}. Scan again before then to extend.`
       : 'Thanks — the desk is free for others.';
