@@ -208,7 +208,23 @@ function clearFilters() { state.status = ''; state.project = ''; state.team = ''
 $('clearFilters').addEventListener('click', clearFilters);
 $('noMatch').querySelector('[data-clear]').addEventListener('click', clearFilters);
 // Team colours have separate light and dark steps: redraw when the theme changes.
-matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { renderLegend(); patchAllSeats(); renderProjects(); });
+const redrawColours = () => { renderLegend(); patchAllSeats(); renderProjects(); renderChart(); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', redrawColours);
+
+// ---------- Theme toggle: match system (default), light or dark; remembered per browser ----------
+function applyTheme(choice) {
+  if (choice === 'light' || choice === 'dark') document.documentElement.dataset.theme = choice;
+  else delete document.documentElement.dataset.theme;
+  for (const b of $('themeToggle').children) b.setAttribute('aria-pressed', String(b.dataset.themeChoice === (choice || 'system')));
+}
+applyTheme(safeGet('hotdesk.theme'));
+$('themeToggle').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const choice = b.dataset.themeChoice;
+  if (choice === 'system') { try { localStorage.removeItem('hotdesk.theme'); } catch {} } else safeSet('hotdesk.theme', choice);
+  applyTheme(choice);
+  redrawColours();
+});
 
 // ---------- Project team colours ----------
 const rootStyle = () => getComputedStyle(document.documentElement);

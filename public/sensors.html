@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Desk Sensors</title>
+<script>
+  // Apply the theme chosen on the dashboard before the page paints (no flash). No choice: follow the system.
+  try { const t = localStorage.getItem('hotdesk.theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}
+</script>
 <style>
   :root {
     color-scheme: light;
