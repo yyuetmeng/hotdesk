@@ -70,8 +70,8 @@ function renderCapChart() {
   // Join the forecast to the last actual point so the line is continuous.
   const fcLine = hist.length ? [{ ...hist.at(-1), mean: hist.at(-1).actual }, ...fc] : fc;
   const band = fc.length ? `M${fc.map((p) => `${x(p.i).toFixed(1)},${y(p.p90).toFixed(1)}`).join('L')}L${[...fc].reverse().map((p) => `${x(p.i).toFixed(1)},${y(p.p10).toFixed(1)}`).join('L')}Z` : '';
-  const step = Math.max(5, Math.ceil((yMax - yMin) / 5 / 5) * 5);
-  const ticks = yMin ? Array.from({ length: 8 }, (_, i) => yMin + step * i).filter((v) => v <= yMax) : [0, 0.25, 0.5, 0.75, 1, 1.25].map((f) => Math.round(seats * f)).filter((v) => v <= yMax);
+  const yStep = Math.max(5, Math.ceil((yMax - yMin) / 5 / 5) * 5);
+  const ticks = yMin ? Array.from({ length: 8 }, (_, i) => yMin + yStep * i).filter((v) => v <= yMax) : [0, 0.25, 0.5, 0.75, 1, 1.25].map((f) => Math.round(seats * f)).filter((v) => v <= yMax);
   const step = Math.max(1, Math.ceil(points.length / Math.floor((W - 60) / 70)));
   const xl = idx.filter((p, i) => i % step === 0).map((p) => `<text x="${x(p.i)}" y="${H - 8}" text-anchor="middle">${esc(shortDate(p.week ?? p.date))}</text>`).join('');
   const hols = idx.filter((p) => p.holiday && capMode === 'day').map((p) => `<text class="hol" x="${x(p.i)}" y="${y((p.actual ?? p.mean) || 0) - 6}" text-anchor="middle">${esc(p.holiday.split(' ')[0])}</text>`).join('');
