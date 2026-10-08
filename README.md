@@ -339,6 +339,28 @@ Because it shows names, it needs a key: set `DISPLAY_KEY` and open `/display?key
 only the display, nothing else. The admin token also works (the dashboard's **Floor display** link uses it); with
 neither set (as in `npm run demo`), it is open like the dashboard.
 
+## Insights: capacity and demand planning (simulated)
+
+`/insights` (admin; **Insights** in the dashboard sidebar) is a planning board built entirely on **simulated data**.
+It is labelled as such everywhere and is **not linked to the live system**: it reads only the building layout (zones,
+seat counts, project names) and generates its own 16-week history, so live check-ins, sensors, projects and seat
+allocations never change it (`src/insights.js`, served by `GET /api/insights`).
+
+- **Capacity outlook** (the headline): weekly or daily peak seat demand, the last 8 weeks and a 12-week forecast with
+  its likely range (P10–P90), against the seats and a 90% comfort line; cards for when capacity is reached, the seats
+  needed to stay under 90%, the peak forecast, utilisation and the forecast's measured accuracy.
+- **Project demand vs pre-allocated seats:** seats each project needs on its busiest day (P80) against a simulated
+  pre-allocation, with the gap.
+- **What-if planner:** change the seats, the headcount and the threshold, and see busy days over the threshold, people
+  without a seat, and the seats needed.
+- **Next 7 days hour by hour**, a **typical week** heatmap, **utilisation by zone** and **recommendations**.
+- Every view can be narrowed to a floor or a zone (project demand is office-wide).
+
+The simulation has team sizes that grow over time, weekday patterns per project, Singapore public and school holidays,
+noise and occasional all-hands days. The forecast is a weekday pattern times a linear trend with holiday effects; its
+accuracy is checked by forecasting the last 4 weeks from the weeks before (shown on the page). The data is regenerated
+each day from a fixed seed. **How the simulation and forecasts work** at the bottom of the page explains it in full.
+
 ## Desk labels (QR codes)
 
 Each desk gets a printable label with a QR code that opens its check-in page, plus the desk ID and location.

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Insights · Capacity &amp; Demand (Simulated)</title>
+<script>
+  // Same theme choice as the dashboard (before the page paints).
+  try { const t = localStorage.getItem('hotdesk.theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}
+</script>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .in-top { background: var(--sidebar); color: #fff; }
+  .in-top-in { max-width: 1440px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .in-top .brand { padding: 0; }
+  .in-top a { color: var(--sidebar-text); text-decoration: none; font-size: 13px; font-weight: 500; }
+  .in-top a:hover { color: #fff; }
+  .sim-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font: 700 11px var(--font); letter-spacing: 0.06em;
+    text-transform: uppercase; background: #f2b01e; color: #3a2600; }
+  .in-main { max-width: 1440px; margin: 0 auto; padding: 20px 24px 48px; display: grid; gap: 18px; }
+  .sim-banner { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 12px; font-size: 13px; color: var(--text-primary);
+    background: color-mix(in srgb, var(--seat-away) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--seat-away) 60%, var(--border)); }
+  .sim-banner svg { color: var(--seat-away-ink); flex: none; margin-top: 1px; }
+  .sim-banner b { display: block; font-size: 14px; }
+  .in-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .in-head h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
+  .in-head p { margin: 4px 0 0; color: var(--text-secondary); }
+  .in-head label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .in-head select { min-width: 240px; font-size: 14px; padding: 8px 30px 8px 12px; }
+  .in-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+  .in-kpis .kpi .value { font-size: 26px; }
+  .in-kpis .kpi.hl { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 18px; }
+  .grid2b { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .chart { position: relative; width: 100%; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart text { font: 11px var(--font); fill: var(--text-muted); }
+  .chart .lbl { fill: var(--text-secondary); font-weight: 600; }
+  .grid-line { stroke: var(--grid); }
+  .cap-line { stroke: var(--text-secondary); stroke-width: 1.5; }
+  .thr-line { stroke: var(--seat-away); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  .today-line { stroke: var(--text-muted); stroke-width: 1; }
+  .act-line { fill: none; stroke: var(--line); stroke-width: 2; stroke-linejoin: round; }
+  .fc-line { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 6 4; stroke-linejoin: round; }
+  .fc-band { fill: var(--line); opacity: 0.14; }
+  .hol { fill: var(--text-muted); font-size: 10px; }
+  .legend { display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
+  .legend i { display: inline-block; width: 18px; height: 0; vertical-align: middle; margin-right: 6px; border-top: 2px solid var(--line); }
+  .legend i.dash { border-top-style: dashed; }
+  .legend i.band { height: 10px; border: 0; background: color-mix(in srgb, var(--line) 18%, transparent); }
+  .legend i.cap { border-color: var(--text-secondary); }
+  .legend i.thr { border-color: var(--seat-away); border-top-style: dashed; }
+  .tipbox { position: fixed; z-index: 50; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-md);
+    padding: 8px 10px; font-size: 12px; color: var(--text-secondary); display: none; min-width: 150px; }
+  .tipbox b { display: block; color: var(--text-primary); margin-bottom: 2px; }
+  /* Project demand: bar = seats needed (P80), tick = seats pre-allocated. */
+  .dem { display: grid; gap: 10px; }
+  .dem-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 150px; gap: 12px; align-items: center; font-size: 13px; }
+  .dem-name { font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 7px; }
+  .dem-name i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+  .dem-track { position: relative; height: 14px; background: var(--grid); border-radius: 4px; }
+  .dem-bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--line); border-radius: 0 4px 4px 0; }
+  .dem-alloc { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1.5px; background: var(--text-primary); border-radius: 2px; box-shadow: 0 0 0 2px var(--surface); }
+  .dem-txt { color: var(--text-secondary); white-space: nowrap; }
+  .dem-txt b { color: var(--text-primary); }
+  .gap-add { color: #c2410c; font-weight: 600; } .gap-free { color: var(--seat-available); font-weight: 600; }
+  /* What-if planner */
+  .wi { display: grid; gap: 14px; }
+  .wi label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  .wi label span { display: flex; justify-content: space-between; }
+  .wi label b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .wi input[type=range] { width: 100%; accent-color: var(--accent); }
+  .wi-out { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .wi-out div { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+  .wi-out b { display: block; font-size: 22px; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .wi-note { font-size: 12px; color: var(--text-muted); margin: 0; }
+  .heat { width: 100%; border-collapse: separate; border-spacing: 2px; font-size: 11px; }
+  .heat th { font-weight: 600; color: var(--text-muted); text-transform: none; letter-spacing: 0; padding: 2px; border: 0; }
+  .heat td { padding: 0; border: 0; height: 30px; border-radius: 4px; text-align: center; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .heat-scale { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+  .heat-scale i { width: 120px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, color-mix(in srgb, var(--line) 6%, var(--surface)), var(--line)); }
+  .recs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .recs li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+  .recs .lv { flex: none; font: 700 10px var(--font); text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 999px; margin-top: 1px; }
+  .lv-high { background: color-mix(in srgb, #e34948 18%, var(--surface)); color: var(--text-primary); }
+  .lv-medium { background: color-mix(in srgb, var(--seat-away) 22%, var(--surface)); color: var(--text-primary); }
+  .lv-low { background: var(--grid); color: var(--text-secondary); }
+  .method { font-size: 13px; color: var(--text-secondary); }
+  .method summary { cursor: pointer; font-weight: 600; color: var(--text-primary); }
+  .method ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+  .in-err { padding: 40px; text-align: center; }
+  @media (max-width: 1200px) { .in-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .grid2, .grid2b { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 700px) { .in-kpis { grid-template-columns: minmax(0, 1fr); } .in-main { padding: 14px 12px 40px; } .dem-row { grid-template-columns: 90px minmax(0, 1fr); } .dem-txt { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<header class="in-top">
+  <div class="in-top-in">
+    <div class="brand"><img src="/static/logo.png" alt="">Hot Desk · Insights</div>
+    <span class="sim-pill" title="Every figure on this page is simulated"><svg class="i" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.5v.01"/></svg>Simulated data</span>
+    <span class="spacer"></span>
+    <a id="back" href="/">← Back to the live dashboard</a>
+  </div>
+</header>
+
+<main class="in-main" id="main">
+  <div class="sim-banner" role="note">
+    <svg class="i" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.5v.01"/></svg>
+    <span><b>Simulated data — not actual usage</b><span id="simNote">Every figure here comes from a generated history used to demonstrate capacity and demand planning. It is not linked to live check-ins, sensors, projects or seat allocations.</span></span>
+  </div>
+
+  <div class="in-head">
+    <div style="flex:1;min-width:280px">
+      <h1>Capacity &amp; demand planning</h1>
+      <p id="period">Forecasts of peak seat demand, project demand and utilisation.</p>
+    </div>
+    <label>Area<select id="scope"></select></label>
+  </div>
+
+  <section class="in-kpis" id="kpis" aria-label="Key figures"></section>
+
+  <section class="card">
+    <div class="card-head">
+      <div><h2>Capacity outlook</h2><p class="sub" id="capSub">Peak seat demand per day: history and forecast against capacity.</p></div>
+      <div class="seg seg-sm" id="capMode" role="group" aria-label="Detail"><button type="button" data-mode="week" aria-pressed="true">Weekly peak</button><button type="button" data-mode="day" aria-pressed="false">Daily peak</button></div>
+    </div>
+    <div class="chart" id="capChart"></div>
+    <div class="legend"><span><i></i>Actual (simulated)</span><span><i class="dash"></i>Forecast</span><span><i class="band"></i>Likely range (P10–P90)</span><span><i class="cap"></i>Seats</span><span><i class="thr"></i><span id="thrLbl">90% of seats</span></span></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <div class="card-head"><div><h2>Project demand vs pre-allocated seats</h2><p class="sub">Seats each project needs on its busiest day over the next 4 weeks (P80: enough 4 days in 5), against its pre-allocation. Whole office.</p></div></div>
+      <div class="dem" id="demand"></div>
+      <div class="legend"><span><i style="border:0;height:10px;background:var(--line);border-radius:2px"></i>Seats needed (P80)</span><span><i style="border:0;width:3px;height:14px;background:var(--text-primary)"></i>Pre-allocated (simulated)</span></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><div><h2>What-if capacity planner</h2><p class="sub">Change the seats or the headcount and see the next 12 weeks.</p></div></div>
+      <div class="wi" id="whatif"></div>
+    </section>
+  </div>
+
+  <div class="grid2b">
+    <section class="card">
+      <div class="card-head"><div><h2>Next 7 days, hour by hour</h2><p class="sub">Forecast seat demand from 8:00 to 19:00 on working days.</p></div></div>
+      <div class="chart" id="hourChart"></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><div><h2>Typical week</h2><p class="sub">Average share of seats in use, last 8 weeks.</p></div></div>
+      <div id="heat"></div>
+    </section>
+  </div>
+
+  <div class="grid2b">
+    <section class="card">
+      <div class="card-head"><div><h2>Utilisation by zone</h2><p class="sub">Seat-hours used out of seat-hours available (8:00–20:00, working days).</p></div></div>
+      <div class="chart" id="utilChart"></div>
+      <div class="legend"><span><i style="border:0;height:10px;background:color-mix(in srgb, var(--line) 40%, var(--surface));border-radius:2px"></i>Last 4 weeks</span><span><i style="border:0;height:10px;background:var(--line);border-radius:2px"></i>Forecast, next 4 weeks</span></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><div><h2>Recommendations</h2><p class="sub">From the simulated forecasts.</p></div></div>
+      <ul class="recs" id="recs"></ul>
+    </section>
+  </div>
+
+  <section class="card method">
+    <details>
+      <summary>How the simulation and forecasts work</summary>
+      <ul id="methodList"></ul>
+    </details>
+  </section>
+</main>
+<div class="tipbox" id="tip"></div>
+<script src="/static/insights.js"></script>
+</body>
+</html>

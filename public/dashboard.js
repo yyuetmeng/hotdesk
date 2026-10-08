@@ -1491,6 +1491,7 @@ async function start() {
     await api('/api/summary'); // triggers the token prompt before opening the stream
     $('labelsLink').href = withToken('/labels');
     $('displayLink').href = withToken('/display');
+    $('insightsLink').href = withToken('/insights');
     $('sensorsLink').href = withToken('/sensors');
     $('requestersCsv').href = withToken('/api/requesters.csv');
     // An older server has no /api/floorplan: say so rather than quietly drawing bare floors.

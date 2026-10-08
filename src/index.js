@@ -46,6 +46,7 @@ const server = createApp({
   buildingName: building.name,
   floorPlans: building.floors.map((f) => ({ id: f.id, plan: f.plan ?? null })),
   demo: env.DEMO_MODE === '1',
+  building,
   teamBookingMaxSeats: num(env.TEAM_BOOKING_MAX_SEATS),
 });
 

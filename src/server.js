@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { ConflictError, NotFoundError, ValidationError } from './occupancy.js';
+import { buildInsights } from './insights.js';
 import { renderLabelsPage } from './labels.js';
 import { parseChirpstack, parseTtn } from './integrations.js';
 
@@ -73,10 +74,11 @@ function publicView(v) {
  * @param {string} [opts.buildingName]
  * @param {{id: string, plan: object|null}[]} [opts.floorPlans]  drawing data per floor for the dashboard (building.json `plan`)
  * @param {string} [opts.displayKey]    opens the floor display (/display?key=…), which shows who sits where; the admin token works too
+ * @param {object} [opts.building]     the building layout, for the simulated Insights (never the live data)
  * @param {number} [opts.teamBookingMaxSeats]  most seats an employee can book for their team on /book (admins: 100)
  * @param {boolean} [opts.demo]          demo mode (DEMO_MODE=1, set by `npm run demo`): /book fills in sample names
  */
-export function createApp({ engine, publicDir, sensorApiKey, adminToken, displayKey, publicUrl, buildingName = 'Desk labels', floorPlans = [], demo = false, teamBookingMaxSeats = 10 }) {
+export function createApp({ engine, publicDir, sensorApiKey, adminToken, displayKey, publicUrl, buildingName = 'Desk labels', floorPlans = [], demo = false, teamBookingMaxSeats = 10, building = null }) {
   const streams = new Set();
 
   engine.on('change', (seat) => {
@@ -102,6 +104,8 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
     if (displayKey && key && safeEqual(key, displayKey)) return;
     try { requireAdmin(req, url); } catch { throw new HttpError(401, 'Display key required'); }
   };
+
+  let insightsCache = null;
 
   const requireSensorKey = (req) => {
     if (!sensorApiKey) return;
@@ -146,6 +150,15 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
     if (method === 'GET' && url.pathname === '/checkin') return serveStatic(res, 'checkin.html');
     if (method === 'GET' && url.pathname === '/book') return serveStatic(res, 'book.html');
     if (method === 'GET' && url.pathname === '/display') return serveStatic(res, 'display.html');
+    if (method === 'GET' && url.pathname === '/insights') return serveStatic(res, 'insights.html');
+    // Simulated planning data (admin): built from the layout only, once a day, never from live check-ins.
+    if (method === 'GET' && url.pathname === '/api/insights') {
+      requireAdmin(req, url);
+      if (!building) throw new HttpError(404, 'Insights are not available');
+      const day = new Date().toDateString();
+      if (insightsCache?.day !== day) insightsCache = { day, data: buildInsights(building) };
+      return send(res, 200, insightsCache.data);
+    }
     if (method === 'GET' && url.pathname === '/api/display/people') {
       requireDisplay(req, url);
       return send(res, 200, { building: buildingName, at: Date.now(), awayGraceMinutes: engine.rules.awayGraceMinutes, people: engine.peopleIn() });
