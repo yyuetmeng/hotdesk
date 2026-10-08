@@ -271,7 +271,7 @@ async function refresh() {
   state.seats = new Map(list.map((s) => [s.id, s]));
   state.people = people.people;
   state.awayGrace = people.awayGraceMinutes;
-  $('bname').textContent = people.building ? `· ${people.building}` : '';
+  $('bname').textContent = people.building ?? '';
   if (state.selected && !state.people.some((p) => personKey(p) === state.selected)) { state.selected = null; renderSelection(); }
   // The clock already shows the time: the pill only appears while the server can't be reached.
   $('live').hidden = true;

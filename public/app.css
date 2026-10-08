@@ -117,6 +117,17 @@ button, select, input { font: inherit; color: inherit; }
 }
 .brand { display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 650; font-size: 15px; padding: 2px 8px 18px; letter-spacing: -0.01em; }
 .brand img { width: 32px; height: 32px; border-radius: 8px; flex: none; }
+/* The app's logo lockup on every page: the icon, "Hot Desk", and which page this is underneath. */
+.lockup { display: flex; align-items: center; gap: 12px; color: #fff; min-width: 0; }
+.lockup img { --s: 40px; width: var(--s); height: var(--s); border-radius: calc(var(--s) * 0.27); flex: none;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.14), 0 6px 18px rgb(0 0 0 / 0.35); }
+.lockup .wm { display: grid; line-height: 1.1; min-width: 0; }
+.lockup .wm b { font-size: 18px; font-weight: 750; letter-spacing: -0.02em; white-space: nowrap; }
+.lockup .wm small { font-size: 11px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--sidebar-text);
+  margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lockup .wm small:empty { display: none; }
+.sidebar .lockup { padding: 6px 8px 22px; margin-bottom: 14px; border-bottom: 1px solid rgb(255 255 255 / 0.08); }
+.sidebar .lockup .wm b { font-size: 20px; }
 .nav-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: rgb(199 210 229 / 0.55); padding: 14px 10px 6px; }
 .nav a {
   display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: inherit; text-decoration: none;
@@ -584,6 +595,10 @@ td.num, th.num { text-align: right; }
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: sticky; top: 0; z-index: 20; height: auto; flex-direction: row; align-items: center; padding: 10px 12px; gap: 6px; overflow-x: auto; }
   .brand { padding: 0 8px 0 0; white-space: nowrap; }
+  .sidebar .lockup { padding: 0 8px 0 0; margin: 0; border: 0; gap: 9px; flex: none; }
+  .sidebar .lockup img { --s: 32px !important; }
+  .sidebar .lockup .wm b { font-size: 16px; }
+  .sidebar .lockup .wm small { display: none; }
   .nav-label { display: none; }
   .nav { display: flex; gap: 2px; }
   .nav a { white-space: nowrap; padding: 7px 10px; }

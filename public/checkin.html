@@ -16,8 +16,12 @@
 <style>
   body { font-size: 15px; }
   main { max-width: 440px; margin: 0 auto; padding: 20px 16px 32px; display: grid; gap: 14px; }
-  .brandbar { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; }
-  .brandbar img { width: 28px; height: 28px; border-radius: 7px; }
+  /* The logo, centred above the desk card. */
+  .brandbar { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px 0 2px; }
+  .brandbar img { width: 64px; height: 64px; border-radius: 17px; box-shadow: 0 8px 22px rgb(16 32 80 / 0.18); }
+  .brandbar .wm { display: grid; justify-items: center; line-height: 1.15; }
+  .brandbar .wm b { font-size: 20px; font-weight: 750; letter-spacing: -0.02em; }
+  .brandbar .wm small { font-size: 11px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-muted); }
   .card h1 { font-size: 22px; margin: 0; letter-spacing: -0.02em; }
   .where { color: var(--text-secondary); font-size: 14px; margin-top: 2px; }
   .pill { font-size: 12px; margin: 12px 0 4px; }
@@ -46,7 +50,7 @@
 </head>
 <body>
 <main>
-  <div class="brandbar"><img src="/static/logo.png" alt="">Hot Desk</div>
+  <div class="brandbar"><img src="/static/logo.png" alt=""><span class="wm"><b>Hot Desk</b><small>Desk check-in</small></span></div>
 
   <!-- No desk in the link: type the desk ID printed on the label (a fallback when a QR code won't scan). -->
   <section class="card" id="pick" hidden>
