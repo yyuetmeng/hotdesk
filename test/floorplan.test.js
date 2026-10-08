@@ -62,3 +62,33 @@ test('a floor without a plan gets its zones inside a generic office shell', () =
   const svg = FloorPlan.floorSVG(fl);
   assert.equal((svg.match(/class="seat"/g) ?? []).length, zone('L2', 'GO').length);
 });
+
+test('floor plans: stairs on both floors, Level 2 toilets in a corner cut out of the office zone', () => {
+  const draw = (id) => {
+    const floor = building.floors.find((f) => f.id === id);
+    const fl = FloorPlan.layoutFloor(floor, seats, floor.plan);
+    return { floor, fl, svg: FloorPlan.floorSVG(fl) };
+  };
+  const l1 = draw('L1');
+  assert.equal((l1.svg.match(/class="seat"/g) ?? []).length, 82);
+  assert.match(l1.svg, /fp-room-stairs/);
+  assert.doesNotMatch(l1.svg, /fp-room-wc|fp-room-pantry|fp-room-lift/);
+  // The stairs sit between the Discussion Area and the AI Lab.
+  const stairs = l1.floor.plan.rooms.find((r) => r.kind === 'stairs');
+  const box = (id) => l1.fl.zones.find((z) => z.id === id).box;
+  assert.ok(stairs.x >= box('DA').x + box('DA').w && stairs.x + stairs.w <= box('AI').x);
+
+  const l2 = draw('L2');
+  assert.equal(l2.fl.plan.generic, undefined);
+  assert.equal((l2.svg.match(/class="seat"/g) ?? []).length, 43);
+  assert.equal((l2.svg.match(/fp-room-wc/g) ?? []).length, 2);
+  assert.match(l2.svg, /fp-room-stairs/);
+  assert.match(l2.svg, /<path class="fp-zone-area" d="M/); // L-shaped zone
+  // No desk or chair lies inside the cut-out where the toilets are.
+  const go = l2.fl.zones[0], cut = go.box.cut;
+  for (const p of go.layout.seats) {
+    const x = p.x + go.ox, y = p.y + go.oy;
+    const inside = x + FloorPlan.CHAIR > cut.x && x < cut.x + cut.w && y + FloorPlan.CHAIR > cut.y && y < cut.y + cut.h;
+    assert.ok(!inside, `${p.id} outside the toilets`);
+  }
+});

@@ -211,6 +211,8 @@ const FloorPlan = (() => {
       const box = hasPlan ? plan.zones?.[z.id] : null;
       if (box) {
         z.box = { x: box.x, y: box.y, w: Math.max(box.w, z.need.w), h: Math.max(box.h, z.need.h) };
+        // A cut-out corner (e.g. a room in an empty corner of the zone) makes the zone L-shaped.
+        if (box.cut) z.box.cut = { ...box.cut };
       } else {
         z.box = { x: cursor, y: stripY, w: z.need.w, h: z.need.h };
         cursor += z.need.w + 6;
@@ -364,6 +366,21 @@ const FloorPlan = (() => {
           ${icon('cup', cx, r1(r.y + 5.3), 0.75)}
           ${label(r.label ?? 'Pantry', r1(r.y + 9.8))}`;
       }
+      case 'stairs': {
+        // A staircase from above: treads across the flight, an arrow up it and a label on the landing.
+        const vertical = r.h >= r.w, landing = 4.2, step = 1.3;
+        const len = (vertical ? r.h : r.w) - landing, n = Math.floor(len / step);
+        const treads = Array.from({ length: n - 1 }, (_, i) => {
+          const t = r1((vertical ? r.y : r.x) + landing + step * (i + 1));
+          return vertical ? `M${r.x} ${t}H${r1(r.x + r.w)}` : `M${t} ${r.y}V${r1(r.y + r.h)}`;
+        }).join('');
+        const arrow = vertical
+          ? `M${cx} ${r1(r.y + r.h - 1.2)}V${r1(r.y + landing + 1)}m-0.9 1.2l0.9-1.2 0.9 1.2`
+          : `M${r1(r.x + r.w - 1.2)} ${cy}H${r1(r.x + landing + 1)}m1.2-0.9l-1.2 0.9 1.2 0.9`;
+        return `${base('fp-room-stairs')}<path class="fp-stair-treads" d="${treads}"/>
+          <path class="fp-stair-arrow" d="${arrow}"/>
+          <text class="fp-room-label" x="${vertical ? cx : r1(r.x + landing / 2)}" y="${vertical ? r1(r.y + 2.7) : r1(cy + 0.5)}">${esc(r.label ?? 'Stairs')}</text>`;
+      }
       case 'toilet-m': case 'toilet-f':
         return `${base('fp-room-wc')}${icon(r.kind === 'toilet-m' ? 'man' : 'woman', cx, r1(cy + 0.1), 1.25)}`;
       case 'lift': {
@@ -435,11 +452,26 @@ const FloorPlan = (() => {
   }
 
   /** The whole floor as one SVG string. Size is set by the caller (see dashboard.js). */
+  /** The zone's area: a rounded rectangle, or an L-shape when a corner is cut out. */
+  function zoneArea(b) {
+    if (!b.cut) return `<rect class="fp-zone-area" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="0.6"/>`;
+    const x0 = b.x, y0 = b.y, x1 = r1(b.x + b.w), y1 = r1(b.y + b.h);
+    const cx0 = Math.max(x0, b.cut.x), cy0 = Math.max(y0, b.cut.y);
+    const cx1 = Math.min(x1, r1(b.cut.x + b.cut.w)), cy1 = Math.min(y1, r1(b.cut.y + b.cut.h));
+    const right = cx1 >= x1, bottom = cy1 >= y1;
+    // Walk the outline clockwise from the top-left, stepping around whichever corner is cut.
+    const pts = right && bottom ? [[x0, y0], [x1, y0], [x1, cy0], [cx0, cy0], [cx0, y1], [x0, y1]]
+      : right ? [[x0, y0], [cx0, y0], [cx0, cy1], [x1, cy1], [x1, y1], [x0, y1]]
+      : bottom ? [[x0, y0], [x1, y0], [x1, y1], [cx1, y1], [cx1, cy0], [x0, cy0]]
+      : [[cx1, y0], [x1, y0], [x1, y1], [x0, y1], [x0, cy1], [cx1, cy1]];
+    return `<path class="fp-zone-area" d="M${pts.map((p) => p.join(' ')).join('L')}Z"/>`;
+  }
+
   function floorSVG(fl) {
     // Zones are areas of the same office: a faint tint, a thin accent edge, a name and its availability.
     const zones = fl.zones.map((z, i) => `
       <g class="fp-zone fp-zone-t${i % 4}" role="group" aria-label="${esc(z.name)}" data-zone="${esc(fl.id)}|${esc(z.id)}">
-        <rect class="fp-zone-area" x="${z.box.x}" y="${z.box.y}" width="${z.box.w}" height="${z.box.h}" rx="0.6"/>
+        ${zoneArea(z.box)}
         <line class="fp-zone-bar" x1="${r1(z.box.x + 0.6)}" y1="${r1(z.box.y + 0.12)}" x2="${r1(z.box.x + z.box.w - 0.6)}" y2="${r1(z.box.y + 0.12)}"/>
         <text class="fp-zone-label" x="${r1(z.box.x + 2.2)}" y="${r1(z.box.y + 2.9)}">${esc(z.name)}</text>
         <text class="fp-zone-count" x="${r1(z.box.x + 2.2)}" y="${r1(z.box.y + 4.75)}" data-zone-count="${esc(fl.id)}|${esc(z.id)}"></text>

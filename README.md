@@ -156,15 +156,18 @@ To draw walls and facilities, give the floor a `"plan"`. All numbers are plan un
 ```
 
 - `zones` places each zone's area. Its tables are centred inside, and the box grows if the desks need more room.
+  An optional `"cut": { "x", "y", "w", "h" }` removes a corner of the box, making the zone L-shaped (Level 2 uses it
+  for the toilets in the office's empty corner).
 - `walls` and `windows` are lines `[x1, y1, x2, y2]`. The outer wall is drawn from `width` and `height`.
 - `doors` are hinged at `x,y` with leaf length `r`, swinging from angle `from` to `to` (degrees,
   0 = right, 90 = down).
-- Room kinds are `pantry`, `toilet-m`, `toilet-f`, `lift`, `store` and `service`. Fixture kinds are
+- Room kinds are `pantry`, `toilet-m`, `toilet-f`, `lift`, `stairs`, `store` and `service`. Fixture kinds are
   `planter` and `storage`.
 
-Level 1's plan is traced from the Digital Factory floor-plan drawing. A floor without a `plan` (Level 2 for
-now) still shows its zones and tables, inside a generic office outline with windows, plants and storage. The
-dashboard labels that outline as generic.
+Level 1 has its three zones with a narrow staircase between the Discussion Area and the AI Lab. Level 2 has the
+General Office, with toilets in its empty corner and a staircase on the right. A floor without a `plan` still
+shows its zones and tables, inside a generic office outline with windows, plants and storage; the dashboard
+labels that outline as generic.
 
 The plan is served by `GET /api/floorplan`. After updating the app, restart the server so it serves the new
 drawing data (in a Codespace: `bash scripts/codespace.sh start`). If it can't, the dashboard shows a warning

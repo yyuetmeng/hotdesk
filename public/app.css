@@ -237,6 +237,9 @@ svg.fp { display: block; margin: 0 auto; }
 .fp-room { fill: var(--fp-room); }
 .fp-room-pantry { fill: var(--fp-room); }
 .fp-room-wc { fill: var(--fp-wc); }
+.fp-room-stairs { fill: var(--fp-room); stroke: var(--fp-wall-soft); stroke-width: 0.12; }
+.fp-stair-treads { fill: none; stroke: var(--fp-wall-soft); stroke-width: 0.1; }
+.fp-stair-arrow { fill: none; stroke: var(--fp-label); stroke-width: 0.18; stroke-linecap: round; stroke-linejoin: round; }
 .fp-room-lift { fill: var(--fp-lift); }
 .fp-room-label { font: 500 1.5px var(--font); fill: var(--fp-label); text-anchor: middle; }
 .fp-room-label-lg { font-size: 1.85px; font-weight: 600; fill: var(--fp-label-strong); }
@@ -257,7 +260,7 @@ svg.fp { display: block; margin: 0 auto; }
 .fp-leaf-2 { fill: var(--fp-leaf-2); }
 .fp-zone { --z: #2563eb; }
 .fp-zone-t1 { --z: #0d9488; } .fp-zone-t2 { --z: #7c3aed; } .fp-zone-t3 { --z: #d97706; }
-.fp-zone-area { fill: color-mix(in srgb, var(--z) 4%, var(--fp-floor)); stroke: color-mix(in srgb, var(--z) 22%, transparent); stroke-width: 0.1; }
+.fp-zone-area { stroke-linejoin: round; fill: color-mix(in srgb, var(--z) 4%, var(--fp-floor)); stroke: color-mix(in srgb, var(--z) 22%, transparent); stroke-width: 0.1; }
 .fp-zone-bar { stroke: color-mix(in srgb, var(--z) 55%, transparent); stroke-width: 0.24; stroke-linecap: round; }
 .fp-zone-label { font: 600 1.75px var(--font); fill: var(--fp-label-strong); letter-spacing: -0.01px; }
 .fp-zone-count { font: 500 1.3px var(--font); fill: color-mix(in srgb, var(--z) 80%, var(--fp-label-strong)); }
