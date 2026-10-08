@@ -65,6 +65,9 @@ function publicView(v) {
   return { ...rest, reservation: reservation ? publicReservation(reservation) : null };
 }
 const publicReservation = ({ user, ...r }) => r;
+/** How long a check-in or booking lasts: to the end of a slot (default), or `minutes` when given. */
+const lengthOf = (body) => (body.minutes !== undefined && body.slot === undefined
+  ? { minutes: Number(body.minutes) } : { slot: typeof body.slot === 'string' ? body.slot : 'auto' });
 
 /**
  * @param {object} opts
@@ -272,8 +275,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
       const body = await readJson(req);
       const user = typeof body.user === 'string' ? body.user.trim().slice(0, 100) : '';
       if (!user) throw new HttpError(400, 'user is required');
-      const minutes = body.minutes === undefined ? undefined : Number(body.minutes);
-      return send(res, 200, engine.bookSeats(body.seats, user, { minutes, team: body.projectTeam }));
+      return send(res, 200, engine.bookSeats(body.seats, user, { ...lengthOf(body), team: body.projectTeam }));
     }
 
     // --- Employee endpoints (QR code on each desk opens /checkin?seat=ID) ---
@@ -282,7 +284,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
       const projects = engine.listProjects().map(({ name, code, color, slot }) => ({ name, code, color, slot }));
       const { reservationEarlyMinutes, reservationGraceMinutes, reservationMaxPerWeek } = engine.rules;
       return send(res, 200, {
-        checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams, projects, teamBookingMaxSeats,
+        checkinDurationMinutes, checkinMaxMinutes, checkinSlots: engine.checkinSlots(), checkinDefault: engine.defaultCheckinSlot(), projectTeams: engine.projectTeams, projects, teamBookingMaxSeats,
         reservations: {
           dates: engine.reservableDates(), earlyMinutes: reservationEarlyMinutes, graceMinutes: reservationGraceMinutes, maxPerWeek: reservationMaxPerWeek,
           slots: Object.entries(SLOTS).map(([id, s]) => ({ id, ...s })),
@@ -334,8 +336,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
       const team = typeof body.projectTeam === 'string' ? body.projectTeam : undefined;
       if (parts[3] === 'checkin') {
         if (!user) throw new HttpError(400, 'user is required');
-        const minutes = body.minutes === undefined ? undefined : Number(body.minutes);
-        return send(res, 200, publicView(engine.checkIn(parts[2], user, { minutes, team })));
+        return send(res, 200, publicView(engine.checkIn(parts[2], user, { ...lengthOf(body), team })));
       }
       if (parts[3] === 'checkout') {
         if (!user) throw new HttpError(400, 'user is required');

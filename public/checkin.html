@@ -77,8 +77,8 @@
       <label for="team">Your project team
         <select id="team" required aria-required="true"><option value="">Choose your project team…</option></select>
       </label>
-      <label for="duration">How long will you use this desk?
-        <select id="duration"></select>
+      <label for="slot">How long will you use this desk?
+        <select id="slot"></select>
       </label>
       <div class="btnrow">
         <button class="btn btn-primary" id="in" type="button">Check in</button>
@@ -99,8 +99,7 @@ const LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away — he
 let seatId = new URLSearchParams(location.search).get('seat');
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const fmtDuration = (m) => (m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)} h ` : ''}${m % 60} min` : `${m / 60} hour${m === 60 ? '' : 's'}`);
+const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 try { $('user').value = localStorage.getItem('hotdesk.user') || ''; } catch {}
 // Demo mode (npm run demo, or ?demo): each desk opened gets a random sample name, which is not saved.
 let demoMode = demoFromUrl === true;
@@ -140,15 +139,24 @@ function renderReservation(s) {
 }
 
 async function loadDurations() {
-  const { checkinDurationMinutes: def, checkinMaxMinutes: max, projectTeams = [], demo } = await call('/api/checkin-options');
+  const { checkinSlots = [], checkinDefault, projectTeams = [], demo } = await call('/api/checkin-options');
   if (demo && demoFromUrl !== false && !demoMode) { demoMode = true; if (seatId) demoNameForDesk(); }
   $('team').innerHTML = '<option value="">Choose your project team…</option>' +
     projectTeams.map((t) => `<option${t === savedTeam ? ' selected' : ''}>${esc(t)}</option>`).join('');
-  const opts = new Set([def]);
-  for (let m = 60; m <= max; m += 60) opts.add(m);
-  $('duration').innerHTML = [...opts].sort((a, b) => a - b)
-    .map((m) => `<option value="${m}"${m === def ? ' selected' : ''}>${fmtDuration(m)}${m === def ? ' (default)' : ''}</option>`).join('');
+  renderSlots(checkinSlots, checkinDefault);
 }
+// A check-in lasts to the end of a slot, the same slots as reservations (morning, afternoon, full day).
+const hhmm = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+let slotsKey = '';
+function renderSlots(list, def) {
+  const key = list.map((x) => x.id).join(',');
+  if (key === slotsKey) return;
+  const keep = list.some((x) => x.id === $('slot').value) ? $('slot').value : def;
+  slotsKey = key;
+  $('slot').innerHTML = list.map((x) => `<option value="${x.id}"${x.id === keep ? ' selected' : ''}>${esc(x.label)} · until ${hhmm(x.until)}</option>`).join('');
+}
+// The choices change during the day (13:00, 19:00).
+setInterval(() => call('/api/checkin-options').then((o) => renderSlots(o.checkinSlots ?? [], o.checkinDefault)).catch(() => {}), 60_000);
 
 async function call(path, body) {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
@@ -223,7 +231,7 @@ async function act(kind) {
     }
   }
   try {
-    const body = kind === 'checkin' ? { user, projectTeam, minutes: Number($('duration').value) } : { user, projectTeam };
+    const body = kind === 'checkin' ? { user, projectTeam, slot: $('slot').value } : { user, projectTeam };
     const seat = await call(`/api/seats/${encodeURIComponent(seatId)}/${kind}`, body);
     render(seat);
     $('in').textContent = IN_LABEL;

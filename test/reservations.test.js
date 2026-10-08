@@ -99,3 +99,22 @@ test('reservations survive a restart', () => {
   const copy = new OccupancyEngine({ seats: expandLayout(building), state: engine.snapshot(), clock: engine.clock });
   assert.equal(copy.listReservations({ user: 'Ana' }).length, 1);
 });
+
+test('check-ins run to the end of a slot: morning, afternoon, full day, or the rest of the day after hours', () => {
+  const { engine, clock } = setup(9, 0);
+  const at = (h, m = 0, d = 0) => new Date(2026, 9, 7 + d, h, m).getTime();
+  const ids = () => engine.checkinSlots().map((o) => o.id);
+  assert.deepEqual(ids(), ['am', 'day']);
+  assert.equal(engine.defaultCheckinSlot(), 'day');
+  assert.equal(engine.checkIn('L1-A-01', 'Ana', { team: 'SAP', slot: 'am' }).checkedInUntil, at(13));
+  assert.equal(engine.checkIn('L1-A-02', 'Ben', { team: 'SAP', slot: 'auto' }).checkedInUntil, at(19));
+  assert.throws(() => engine.checkIn('L1-A-03', 'Cai', { team: 'SAP', slot: 'pm' }), /can't be chosen now/);
+  clock.at(12, 50);
+  assert.deepEqual(ids(), ['am', 'pm', 'day']);
+  clock.at(14, 0);
+  assert.deepEqual(ids(), ['pm']);
+  assert.equal(engine.bookSeats(['L1-A-03'], 'Cai', { team: 'SAP', slot: 'auto' })[0].checkedInUntil, at(19));
+  clock.at(20, 0);
+  assert.deepEqual(engine.checkinSlots(), [{ id: 'late', label: 'Rest of the day', until: at(0, 0, 1) }]);
+  assert.equal(engine.checkIn('L1-A-04', 'Dee', { team: 'SAP', slot: 'auto' }).checkedInUntil, at(0, 0, 1));
+});

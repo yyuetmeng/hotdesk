@@ -365,10 +365,6 @@ export class OccupancyEngine extends EventEmitter {
     return this.view(seat);
   }
 
-  /**
-   * Check `user` in at a desk for `minutes` (default: checkinDurationMinutes).
-   * Checking in again at the same desk renews the check-in from now.
-   */
   /** Is this sensor id linked to a desk? */
   isLinked(sensorId) {
     return this.bySensor.has(normalizeSensorId(sensorId));
@@ -456,14 +452,19 @@ export class OccupancyEngine extends EventEmitter {
     return team;
   }
 
-  checkIn(seatId, user, { minutes = this.rules.checkinDurationMinutes, team } = {}) {
+  /**
+   * Check `user` in at a desk until the end of `slot` (see checkinSlots; 'auto' picks the default),
+   * or for `minutes` when no slot is given. Checking in again at the same desk renews the check-in.
+   */
+  checkIn(seatId, user, { minutes = this.rules.checkinDurationMinutes, slot, team } = {}) {
     if (!user) throw new ValidationError('user is required');
     team = this.projectTeam(team);
-    if (!Number.isInteger(minutes) || minutes < 1 || minutes > this.rules.checkinMaxMinutes) {
+    if (slot === undefined && (!Number.isInteger(minutes) || minutes < 1 || minutes > this.rules.checkinMaxMinutes)) {
       throw new ValidationError(`Check-in duration must be between 1 and ${this.rules.checkinMaxMinutes} minutes`);
     }
     const seat = this.getSeat(seatId);
     const now = this.clock();
+    const end = slot === undefined ? now + minutes * MINUTE : this.#checkinUntil(slot, now);
     // A desk reserved for this slot can only be taken by the person (or, for a team booking, a
     // member of the team) it is reserved for: their check-in confirms the reservation.
     const active = this.#activeReservation(seat, now);
@@ -472,7 +473,7 @@ export class OccupancyEngine extends EventEmitter {
     }
     // A reservation later on: a walk-in can use the desk until its check-in window opens.
     const next = this.#nextReservation(seat, now);
-    let until = now + minutes * MINUTE, claim = active;
+    let until = end, claim = active;
     if (next && !this.#mayClaim(next, user, team)) {
       const limit = this.#windowOpens(next);
       if (limit - now < 5 * MINUTE) throw new ConflictError(`Seat ${seatId} is reserved for ${this.#slotText(next)}. Choose another seat.`);
@@ -523,10 +524,10 @@ export class OccupancyEngine extends EventEmitter {
    * booker can still check in somewhere for themselves. Seats the same person already holds
    * are renewed.
    */
-  bookSeats(seatIds, user, { minutes = this.rules.checkinDurationMinutes, team, maxSeats = MAX_BOOKING_SEATS } = {}) {
+  bookSeats(seatIds, user, { minutes = this.rules.checkinDurationMinutes, slot, team, maxSeats = MAX_BOOKING_SEATS } = {}) {
     if (!user) throw new ValidationError('user is required');
     team = this.projectTeam(team);
-    if (!Number.isInteger(minutes) || minutes < 1 || minutes > this.rules.checkinMaxMinutes) {
+    if (slot === undefined && !Number.isInteger(minutes) || minutes < 1 || minutes > this.rules.checkinMaxMinutes) {
       throw new ValidationError(`Booking duration must be between 1 and ${this.rules.checkinMaxMinutes} minutes`);
     }
     if (!Array.isArray(seatIds)) throw new ValidationError('seats must be a list of seat ids');
@@ -536,13 +537,14 @@ export class OccupancyEngine extends EventEmitter {
     const unknown = ids.filter((id) => !this.seats.has(id));
     if (unknown.length) throw new ValidationError(`Unknown seats: ${unknown.join(', ')}`);
     const now = this.clock();
+    const until = slot === undefined ? now + minutes * MINUTE : this.#checkinUntil(slot, now);
     // Someone else's check-in, or a person sitting there, makes a seat unavailable.
     const taken = ids.filter((id) => {
       const seat = this.seats.get(id);
       // Reserved now, or reserved before this booking would end.
       if (this.#activeReservation(seat, now)) return true;
       const next = this.#nextReservation(seat, now);
-      if (next && this.#windowOpens(next) < now + minutes * MINUTE) return true;
+      if (next && this.#windowOpens(next) < until) return true;
       if (seat.checkedInBy === user) return false;
       const status = deriveStatus(seat, now, this.rules);
       return status === Status.OCCUPIED || status === Status.AWAY;
@@ -554,7 +556,7 @@ export class OccupancyEngine extends EventEmitter {
       const renewing = seat.checkedInBy === user;
       seat.checkedInBy = user;
       seat.checkedInAt = now;
-      seat.checkedInUntil = now + minutes * MINUTE;
+      seat.checkedInUntil = until;
       seat.checkedInTeam = team;
       seat.teamBooking = true;
       this.#log(now, seat, renewing ? 'renew' : 'book', user, team);
@@ -884,6 +886,37 @@ export class OccupancyEngine extends EventEmitter {
     if (!m) throw new ValidationError('date must be YYYY-MM-DD');
     const at = (h) => new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), h).getTime();
     return { start: at(s.from), end: at(s.to) };
+  }
+
+  /**
+   * What a check-in made now can run to, by the same slots as reservations: the morning (to 13:00)
+   * and the full day (to 19:00) until the morning ends, the afternoon (to 19:00) from 15 minutes
+   * before it starts; after 19:00, the rest of the day (to midnight).
+   */
+  checkinSlots(now = this.clock()) {
+    const date = dayKey(now);
+    const am = this.slotTimes(date, 'am'), pm = this.slotTimes(date, 'pm');
+    const opt = (id, until) => ({ id, label: SLOTS[id].label, until });
+    const out = [];
+    if (now < am.end) out.push(opt('am', am.end));
+    if (now >= pm.start - this.rules.reservationEarlyMinutes * MINUTE && now < pm.end) out.push(opt('pm', pm.end));
+    if (now < am.end) out.push(opt('day', pm.end));
+    if (!out.length) {
+      const d = new Date(now);
+      out.push({ id: 'late', label: 'Rest of the day', until: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime() });
+    }
+    return out;
+  }
+  /** The slot a check-in gets when none is chosen: the full day, else the afternoon, else the rest of the day. */
+  defaultCheckinSlot(now = this.clock()) {
+    const list = this.checkinSlots(now);
+    return (list.find((o) => o.id === 'day') ?? list.find((o) => o.id === 'pm') ?? list[0]).id;
+  }
+  #checkinUntil(slot, now) {
+    const list = this.checkinSlots(now);
+    const o = list.find((x) => x.id === (slot === 'auto' ? this.defaultCheckinSlot(now) : slot));
+    if (!o) throw new ValidationError(`${SLOTS[slot]?.label ?? `"${slot}"`} can't be chosen now. Choose ${list.map((x) => x.label.toLowerCase()).join(' or ')}.`);
+    return o.until;
   }
 
   /** Dates a desk can be reserved for: today and the next `reservationDaysAhead` days. */

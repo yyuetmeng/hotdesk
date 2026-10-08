@@ -167,9 +167,11 @@ test('desk labels page is admin-only and encodes each desk check-in URL', async 
   assert.match(await proxied.text(), /https:\/\/demo\.app\.github\.dev\/checkin\?seat=L1-A-01/);
 });
 
-test('check-in options expose the default and maximum duration', async () => {
+test('check-in options expose the check-in slots and the default', async () => {
   const res = await fetch(`${base}/api/checkin-options`);
-  const { projects, reservations, ...rest } = await res.json();
+  const { projects, reservations, checkinSlots, checkinDefault, ...rest } = await res.json();
+  assert.ok(checkinSlots.length && checkinSlots.every((o) => o.id && o.label && o.until > Date.now()));
+  assert.ok(checkinSlots.some((o) => o.id === checkinDefault));
   assert.deepEqual(reservations.slots.map((x) => x.id), ['am', 'pm', 'day']);
   assert.equal(reservations.dates.length, 2); // today and tomorrow
   assert.deepEqual(rest, {

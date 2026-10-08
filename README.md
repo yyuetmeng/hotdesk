@@ -89,8 +89,8 @@ in the QR sticker on each desk.
 | `SENSOR_API_KEY` | *(unset → open)* | Gateways send it as `X-Api-Key` |
 | `AWAY_GRACE_MINUTES` | 20 | How long a desk is held after the person leaves |
 | `CHECKIN_CONFIRM_MINUTES` | 15 | A check-in on a sensor desk must be confirmed by presence within this time |
-| `CHECKIN_DURATION_MINUTES` | 180 | How long each check-in lasts by default (3 hours). Users can pick another length, and scanning again renews it |
-| `CHECKIN_MAX_MINUTES` | 480 | Longest check-in a user can choose |
+| `CHECKIN_DURATION_MINUTES` | 180 | Only for API calls that pass `minutes` instead of `slot` (the pages use slots, see Check-in duration) |
+| `CHECKIN_MAX_MINUTES` | 480 | Longest `minutes` an API call can ask for |
 | `PUBLIC_URL` | *(address the page was opened at)* | Base URL encoded in the desk QR labels, e.g. `https://hotdesk.example.com` |
 | `DISPLAY_KEY` | *(none)* | Key for the floor display (`/display?key=…`), which shows names; the admin token works too |
 | `TEAM_BOOKING_MAX_SEATS` | `10` | Most desks an employee can reserve for their team at once on `/book` (admins on the dashboard: 100) |
@@ -187,15 +187,23 @@ hourly averages, with each hour's peak as a dashed line; the server keeps these 
 
 ## Check-in duration
 
-Every check-in holds the desk for **3 hours by default**. On the check-in page the user can choose another
-length, from 1 hour up to `CHECKIN_MAX_MINUTES` (8 hours). When the time is up the check-in expires and the
-activity feed records it:
+A check-in holds the desk to the end of a **slot**, the same slots as reservations. The QR check-in page and
+the dashboard (check-in, extend and team booking) offer the slots open at that moment:
+
+| Time now | Choices (default in bold) |
+|---|---|
+| Before 12:45 | Morning (until 13:00), **Full day** (until 19:00) |
+| 12:45–13:00 | Morning, Afternoon, **Full day** |
+| 13:00–19:00 | **Afternoon** (until 19:00) |
+| After 19:00 | **Rest of the day** (until midnight) |
+
+A check-in that confirms a reservation lasts at least to the end of the reserved slot. When the time is up the
+check-in expires and the activity feed records it:
 
 - On a desk **without a sensor**, the desk becomes available.
 - On a desk **with a sensor**, the desk stays occupied while someone is still detected there. It is freed
   by the normal away grace once they leave.
-- Scanning the desk's QR code again before the end extends the check-in by another 3 hours (or the chosen
-  length) from that moment.
+- Scanning the desk's QR code again (or **Extend** on the dashboard) moves the end to the chosen slot's end.
 - A check-in on a sensor desk is still dropped after 15 minutes if nobody sits down, and checking out
   frees the desk immediately.
 
@@ -330,7 +338,8 @@ API (no admin token needed; responses never include who reserved a desk):
 
 | Call | Body / query | Does |
 |---|---|---|
-| `GET /api/checkin-options` | | `reservations`: the dates that can be reserved, the slots, the window and the weekly limit |
+| `GET /api/checkin-options` | | `checkinSlots` (open now, each with its `until`) and `checkinDefault`; `reservations`: the dates that can be reserved, the slots, the window and the weekly limit |
+| `POST /api/seats/:id/checkin` | `{ "user", "projectTeam", "slot"? }` | Check in to the end of `am`, `pm`, `day` or `late` (default: `checkinDefault`); also confirms the person's reservation |
 | `GET /api/availability?date=&slot=` | | Each desk with `slotState` (`free`, `reserved` or `taken`) for that slot |
 | `POST /api/reservations` | `{ "seatId" or "seats", "user", "projectTeam", "date", "slot", "forTeam"? }` | Reserve (201), 409 if taken or over a limit |
 | `GET /api/reservations?user=` | | That person's reservations (admins: everyone's, without `user`) |

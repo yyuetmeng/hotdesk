@@ -51,7 +51,6 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const fmtDuration = (m) => (m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)} h ` : ''}${m % 60} min` : `${m / 60} hour${m === 60 ? '' : 's'}`);
 const pct = (x) => `${Math.round(x * 100)}%`;
 const narrow = () => matchMedia('(max-width: 1180px)').matches;
 
@@ -559,13 +558,13 @@ addEventListener('scroll', hidePop, { passive: true, capture: true });
 
 // ---------- Seat panel ----------
 let panelKey = '';
-function durationOptions() {
-  const o = state.options; if (!o) return '';
-  const def = o.checkinDurationMinutes, opts = new Set([def]);
-  for (let m = 60; m <= o.checkinMaxMinutes; m += 60) opts.add(m);
-  return [...opts].sort((a, b) => a - b)
-    .map((m) => `<option value="${m}"${m === def ? ' selected' : ''}>${fmtDuration(m)}${m === def ? ' (default)' : ''}</option>`).join('');
+/** Check-ins run to the end of a slot (the same slots as reservations), offered by the server for the time now. */
+const hhmm = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+function slotOptions() {
+  const o = state.options; if (!o?.checkinSlots) return '';
+  return o.checkinSlots.map((x) => `<option value="${x.id}"${x.id === o.checkinDefault ? ' selected' : ''}>${esc(x.label)} · until ${hhmm(x.until)}</option>`).join('');
 }
+const slotsKey = () => (state.options?.checkinSlots ?? []).map((x) => x.id).join(',');
 function teamOptions(current) {
   const teams = state.options?.projectTeams ?? state.projects.filter((t) => t.configured).map((t) => t.name);
   return '<option value="">Choose a project team…</option>' +
@@ -615,7 +614,7 @@ function renderPanel() {
   }
   // The form only re-renders when what it does changes, so live updates never wipe typed input.
   const mode = s.checkedInBy ? `manage:${s.checkedInBy}` : `checkin:${state.bookingFor ? 'project' : 'none'}`;
-  const key = `${s.id}|${mode}`;
+  const key = `${s.id}|${mode}|${slotsKey()}`;
   const details = panelDetails(s);
   if (key === panelKey && body.querySelector('[data-details]')) {
     body.querySelector('[data-details]').innerHTML = details;
@@ -836,10 +835,10 @@ function renderMultiPanel(body) {
       <div id="pickList" class="pick-list"></div>
       ${team ? `<form class="pform" data-kind="multi" novalidate>
         <h3><span class="step">3</span>Booking details</h3>
-        <p class="lead">The seats are booked under your name for ${esc(team)} and held for the chosen time, even before people arrive.</p>
+        <p class="lead">The seats are booked under your name for ${esc(team)} and held to the end of the chosen slot, even before people arrive.</p>
         <div class="alloc-warn" id="allocWarn" role="alert" hidden></div>
         <label>Your name or employee ID<input name="user" autocomplete="off" maxlength="100" required></label>
-        <label>Duration<select name="minutes">${durationOptions()}</select></label>
+        <label>Slot<select name="slot">${slotOptions()}</select></label>
         <div class="form-msg" role="alert"></div>
         <button type="submit" class="btn btn-primary btn-block" value="book" id="bookBtn">Book seats</button>
       </form>` : `<div class="pform need-project"><h3><span class="step">3</span>Booking details</h3>
@@ -871,7 +870,7 @@ async function onMultiSubmit(e) {
   const btn = $('bookBtn'), label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Booking…';
   try {
-    const booked = await apiSend('POST', '/api/bookings', { user, projectTeam: state.bookingFor, minutes: Number(form.elements.minutes.value), seats });
+    const booked = await apiSend('POST', '/api/bookings', { user, projectTeam: state.bookingFor, slot: form.elements.slot.value, seats });
     state.picked = new Set(); state.allocAck = '';
     state.multiFlash = `Booked ${booked.length} seat${booked.length === 1 ? '' : 's'} for ${state.bookingFor} under ${user} until ${fmtTime(booked[0].checkedInUntil)}: ${booked.map((x) => x.id).join(', ')}.`;
     form.reset();
@@ -963,7 +962,7 @@ function reservationBox(s) {
 function checkinForm(s) {
   const r = s.status === 'reserved' && s.reservation;
   const lead = r ? `Reserved for ${r.forTeam ? `${esc(r.team)} (anyone in the project)` : `${esc(r.user)} (${esc(r.team)})`}. Checking them in confirms the reservation; anyone else is refused until it is released.`
-    : s.status === 'available' ? 'Starts now and lasts for the chosen time.'
+    : s.status === 'available' ? 'Starts now and lasts to the end of the chosen slot.'
     : s.status === 'offline' ? 'The sensor is offline, so a check-in is the only way to show this desk as taken.'
     : 'Someone is at this desk but nobody has checked in. You can check in the person sitting here.';
   if (!state.bookingFor) {
@@ -975,7 +974,7 @@ function checkinForm(s) {
     <p class="lead">${lead}</p>
     <div class="alloc-warn" id="allocWarn" role="alert" hidden></div>
     <label>Name or employee ID<input name="user" autocomplete="off" maxlength="100" required></label>
-    <label>Duration<select name="minutes">${durationOptions()}</select></label>
+    <label>Slot<select name="slot">${slotOptions()}</select></label>
     <div class="form-msg" role="alert"></div>
     <button type="submit" class="btn btn-primary btn-block" value="checkin">Check in to this seat</button>
     <p class="note">${ICON.info}<span>One seat per person: checking in releases any other seat held under the same name.</span></p>
@@ -1001,9 +1000,9 @@ function checkedInProject(s) {
 function manageForm(s) {
   return `<form class="pform" data-kind="manage" novalidate>
     <h3>Manage this check-in</h3>
-    <p class="lead">Extend restarts the check-in from now. Check out frees the desk straight away.</p>
+    <p class="lead">Extend keeps the desk to the end of the chosen slot. Check out frees the desk straight away.</p>
     ${checkedInProject(s)}
-    <label>Duration (for extend)<select name="minutes">${durationOptions()}</select></label>
+    <label>Slot (for extend)<select name="slot">${slotOptions()}</select></label>
     <div class="form-msg" role="alert"></div>
     <div class="btnrow">
       <button type="submit" class="btn btn-primary" value="renew">Extend</button>
@@ -1031,7 +1030,7 @@ async function onPanelSubmit(e) {
   if (e.submitter) e.submitter.textContent = { checkin: 'Checking in…', renew: 'Extending…', checkout: 'Checking out…' }[action];
   try {
     const path = `/api/seats/${encodeURIComponent(s.id)}/${action === 'checkout' ? 'checkout' : 'checkin'}`;
-    const body = action === 'checkout' ? { user, projectTeam } : { user, projectTeam, minutes: Number(form.elements.minutes.value) };
+    const body = action === 'checkout' ? { user, projectTeam } : { user, projectTeam, slot: form.elements.slot.value };
     const seat = await post(path, body);
     state.flash = {
       seatId: s.id,
@@ -1524,13 +1523,22 @@ function renderLoading() {
   renderPanel();
 }
 
-/** Check-in choices (durations, project list); refreshed when projects change. */
+/** Check-in choices (slots open now, project list); refreshed when projects change and every minute. */
 function loadOptions() {
   return fetch('/api/checkin-options').then((r) => r.json()).then((o) => {
     state.options = o;
     if (state.bookingFor && !o.projectTeams.includes(state.bookingFor)) setBookingFor('');
     if (!state.selected) panelKey = '';
     renderPanel();
+  }).catch(() => {});
+}
+
+/** The slots a check-in can choose change during the day (13:00, 19:00): redraw the forms when they do. */
+function refreshSlots() {
+  return fetch('/api/checkin-options').then((r) => r.json()).then((o) => {
+    const before = slotsKey();
+    state.options = { ...state.options, checkinSlots: o.checkinSlots, checkinDefault: o.checkinDefault };
+    if (slotsKey() !== before) { panelKey = ''; renderPanel(); }
   }).catch(() => {});
 }
 
@@ -1551,6 +1559,7 @@ async function start() {
     renderFeed();
     loadHistory();
     setInterval(loadHistory, 60_000);
+    setInterval(refreshSlots, 60_000);
     setInterval(refreshSummarySoon, 30_000); // hold timers expire without a sensor event
   } catch (e) {
     renderLive('Not authorised');
