@@ -312,7 +312,9 @@ Windows firewall on private networks.
 
 `/display` is made for a projector or wall screen at the office (landscape, full screen). It shows:
 
-- the live floor plan, one floor at a time (tabs), with taken desks in their project's colour;
+- the live floor plan with taken desks in their project's colour. A floor with several zones is shown one zone at
+  a time so it fills the screen (tabs **L1 · Digital Factory**, **L1 · Discussion Area**, **L1 · AI Lab**, then
+  **Level 2**); only the display splits floors like this;
 - a **Colleague Finder**: everyone who is checked in or has booked desks today, with their project, desk, floor
   and status: **On-site** (at the desk, or checked in at a desk without a sensor), **Away** (stepped away, desk
   held), **Booked** (checked in but not at the desk yet) or **Booked for team** (one row per person who booked
@@ -320,7 +322,7 @@ Windows firewall on private networks.
 - search by name, project or desk, and filters for project, floor and status. Tapping a name switches to their
   floor and makes their desk pulse.
 
-After a minute without input it clears the search and runs on its own: it rotates the floors every 20 seconds and
+After a minute without input it clears the search and runs on its own: it moves to the next tab every 20 seconds and
 slowly scrolls the list, until someone touches it. Tune with `?idle=60&rotate=20` (seconds). `?theme=dark` (or the
 moon button) suits a projector.
 

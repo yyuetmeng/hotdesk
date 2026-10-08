@@ -4,7 +4,8 @@
  * colleague finder (who is checked in or has booked desks, and where). Needs the display key
  * (?key=…, DISPLAY_KEY) or the admin token (?token=…), because it shows names.
  * Interactive (search, filters, tap a name to find their desk); after a minute without input it
- * resets, rotates the floors and scrolls the list by itself until someone touches it again.
+ * resets, rotates the views and scrolls the list by itself until someone touches it again.
+ * A floor with several zones is shown one zone at a time (only here; the other pages show whole floors).
  */
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -19,6 +20,8 @@ const IDLE_MS = secs('idle', 60), ROTATE_MS = secs('rotate', 20), REFRESH_MS = 5
 const STATUS = { onsite: 'On-site', away: 'Away', booked: 'Booked', team: 'Booked for team' };
 const state = {
   floors: [], seats: new Map(), people: [], projects: [], floor: '',
+  // What the plan shows: a whole floor, or one zone of a floor with several (too wide for a screen).
+  views: [], view: '',
   selected: null, // the selected person's key
   q: '', fProject: '', fFloor: '', fStatus: '',
   lastInput: Date.now(), auto: false, lastRotate: 0,
@@ -73,7 +76,7 @@ $('list').addEventListener('click', (e) => { const tr = e.target.closest('tr[dat
 function selectPerson(k) {
   state.selected = state.selected === k ? null : k;
   const p = state.people.find((x) => personKey(x) === state.selected);
-  if (p && !p.seats.some((s) => s.floor === state.floor)) { state.floor = p.seats[0].floor; renderFloors(); renderPlan(); }
+  if (p && !p.seats.some((s) => inView(s))) { showView(viewOf(p.seats[0])); }
   patchSeats(); renderList(); renderSelection();
 }
 function renderSelection() {
@@ -88,22 +91,42 @@ function renderSelection() {
 }
 
 // ---------- Floor plan ----------
+// A floor with several zones (Level 1) is shown one zone at a time, so it fills the screen; a floor
+// with one zone is shown whole. This split is only for the display.
+function buildViews() {
+  state.views = state.floors.flatMap((f) => (f.zones.length > 1
+    ? f.zones.map((z) => ({ id: `${f.id}|${z.id}`, floor: f.id, zone: z.id, tab: `${f.id} · ${z.name}`, title: `${f.name} · ${z.name}` }))
+    : [{ id: f.id, floor: f.id, zone: null, tab: f.name, title: f.name }]));
+}
+const currentView = () => state.views.find((v) => v.id === state.view);
+const inView = (s) => { const v = currentView(); return v && s.floor === v.floor && (!v.zone || s.zone === v.zone); };
+const viewOf = (s) => (state.views.find((v) => v.floor === s.floor && v.zone === s.zone) ?? state.views.find((v) => v.floor === s.floor))?.id;
+function showView(id) { if (!id) return; state.view = id; state.floor = currentView().floor; renderFloors(); renderPlan(); }
 function renderFloors() {
-  if (!state.floors.some((f) => f.id === state.floor)) state.floor = state.floors[0]?.id ?? '';
-  $('floors').innerHTML = state.floors.map((f) => `<button type="button" data-floor="${esc(f.id)}" aria-pressed="${f.id === state.floor}">${esc(f.name)}</button>`).join('');
+  if (!currentView()) state.view = state.views[0]?.id ?? '';
+  state.floor = currentView()?.floor ?? '';
+  $('floors').innerHTML = state.views.map((v) => `<button type="button" data-view="${esc(v.id)}" aria-pressed="${v.id === state.view}">${esc(v.tab)}</button>`).join('');
 }
 $('floors').addEventListener('click', (e) => {
-  const b = e.target.closest('button[data-floor]'); if (!b) return;
-  state.floor = b.dataset.floor; renderFloors(); renderPlan();
+  const b = e.target.closest('button[data-view]'); if (b) showView(b.dataset.view);
 });
 
 let layout = null;
 function renderPlan() {
-  const f = state.floors.find((x) => x.id === state.floor);
+  const v = currentView(), f = v && state.floors.find((x) => x.id === v.floor);
   if (!f) { $('plan').innerHTML = ''; return; }
   layout = FloorPlan.layoutFloor(f, [...state.seats.values()], f.plan);
   $('plan').innerHTML = `<div class="fp-scroll">${FloorPlan.floorSVG(layout)}</div>`;
-  $('floorName').textContent = f.name;
+  const z = v.zone && layout.zones.find((x) => x.id === v.zone);
+  if (z) {
+    // Crop the floor drawing to the zone (with a little of the floor around it).
+    const pad = 3, svg = $('plan').querySelector('svg.fp');
+    const x = Math.max(-1, z.box.x - pad), y = Math.max(-1, z.box.y - pad);
+    const w = Math.min(layout.w + 1, z.box.x + z.box.w + pad) - x, h = Math.min(layout.h + 1, z.box.y + z.box.h + pad) - y;
+    svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+    svg.dataset.w = w; svg.dataset.h = h;
+  }
+  $('floorName').textContent = v.title;
   scalePlan(); patchSeats(); updateCounts();
 }
 /** Fit the whole floor in the space (width and height): a projector can't scroll. */
@@ -140,8 +163,8 @@ $('plan').addEventListener('click', (e) => {
 function updateCounts() {
   if (!layout) return;
   const onFloor = [...state.seats.values()].filter((s) => s.floor === layout.id);
-  const free = onFloor.filter((s) => s.status === 'available').length;
-  $('floorCount').textContent = `${free} of ${onFloor.length} desks free`;
+  const shown = onFloor.filter(inView);
+  $('floorCount').textContent = `${shown.filter((s) => s.status === 'available').length} of ${shown.length} desks free`;
   for (const z of layout.zones) {
     const seats = onFloor.filter((s) => s.zone === z.id);
     const el = $('plan').querySelector(`[data-zone-count="${CSS.escape(`${layout.id}|${z.id}`)}"]`);
@@ -170,7 +193,7 @@ $('q').addEventListener('input', () => { state.q = $('q').value; renderList(); }
 for (const [id, k] of [['fProject', 'fProject'], ['fFloor', 'fFloor'], ['fStatus', 'fStatus']]) {
   $(id).addEventListener('change', () => {
     state[k] = $(id).value;
-    if (k === 'fFloor' && state.fFloor && state.fFloor !== state.floor) { state.floor = state.fFloor; renderFloors(); renderPlan(); }
+    if (k === 'fFloor' && state.fFloor && state.fFloor !== state.floor) showView(state.views.find((v) => v.floor === state.fFloor)?.id);
     renderList();
   });
 }
@@ -192,11 +215,10 @@ setInterval(() => {
     $('mode').innerHTML = '<span class="auto">Touch to search</span>';
     patchSeats(); renderList(); renderSelection();
   }
-  if (state.auto && now - state.lastRotate > ROTATE_MS && state.floors.length > 1) {
+  if (state.auto && now - state.lastRotate > ROTATE_MS && state.views.length > 1) {
     state.lastRotate = now;
-    const i = state.floors.findIndex((f) => f.id === state.floor);
-    state.floor = state.floors[(i + 1) % state.floors.length].id;
-    renderFloors(); renderPlan();
+    const i = state.views.findIndex((v) => v.id === state.view);
+    showView(state.views[(i + 1) % state.views.length].id);
   }
 }, 1000);
 // Slow scroll of a long list while idle: down to the end, a pause, then back to the top.
@@ -239,6 +261,7 @@ async function init() {
   try {
     const [floors, options] = await Promise.all([call('/api/floors'), call('/api/checkin-options')]);
     state.floors = floors; state.projects = options.projects ?? [];
+    buildViews();
     renderFilters(); renderFloors();
     await refresh();
     renderPlan();
