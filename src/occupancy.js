@@ -552,9 +552,12 @@ export class OccupancyEngine extends EventEmitter {
    * the floor starts empty, e.g. to restart a demo. Projects, seat allocations, sensor links,
    * history and reports are kept. Readings from real sensors bring presence back at once.
    */
-  resetSeats() {
+  resetSeats({ people = false } = {}) {
     const now = this.clock();
     let cleared = 0;
+    // Optionally forget who has been in too (requester list, activity feed, check-in counts per
+    // project), so a restarted demo shows no names from earlier runs.
+    if (people) { this.requesters.clear(); this.activity = []; this.teamDays = {}; }
     for (const seat of this.seats.values()) {
       if (seat.presence || seat.lastPresenceAt || seat.checkedInBy) cleared++;
       seat.presence = false;
@@ -567,7 +570,7 @@ export class OccupancyEngine extends EventEmitter {
       this.lastStatus.set(seat.id, deriveStatus(seat, now, this.rules));
       this.emit('change', this.view(seat, now));
     }
-    return { cleared };
+    return { cleared, ...(people ? { peopleCleared: true } : {}) };
   }
 
   checkOut(seatId, user, { team } = {}) {

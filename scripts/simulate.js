@@ -7,8 +7,10 @@
 //   --speed=N  run N times faster than real time (e.g. 10 for a demo; see scripts/demo.js,
 //              which also shortens the server's hold times to match)
 //   --reset  first clear every seat's live state (who sits where, check-ins, team bookings,
-//            away holds) on the server, keeping projects and seat allocations. Use only on a
-//            demo server: it also clears real people's check-ins.
+//            away holds) and the people history of earlier runs (requesters, activity feed,
+//            check-in counts per project) on the server, keeping projects and seat allocations.
+//            Use only on a demo server: it also clears real people's check-ins and history.
+// People are named from public/demo-names.js.
 // Env:   SENSOR_API_KEY  the server's sensor key (needed if the server has one)
 //        ADMIN_TOKEN     the server's admin token (needed for team bookings if the server has one)
 //        SIM_INTERVAL_MS time between rounds (default 3000)
@@ -51,24 +53,10 @@ const present = new Map(sensored.map((s) => [s.sensorId, false]));
 // back to building.json if it can't be read.
 let teams = (building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'])
   .map((t) => (typeof t === 'string' ? t : t.name));
-// Names: the 50 sample names the booking pages use in demo mode (public/demo-names.js), then new
-// combinations of their family and given names, so every simulated person has a distinct name.
-const SAMPLE = [...readFileSync(new URL('../public/demo-names.js', import.meta.url), 'utf8').matchAll(/'([A-Z][a-z]+(?: [A-Z][a-z]+)+)'/g)].map((m) => m[1]);
-function personName(i) {
-  if (i < SAMPLE.length) return SAMPLE[i];
-  const family = (n) => SAMPLE[n % SAMPLE.length].split(' ')[0];
-  const given = (n) => SAMPLE[n % SAMPLE.length].split(' ').slice(1).join(' ');
-  for (let k = 1; ; k++) {
-    const name = `${family(i * 7 + k)} ${given(i * 3 + k * 11)}`;
-    if (!SAMPLE.includes(name) && !usedNames.has(name)) return name;
-  }
-}
-const usedNames = new Set();
-const people = Array.from({ length: PEOPLE }, (_, i) => {
-  const name = SAMPLE.length ? personName(i) : `employee${i + 1}`;
-  usedNames.add(name);
-  return { name, team: null, seat: null, checkedIn: false };
-});
+// Names: the sample names the booking pages use in demo mode (public/demo-names.js, 80 of them), in order.
+const NAMES = [...readFileSync(new URL('../public/demo-names.js', import.meta.url), 'utf8').matchAll(/'([A-Z][a-z]+(?: [A-Z][a-z]+)+)'/g)].map((m) => m[1]);
+if (NAMES.length < PEOPLE) { console.error(`public/demo-names.js has ${NAMES.length} names; the simulator needs ${PEOPLE}.`); process.exit(1); }
+const people = NAMES.slice(0, PEOPLE).map((name) => ({ name, team: null, seat: null, checkedIn: false }));
 const visitors = Array.from({ length: VISITORS }, () => ({ seat: null }));
 const teamBooked = new Map(); // seat id -> { team, until, booking } for seats our team leads booked
 let bookingCount = 0;
@@ -227,7 +215,8 @@ try {
   process.exit(1);
 }
 if (reset) {
-  const res = await fetch(`${base}/api/seats/reset`, { method: 'POST', headers: { ...headers, ...adminHeaders } });
+  // Clear the seats and the people history of earlier runs (requesters, activity, project counts).
+  const res = await fetch(`${base}/api/seats/reset`, { method: 'POST', headers: { ...headers, ...adminHeaders, 'content-type': 'application/json' }, body: JSON.stringify({ people: true }) });
   if (res.status === 401) {
     console.error('Clearing the seats needs the admin token: run with the same ADMIN_TOKEN as the server.');
     process.exit(1);
@@ -237,7 +226,7 @@ if (reset) {
     process.exit(1);
   }
   if (!res.ok) { console.error('Could not clear the seats:', res.status, await res.text()); process.exit(1); }
-  console.log(`Cleared ${(await res.json()).cleared} seats (projects and seat allocations kept).`);
+  console.log(`Cleared ${(await res.json()).cleared} seats and the people history of earlier runs (projects and seat allocations kept).`);
 }
 await syncTeams();
 setInterval(syncTeams, 60_000);

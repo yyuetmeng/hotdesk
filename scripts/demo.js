@@ -2,7 +2,8 @@
 // simulator at the same speed, so a working day passes in minutes. Works on Windows too.
 //
 // Usage: npm run demo                 10x speed, keeps current seats, projects and allocations
-//        npm run demo -- --fresh      same, but starts from an empty floor (projects and allocations kept)
+//        npm run demo -- --fresh      same, but starts from an empty floor with no names from earlier runs
+//                                     (projects and allocations kept)
 //        npm run demo -- --speed=20   another speed
 // Stop with Ctrl+C. Uses PORT, ADMIN_TOKEN and SENSOR_API_KEY from the environment if set.
 import { spawn } from 'node:child_process';

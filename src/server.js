@@ -242,7 +242,11 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
     // --- Clear all seats' live state, keeping projects and allocations (admin) ---
     if (method === 'POST' && url.pathname === '/api/seats/reset') {
       requireAdmin(req, url);
-      return send(res, 200, engine.resetSeats());
+      const body = await readJson(req);
+      const result = engine.resetSeats({ people: body.people === true });
+      // Tell dashboards to reload project counts, and save the cleared history.
+      if (body.people === true) engine.emit('projects', engine.listProjects());
+      return send(res, 200, result);
     }
 
     // --- Booking several seats for a project team under one name (admin) ---

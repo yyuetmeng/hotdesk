@@ -46,7 +46,7 @@ the demo. Its shortened hold times last only while the demo runs: `npm start` us
 
 The simulator plays an office day:
 
-- **People:** 70 people from the project teams (the server's current list, including projects added or deleted
+- **People:** 70 people with proper names (from the 80 sample names in `public/demo-names.js`), from the project teams (the server's current list, including projects added or deleted
   on the dashboard; only 10% are External, the rest are spread evenly over the projects) arrive, sit down so the desk sensor sees them, and leave again. They stay about 20 minutes
   and are out about 10.
 - **Check-ins:** most check in with their project, so desks show in team colours, and most check out when they
@@ -62,10 +62,11 @@ simulate`. Team bookings need the admin token too, if the server has one: `ADMIN
 run simulate`. Without it, the simulator says so and carries on without team bookings.
 
 To start again from an empty floor without losing your projects and seat allocations, run
-`npm run simulate:fresh` instead. It first clears every seat's live state (who sits where, check-ins, team
-bookings, *away* holds), then simulates as usual. Use it only on a demo server: it also clears real people's
-check-ins. It needs the admin token if the server has one. In a Codespace: `HOTDESK_DEMO=fresh npm run codespace`.
-Behind it is `POST /api/seats/reset` (admin). To point it at another address:
+`npm run simulate:fresh` instead (or `npm run demo -- --fresh`). It first clears every seat's live state (who sits
+where, check-ins, team bookings, *away* holds) and the people history of earlier runs (the requester lists, the
+activity feed and today's check-in counts per project), then simulates as usual. Use it only on a demo server: it
+also clears real people's check-ins and history. It needs the admin token if the server has one. In a Codespace: `HOTDESK_DEMO=fresh npm run codespace`.
+Behind it is `POST /api/seats/reset` (admin; `{"people": true}` also clears the history). To point it at another address:
 `npm run simulate -- http://host:port`. In a Codespace, set the `HOTDESK_DEMO` secret to `1`, or run
 `HOTDESK_DEMO=1 npm run codespace`; the right key and token are passed for you.
 

@@ -315,6 +315,17 @@ test('people in today: on-site, away, booked and team bookings; anonymous sitter
   assert.deepEqual(Object.keys(status()), ['Ana']);
 });
 
+test('resetting seats can also forget the people history', () => {
+  const { engine } = setup();
+  engine.checkIn('L1-A-01', 'Ana', { team: 'SAP' });
+  engine.resetSeats();
+  assert.equal(engine.projectTeamSummary().find((t) => t.name === 'SAP').requesters.length, 1); // kept
+  engine.checkIn('L1-A-01', 'Ana', { team: 'SAP' });
+  assert.deepEqual(engine.resetSeats({ people: true }), { cleared: 1, peopleCleared: true });
+  const sap = engine.projectTeamSummary().find((t) => t.name === 'SAP');
+  assert.deepEqual([sap.requesters.length, sap.checkinsToday, engine.activity.length], [0, 0, 0]);
+});
+
 test('linking a real sensor to a desk, moving it, and unlinking', () => {
   const { engine, clock } = setup();
   // A sensor that isn't linked yet is remembered so an admin can link it.
