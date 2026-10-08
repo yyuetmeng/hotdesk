@@ -62,7 +62,7 @@
   .dp-search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
   .dp-search input { width: 100%; font-size: 15px; padding: 11px 12px 11px 40px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-primary); }
   .dp-search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
-  .dp-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .dp-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .dp-filters label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
   .dp-filters select { width: 100%; font-size: 14px; padding: 8px 30px 8px 10px; }
   .dp-list { min-height: 0; overflow: auto; border-top: 1px solid var(--grid); }
@@ -81,6 +81,9 @@
   .dp-desk { white-space: nowrap; }
   .dp-desk small { display: block; color: var(--text-muted); font-size: 12px; white-space: normal; }
   .dp-st { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-weight: 500; }
+  /* Only people who are not simply at their desk get a tag next to their name. */
+  .dp-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; vertical-align: 1px;
+    background: color-mix(in srgb, var(--k) 16%, var(--surface)); color: var(--text-primary); white-space: nowrap; }
   .dp-st::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--k); }
   .s-onsite { --k: var(--available); } .s-away { --k: var(--seat-away); } .s-booked { --k: var(--occupied); } .s-team { --k: var(--team-3); }
   .dp-count { font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between; gap: 10px; }
@@ -130,10 +133,6 @@
       <div class="dp-filters">
         <label>Project<select id="fProject"><option value="">All projects</option></select></label>
         <label>Floor<select id="fFloor"><option value="">All floors</option></select></label>
-        <label>Status<select id="fStatus">
-          <option value="">All</option><option value="onsite">On-site</option><option value="away">Away</option>
-          <option value="booked">Booked</option><option value="team">Booked for team</option>
-        </select></label>
       </div>
       <div class="dp-list" id="list"></div>
       <div class="dp-count"><span id="count"></span><span id="mode"></span></div>

@@ -23,7 +23,7 @@ const state = {
   // What the plan shows: a whole floor, or one zone of a floor with several (too wide for a screen).
   views: [], view: '',
   selected: null, // the selected person's key
-  q: '', fProject: '', fFloor: '', fStatus: '',
+  q: '', fProject: '', fFloor: '',
   lastInput: Date.now(), auto: false, lastRotate: 0,
 };
 
@@ -48,7 +48,6 @@ function filtered() {
   return state.people.filter((p) => {
     if (state.fProject && p.team !== state.fProject) return false;
     if (state.fFloor && !p.seats.some((s) => s.floor === state.fFloor)) return false;
-    if (state.fStatus && p.status !== state.fStatus) return false;
     if (!q) return true;
     return [p.name, p.team, ...p.seats.flatMap((s) => [s.id, s.floorName, s.zoneName])].some((t) => String(t ?? '').toLowerCase().includes(q));
   });
@@ -56,16 +55,15 @@ function filtered() {
 function renderList() {
   const rows = filtered();
   const floorsOf = (p) => [...new Set(p.seats.map((s) => s.floorName))].join(', ');
-  $('list').innerHTML = rows.length ? `<table><thead><tr><th>Name</th><th class="c-proj">Project</th><th>Desk</th><th>Status</th></tr></thead><tbody>${rows.map((p) => {
+  $('list').innerHTML = rows.length ? `<table><thead><tr><th>Name</th><th class="c-proj">Project</th><th>Desk</th></tr></thead><tbody>${rows.map((p) => {
     const k = personKey(p);
     // The desk, with its floor and area underneath (a team booking lists its desks).
     const desk = p.seats.length === 1 ? `${esc(p.seats[0].id)}<small>${esc(p.seats[0].floorName)} · ${esc(p.seats[0].zoneName)}</small>`
       : `${p.seats.length} desks · ${esc(floorsOf(p))}<small>${p.seats.map((s) => esc(s.id)).join(', ')}</small>`;
     return `<tr data-key="${esc(k)}" class="${state.selected === k ? 'on' : ''}">
-      <td><div class="dp-who"><span class="dp-av" style="--c:${projectColor(p.team)}">${esc(initials(p.name))}</span><span><b>${esc(p.name)}</b><small class="dp-team">${esc(p.team ?? '')}</small></span></div></td>
+      <td><div class="dp-who"><span class="dp-av" style="--c:${projectColor(p.team)}">${esc(initials(p.name))}</span><span><b>${esc(p.name)}</b>${p.status === 'onsite' ? '' : ` <span class="dp-tag s-${p.status}">${STATUS[p.status]}</span>`}<small class="dp-team">${esc(p.team ?? '')}</small></span></div></td>
       <td class="c-proj">${esc(p.team ?? '—')}</td>
-      <td class="dp-desk">${desk}</td>
-      <td><span class="dp-st s-${p.status}">${STATUS[p.status]}</span></td></tr>`;
+      <td class="dp-desk">${desk}</td></tr>`;
   }).join('')}</tbody></table>`
     : `<div class="dp-empty">${state.people.length ? 'No colleagues match your search.' : 'Nobody has checked in yet today.'}</div>`;
   const n = state.people.length;
@@ -190,7 +188,7 @@ function renderFilters() {
   keep('fFloor', state.floors.map((f) => [f.id, f.name]), 'All floors');
 }
 $('q').addEventListener('input', () => { state.q = $('q').value; renderList(); });
-for (const [id, k] of [['fProject', 'fProject'], ['fFloor', 'fFloor'], ['fStatus', 'fStatus']]) {
+for (const [id, k] of [['fProject', 'fProject'], ['fFloor', 'fFloor']]) {
   $(id).addEventListener('change', () => {
     state[k] = $(id).value;
     if (k === 'fFloor' && state.fFloor && state.fFloor !== state.floor) showView(state.views.find((v) => v.floor === state.fFloor)?.id);
@@ -209,8 +207,8 @@ setInterval(() => {
   if (!state.auto && now - state.lastInput > IDLE_MS) {
     // Back to the overview for the next person.
     state.auto = true; state.lastRotate = now;
-    state.q = state.fProject = state.fFloor = state.fStatus = ''; state.selected = null;
-    for (const id of ['q', 'fProject', 'fFloor', 'fStatus']) $(id).value = '';
+    state.q = state.fProject = state.fFloor = ''; state.selected = null;
+    for (const id of ['q', 'fProject', 'fFloor']) $(id).value = '';
     $('list').scrollTop = 0;
     $('mode').innerHTML = '<span class="auto">Touch to search</span>';
     patchSeats(); renderList(); renderSelection();

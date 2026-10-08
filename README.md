@@ -315,11 +315,11 @@ Windows firewall on private networks.
 - the live floor plan with taken desks in their project's colour. A floor with several zones is shown one zone at
   a time so it fills the screen (tabs **L1 · Digital Factory**, **L1 · Discussion Area**, **L1 · AI Lab**, then
   **Level 2**); only the display splits floors like this;
-- a **Colleague Finder**: everyone who is checked in or has booked desks today, with their project, desk, floor
-  and status: **On-site** (at the desk, or checked in at a desk without a sensor), **Away** (stepped away, desk
-  held), **Booked** (checked in but not at the desk yet) or **Booked for team** (one row per person who booked
-  several desks). People who sit down without checking in are not listed;
-- search by name, project or desk, and filters for project, floor and status. Tapping a name switches to their
+- a **Colleague Finder**: everyone who is checked in or has booked desks today, with their project and desk
+  (floor and area underneath). Most people are simply at their desk; the others get a small tag by their name:
+  **Away** (stepped away, desk held), **Booked** (checked in but not at the desk yet) or **Booked for team**
+  (one row per person who booked several desks). People who sit down without checking in are not listed;
+- search by name, project or desk, and filters for project and floor. Tapping a name switches to their
   floor and makes their desk pulse.
 
 After a minute without input it clears the search and runs on its own: it moves to the next tab every 20 seconds and
