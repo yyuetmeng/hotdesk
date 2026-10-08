@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floor Display</title>
+<script>
+  // The display keeps its own theme (?theme=dark|light, or the toggle), so a projector can run dark.
+  try {
+    const q = new URLSearchParams(location.search).get('theme');
+    const t = q === 'light' || q === 'dark' ? q : localStorage.getItem('hotdesk.displayTheme');
+    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  } catch {}
+</script>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  html, body { height: 100%; }
+  body { overflow: hidden; font-size: 15px; }
+  .dp { height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+  .dp-top { background: var(--sidebar); color: #fff; display: flex; align-items: center; gap: 18px; padding: 12px 24px; }
+  .dp-top .brand { padding: 0; font-size: 17px; }
+  .dp-top .brand small { font-weight: 500; color: var(--sidebar-text); margin-left: 6px; font-size: 14px; }
+  .dp-top .seg { background: rgb(255 255 255 / 0.08); }
+  .dp-top .seg button { color: var(--sidebar-text); font-size: 15px; padding: 7px 18px; }
+  .dp-top .seg button[aria-pressed="true"] { background: #fff; color: var(--sidebar); box-shadow: none; }
+  .dp-clock { text-align: right; line-height: 1.15; }
+  .dp-clock b { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+  .dp-clock span { display: block; font-size: 12px; color: var(--sidebar-text); }
+  .dp-top .live { background: transparent; border-color: rgb(255 255 255 / 0.18); color: var(--sidebar-text); }
+  .dp-theme { background: transparent; border: 1px solid rgb(255 255 255 / 0.18); color: var(--sidebar-text); border-radius: 999px; padding: 6px 9px; cursor: pointer; display: grid; place-items: center; }
+  .dp-theme:hover { color: #fff; }
+  .dp-main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, 31%); gap: 16px; padding: 16px; }
+  .dp-plan { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; padding: 16px 18px; }
+  .dp-plan-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .dp-plan-head h2 { font-size: 20px; }
+  .dp-plan-head .sub { color: var(--text-muted); font-size: 14px; }
+  #plan { min-height: 0; display: grid; place-items: center; }
+  #plan .fp-scroll { overflow: hidden; padding: 10px; }
+  .dp-foot { display: flex; gap: 10px 22px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--text-secondary); }
+  .dp-foot .litem { gap: 4px; }
+  .dp-foot .ws-sample { width: 30px; height: 27px; }
+  .dp-sel { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--text-primary); font-size: 14px; }
+  .dp-sel:empty { display: none; }
+  .dp-sel .btn { margin-left: auto; padding: 4px 10px; }
+  /* The selected colleague's chair pulses. */
+  @keyframes dp-pulse { 0%, 100% { filter: drop-shadow(0 0 0.6px var(--accent)) drop-shadow(0 0 1.6px rgb(37 99 235 / 0.6)); } 50% { filter: drop-shadow(0 0 1.2px var(--accent)) drop-shadow(0 0 4.5px rgb(37 99 235 / 0.9)); } }
+  .seat.dp-found .ws-chair { animation: dp-pulse 1.4s ease-in-out infinite; }
+  .seat.dp-found .ws-seat { stroke: var(--accent-strong); stroke-width: 0.3; }
+  .seat { cursor: default; }
+  .seat.dp-person { cursor: pointer; }
+
+  .dp-finder { min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; gap: 12px; padding: 18px; }
+  .dp-finder h2 { font-size: 22px; }
+  .dp-finder .sub { color: var(--text-muted); font-size: 14px; margin: 2px 0 0; }
+  .dp-search { position: relative; }
+  .dp-search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+  .dp-search input { width: 100%; font-size: 15px; padding: 11px 12px 11px 40px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-primary); }
+  .dp-search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .dp-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .dp-filters label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .dp-filters select { width: 100%; font-size: 14px; padding: 8px 30px 8px 10px; }
+  .dp-list { min-height: 0; overflow: auto; border-top: 1px solid var(--grid); }
+  .dp-list table { font-size: 14px; font-variant-numeric: normal; }
+  .dp-list th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  .dp-list td { padding: 9px 8px; vertical-align: middle; }
+  .dp-list tbody tr { cursor: pointer; }
+  .dp-list tbody tr.on { background: var(--accent-soft); }
+  .dp-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .dp-av { width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center; font: 700 12px var(--font); color: #fff; background: var(--c, var(--anon)); }
+  .dp-who b { font-weight: 600; display: block; }
+  .dp-who small { color: var(--text-muted); font-size: 12px; }
+  .dp-team { display: none; }
+  /* Narrower screens: the project moves under the name, leaving three columns. */
+  @media (max-width: 1500px) { .c-proj { display: none; } .dp-team { display: block; } }
+  .dp-desk { white-space: nowrap; }
+  .dp-desk small { display: block; color: var(--text-muted); font-size: 12px; white-space: normal; }
+  .dp-st { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-weight: 500; }
+  .dp-st::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--k); }
+  .s-onsite { --k: var(--available); } .s-away { --k: var(--seat-away); } .s-booked { --k: var(--occupied); } .s-team { --k: var(--team-3); }
+  .dp-count { font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between; gap: 10px; }
+  .dp-count .auto { color: var(--accent); font-weight: 600; }
+  .dp-empty { padding: 28px 8px; text-align: center; color: var(--text-muted); }
+  .dp-auth { max-width: 520px; margin: 18vh auto; text-align: center; }
+  .dp-auth code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; }
+  @media (max-width: 1100px) {
+    body { overflow: auto; }
+    .dp { height: auto; }
+    .dp-main { grid-template-columns: minmax(0, 1fr); }
+    .dp-finder { max-height: 80vh; }
+    .dp-top { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="dp">
+  <header class="dp-top">
+    <div class="brand"><img src="/static/logo.png" alt="">Hot Desk <small id="bname"></small></div>
+    <div class="seg" id="floors" role="group" aria-label="Floor"></div>
+    <span class="spacer"></span>
+    <span class="live" id="live">Loading…</span>
+    <div class="dp-clock"><b id="time"></b><span id="date"></span></div>
+    <button type="button" class="dp-theme" id="theme" title="Light or dark theme" aria-label="Switch light or dark theme"><svg class="i" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
+  </header>
+
+  <main class="dp-main" id="main">
+    <section class="card dp-plan" aria-label="Floor plan">
+      <div class="dp-plan-head"><h2 id="floorName">Floor plan</h2><span class="sub" id="floorCount"></span></div>
+      <div id="plan"></div>
+      <div>
+        <div class="dp-sel" id="sel" aria-live="polite"></div>
+        <div class="dp-foot" id="legend"></div>
+      </div>
+    </section>
+
+    <aside class="card dp-finder" aria-label="Colleague finder">
+      <div>
+        <h2>Colleague Finder</h2>
+        <p class="sub">Find where your colleagues are seated today.</p>
+      </div>
+      <div class="dp-search">
+        <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Search by name, project or desk" autocomplete="off" aria-label="Search colleagues">
+      </div>
+      <div class="dp-filters">
+        <label>Project<select id="fProject"><option value="">All projects</option></select></label>
+        <label>Floor<select id="fFloor"><option value="">All floors</option></select></label>
+        <label>Status<select id="fStatus">
+          <option value="">All</option><option value="onsite">On-site</option><option value="away">Away</option>
+          <option value="booked">Booked</option><option value="team">Booked for team</option>
+        </select></label>
+      </div>
+      <div class="dp-list" id="list"></div>
+      <div class="dp-count"><span id="count"></span><span id="mode"></span></div>
+    </aside>
+  </main>
+</div>
+
+<script src="/static/floorplan.js"></script>
+<script src="/static/display.js"></script>
+</body>
+</html>

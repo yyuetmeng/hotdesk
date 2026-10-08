@@ -516,6 +516,38 @@ export class OccupancyEngine extends EventEmitter {
   }
 
   /**
+   * Who is in today, for the floor display's colleague finder: one entry per person (per project) who
+   * is checked in or has booked desks. People sitting without a check-in are anonymous and not listed.
+   * Status: `onsite` (at the desk, or checked in at a desk without a sensor), `away` (stepped away,
+   * desk held), `booked` (checked in but not seen at the desk yet), `team` (desks booked for the team).
+   */
+  peopleIn(now = this.clock()) {
+    const people = new Map();
+    for (const seat of this.seats.values()) {
+      if (!seat.checkedInBy) continue;
+      const v = this.view(seat, now);
+      if (v.status !== Status.OCCUPIED && v.status !== Status.AWAY && v.status !== Status.OFFLINE) continue;
+      const key = `${seat.checkedInBy.toLowerCase()}|${seat.checkedInTeam ?? ''}|${seat.teamBooking ? 'team' : ''}`;
+      if (!people.has(key)) {
+        people.set(key, { name: seat.checkedInBy, team: seat.checkedInTeam ?? null, teamBooking: Boolean(seat.teamBooking), seats: [], since: seat.checkedInAt, until: seat.checkedInUntil });
+      }
+      const p = people.get(key);
+      const status = v.status === Status.AWAY ? 'away'
+        : seat.presence || !hasSensor(seat) || v.status === Status.OFFLINE ? 'onsite' : 'booked';
+      p.seats.push({ id: seat.id, floor: seat.floor, floorName: seat.floorName, zone: seat.zone, zoneName: seat.zoneName, status });
+      p.since = Math.min(p.since, seat.checkedInAt);
+      p.until = Math.max(p.until, seat.checkedInUntil);
+    }
+    const rank = { onsite: 0, away: 1, booked: 2 };
+    return [...people.values()].map((p) => {
+      p.seats.sort((a, b) => a.id.localeCompare(b.id));
+      // A person at a single desk takes that desk's status; a team booking is listed as such.
+      p.status = p.teamBooking ? 'team' : p.seats.map((s) => s.status).sort((a, b) => rank[a] - rank[b])[0];
+      return p;
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
    * Clear every seat's live state (presence, away holds, check-ins and team bookings) so
    * the floor starts empty, e.g. to restart a demo. Projects, seat allocations, sensor links,
    * history and reports are kept. Readings from real sensors bring presence back at once.

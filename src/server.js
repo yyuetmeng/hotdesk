@@ -72,10 +72,11 @@ function publicView(v) {
  * @param {string} [opts.publicUrl]     base URL printed in desk QR codes (default: the URL the page was opened at)
  * @param {string} [opts.buildingName]
  * @param {{id: string, plan: object|null}[]} [opts.floorPlans]  drawing data per floor for the dashboard (building.json `plan`)
+ * @param {string} [opts.displayKey]    opens the floor display (/display?key=…), which shows who sits where; the admin token works too
  * @param {number} [opts.teamBookingMaxSeats]  most seats an employee can book for their team on /book (admins: 100)
  * @param {boolean} [opts.demo]          demo mode (DEMO_MODE=1, set by `npm run demo`): /book fills in sample names
  */
-export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicUrl, buildingName = 'Desk labels', floorPlans = [], demo = false, teamBookingMaxSeats = 10 }) {
+export function createApp({ engine, publicDir, sensorApiKey, adminToken, displayKey, publicUrl, buildingName = 'Desk labels', floorPlans = [], demo = false, teamBookingMaxSeats = 10 }) {
   const streams = new Set();
 
   engine.on('change', (seat) => {
@@ -92,6 +93,14 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     const header = req.headers.authorization ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : url.searchParams.get('token');
     if (!token || !safeEqual(token, adminToken)) throw new HttpError(401, 'Admin token required');
+  };
+
+  // The floor display shows names, so it needs the display key (or the admin token). Without a display
+  // key it falls back to the admin rule: open when no admin token is set either.
+  const requireDisplay = (req, url) => {
+    const key = req.headers['x-display-key'] ?? url.searchParams.get('key');
+    if (displayKey && key && safeEqual(key, displayKey)) return;
+    try { requireAdmin(req, url); } catch { throw new HttpError(401, 'Display key required'); }
   };
 
   const requireSensorKey = (req) => {
@@ -136,6 +145,11 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, publicU
     if (method === 'GET' && url.pathname === '/') return serveStatic(res, 'index.html');
     if (method === 'GET' && url.pathname === '/checkin') return serveStatic(res, 'checkin.html');
     if (method === 'GET' && url.pathname === '/book') return serveStatic(res, 'book.html');
+    if (method === 'GET' && url.pathname === '/display') return serveStatic(res, 'display.html');
+    if (method === 'GET' && url.pathname === '/api/display/people') {
+      requireDisplay(req, url);
+      return send(res, 200, { building: buildingName, at: Date.now(), people: engine.peopleIn() });
+    }
     if (method === 'GET' && url.pathname === '/sensors') return serveStatic(res, 'sensors.html');
     if (method === 'GET' && parts[0] === 'static') return serveStatic(res, parts.slice(1).join('/'));
     if (method === 'GET' && url.pathname === '/healthz') return send(res, 200, { ok: true });

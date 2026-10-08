@@ -41,6 +41,7 @@ const server = createApp({
   publicDir: resolve(root, 'public'),
   sensorApiKey: env.SENSOR_API_KEY,
   adminToken: env.ADMIN_TOKEN,
+  displayKey: env.DISPLAY_KEY,
   publicUrl: env.PUBLIC_URL,
   buildingName: building.name,
   floorPlans: building.floors.map((f) => ({ id: f.id, plan: f.plan ?? null })),
@@ -59,6 +60,8 @@ server.listen(port, () => {
   if (lan.length) console.log(`On this network (for phones): ${lan.join(', ')}  ·  employee booking: /book`);
   if (!env.ADMIN_TOKEN) console.warn('ADMIN_TOKEN not set: admin dashboard is open to anyone who can reach it.');
   if (!env.SENSOR_API_KEY) console.warn('SENSOR_API_KEY not set: sensor ingestion is unauthenticated.');
+  if (env.DISPLAY_KEY) console.log(`Floor display: http://localhost:${port}/display?key=<DISPLAY_KEY>`);
+  else console.log(`Floor display: http://localhost:${port}/display${env.ADMIN_TOKEN ? '?token=<ADMIN_TOKEN> (or set DISPLAY_KEY)' : ''}`);
 });
 
 async function shutdown() {

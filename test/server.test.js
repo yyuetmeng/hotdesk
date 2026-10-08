@@ -206,6 +206,27 @@ test('employees book several desks for their team (public, capped, project requi
   app.close();
 });
 
+test('floor display: people in today need the display key or the admin token', async () => {
+  const engine = new OccupancyEngine({ seats: expandLayout({ floors: [{ id: 'L1', name: 'Level 1', zones: [{ id: 'A', name: 'A', rows: 1, cols: 4 }] }] }) });
+  const app = createApp({ engine, publicDir: resolve(import.meta.dirname, '../public'), adminToken: 'admin-token', displayKey: 'show' });
+  await new Promise((r) => app.listen(0, r));
+  const url = `http://127.0.0.1:${app.address().port}`;
+  engine.checkIn('L1-A-01', 'Tan Wei Ming', { team: 'SAP' });
+  engine.bookSeats(['L1-A-02', 'L1-A-03'], 'Lim Hui Min', { team: 'ITGC' });
+  assert.equal((await fetch(`${url}/display`)).status, 200);
+  assert.equal((await fetch(`${url}/api/display/people`)).status, 401);
+  assert.equal((await fetch(`${url}/api/display/people?key=wrong`)).status, 401);
+  assert.equal((await fetch(`${url}/api/display/people?token=admin-token`)).status, 200);
+  const { people } = await (await fetch(`${url}/api/display/people`, { headers: { 'x-display-key': 'show' } })).json();
+  assert.deepEqual(people.map((p) => [p.name, p.team, p.status, p.seats.map((s) => s.id)]), [
+    ['Lim Hui Min', 'ITGC', 'team', ['L1-A-02', 'L1-A-03']],
+    ['Tan Wei Ming', 'SAP', 'onsite', ['L1-A-01']], // no sensor on this desk: a check-in counts as on-site
+  ]);
+  // The display key opens nothing else.
+  assert.equal((await fetch(`${url}/api/seats?key=show`)).status, 401);
+  app.close();
+});
+
 test('self-service booking page and its floor data are public and carry no personal data', async () => {
   assert.equal((await fetch(`${base}/book`)).status, 200);
   assert.equal((await fetch(`${base}/static/book.js`)).status, 200);

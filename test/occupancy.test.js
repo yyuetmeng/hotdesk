@@ -299,6 +299,22 @@ test('chart periods: minute samples up to a day, hourly averages with peaks beyo
   assert.deepEqual(copy.historyFor('30d'), engine.historyFor('30d'));
 });
 
+test('people in today: on-site, away, booked and team bookings; anonymous sitters are not listed', () => {
+  const { engine, clock } = setup();
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: true });
+  assert.deepEqual(engine.peopleIn(), []);                     // sitting without a check-in: anonymous
+  engine.checkIn('L1-A-01', 'Ana', { team: 'SAP' });            // at the desk
+  engine.checkIn('L1-A-02', 'Ben', { team: 'SAP' });            // checked in, not seen yet
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-02' });
+  const status = () => Object.fromEntries(engine.peopleIn().map((p) => [p.name, p.status]));
+  assert.deepEqual(status(), { Ana: 'onsite', Ben: 'booked' });
+  engine.recordSensorEvent({ sensorId: 'S-L1-A-01', presence: false });
+  clock.advance(1);
+  assert.equal(status().Ana, 'away');
+  engine.checkOut('L1-A-02', 'Ben', { team: 'SAP' });
+  assert.deepEqual(Object.keys(status()), ['Ana']);
+});
+
 test('linking a real sensor to a desk, moving it, and unlinking', () => {
   const { engine, clock } = setup();
   // A sensor that isn't linked yet is remembered so an admin can link it.

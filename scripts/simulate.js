@@ -51,7 +51,24 @@ const present = new Map(sensored.map((s) => [s.sensorId, false]));
 // back to building.json if it can't be read.
 let teams = (building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'])
   .map((t) => (typeof t === 'string' ? t : t.name));
-const people = Array.from({ length: PEOPLE }, (_, i) => ({ name: `employee${i + 1}`, team: null, seat: null, checkedIn: false }));
+// Names: the 50 sample names the booking pages use in demo mode (public/demo-names.js), then new
+// combinations of their family and given names, so every simulated person has a distinct name.
+const SAMPLE = [...readFileSync(new URL('../public/demo-names.js', import.meta.url), 'utf8').matchAll(/'([A-Z][a-z]+(?: [A-Z][a-z]+)+)'/g)].map((m) => m[1]);
+function personName(i) {
+  if (i < SAMPLE.length) return SAMPLE[i];
+  const family = (n) => SAMPLE[n % SAMPLE.length].split(' ')[0];
+  const given = (n) => SAMPLE[n % SAMPLE.length].split(' ').slice(1).join(' ');
+  for (let k = 1; ; k++) {
+    const name = `${family(i * 7 + k)} ${given(i * 3 + k * 11)}`;
+    if (!SAMPLE.includes(name) && !usedNames.has(name)) return name;
+  }
+}
+const usedNames = new Set();
+const people = Array.from({ length: PEOPLE }, (_, i) => {
+  const name = SAMPLE.length ? personName(i) : `employee${i + 1}`;
+  usedNames.add(name);
+  return { name, team: null, seat: null, checkedIn: false };
+});
 const visitors = Array.from({ length: VISITORS }, () => ({ seat: null }));
 const teamBooked = new Map(); // seat id -> { team, until, booking } for seats our team leads booked
 let bookingCount = 0;
@@ -135,10 +152,12 @@ async function bookForTeam(avail, taken) {
   const others = shuffle(seats.filter((s) => free(s) && !avail.get(s.id)?.allocatedTo));
   const chosen = [...mine, ...others].slice(0, 2 + Math.floor(Math.random() * 3)).map((s) => s.id);
   if (!chosen.length) return;
+  // The team lead is someone from that team who isn't at a desk right now.
+  const lead = pick(people.filter((p) => p.team === team && !p.seat))?.name ?? pick(people.filter((p) => p.team === team))?.name ?? `${team} lead`;
   const res = await fetch(`${base}/api/bookings`, {
     method: 'POST',
     headers: { ...headers, ...adminHeaders },
-    body: JSON.stringify({ user: `lead-${team.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, projectTeam: team, minutes: BOOKING_MINUTES, seats: chosen }),
+    body: JSON.stringify({ user: lead, projectTeam: team, minutes: BOOKING_MINUTES, seats: chosen }),
   });
   if (res.status === 401) {
     teamBookings = false;

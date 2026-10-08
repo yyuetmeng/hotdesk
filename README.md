@@ -11,6 +11,8 @@ and gives administrators a live dashboard of seat availability.
   per-zone utilisation, activity feed.
 - **For employees:** a self-service booking page (`/book`) with the floor plan, and a phone check-in page
   (`/checkin`) that a desk's QR code opens, or that takes a typed desk ID.
+- **Floor display:** a page for a projector or wall screen at the office (`/display`): the live floor plan and a
+  colleague finder that shows who is checked in or has booked, and where.
 
 ![Admin dashboard](docs/dashboard.png)
 
@@ -88,6 +90,7 @@ in the QR sticker on each desk.
 | `CHECKIN_DURATION_MINUTES` | 180 | How long each check-in lasts by default (3 hours). Users can pick another length, and scanning again renews it |
 | `CHECKIN_MAX_MINUTES` | 480 | Longest check-in a user can choose |
 | `PUBLIC_URL` | *(address the page was opened at)* | Base URL encoded in the desk QR labels, e.g. `https://hotdesk.example.com` |
+| `DISPLAY_KEY` | *(none)* | Key for the floor display (`/display?key=…`), which shows names; the admin token works too |
 | `TEAM_BOOKING_MAX_SEATS` | `10` | Most desks an employee can book for their team at once on `/book` (admins on the dashboard: 100) |
 | `SENSOR_OFFLINE_MINUTES` | 15 | Silence after which a sensor counts as offline |
 | `BUILDING_FILE` | `config/building.json` | Floors, zones and desk grid |
@@ -304,6 +307,26 @@ different one. Each desk or booking gets a new name, and sample names are not re
 To scan with a real phone, both devices must be on the same Wi-Fi: open the dashboard at the laptop's network
 address (e.g. `http://192.168.1.23:3000`, from `ipconfig`) so the labels encode it, and allow Node through the
 Windows firewall on private networks.
+
+## Floor display (colleague finder)
+
+`/display` is made for a projector or wall screen at the office (landscape, full screen). It shows:
+
+- the live floor plan, one floor at a time (tabs), with taken desks in their project's colour;
+- a **Colleague Finder**: everyone who is checked in or has booked desks today, with their project, desk, floor
+  and status: **On-site** (at the desk, or checked in at a desk without a sensor), **Away** (stepped away, desk
+  held), **Booked** (checked in but not at the desk yet) or **Booked for team** (one row per person who booked
+  several desks). People who sit down without checking in are not listed;
+- search by name, project or desk, and filters for project, floor and status. Tapping a name switches to their
+  floor and makes their desk pulse.
+
+After a minute without input it clears the search and runs on its own: it rotates the floors every 20 seconds and
+slowly scrolls the list, until someone touches it. Tune with `?idle=60&rotate=20` (seconds). `?theme=dark` (or the
+moon button) suits a projector.
+
+Because it shows names, it needs a key: set `DISPLAY_KEY` and open `/display?key=<DISPLAY_KEY>`. The key opens
+only the display, nothing else. The admin token also works (the dashboard's **Floor display** link uses it); with
+neither set (as in `npm run demo`), it is open like the dashboard.
 
 ## Desk labels (QR codes)
 
