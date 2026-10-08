@@ -41,7 +41,7 @@
   --anon: #7a7974;
   /* Seat chairs on the floor plan: status is the chair colour plus a glyph. */
   --seat-available: #22a447; --seat-occupied: #6f8fc4; --seat-away: #f2b01e; --seat-offline: #c3c5c9;
-  --seat-glyph: #ffffff; --seat-away-ink: #6b4500; --seat-offline-ink: #50545a;
+  --seat-glyph: #ffffff; --seat-away-ink: #6b4500; --seat-offline-ink: #50545a; --seat-reserved: #0d9488;
   /* Floor plan: flat vector style. Near-white floor, hairline walls, light neutral furniture. */
   --fp-floor: #fafbfc; --fp-wall: #474e59; --fp-wall-soft: #9aa3af; --fp-glass: #cfe4f6; --fp-glass-line: #9cc3e6;
   --fp-room: #f4f5f7; --fp-wc: #a3abb6; --fp-wc-icon: #ffffff; --fp-lift: #eef1f5; --fp-label: #5f6b7c; --fp-label-strong: #1c2533;
@@ -65,7 +65,7 @@
     --team-5: #d55181; --team-6: #c08552; --team-7: #9085e9; --team-8: #e66767;
     --anon: #8f8e86;
     --seat-available: #2fb457; --seat-occupied: #5d7fb8; --seat-away: #e3a51a; --seat-offline: #4b5058;
-    --seat-glyph: #ffffff; --seat-away-ink: #3d2800; --seat-offline-ink: #c3c8cf;
+    --seat-glyph: #ffffff; --seat-away-ink: #3d2800; --seat-offline-ink: #c3c8cf; --seat-reserved: #2dd4bf;
     /* Floor plan: flat vector style, dark. */
     --fp-floor: #171b21; --fp-wall: #8a93a0; --fp-wall-soft: #5d6673; --fp-glass: #2b4561; --fp-glass-line: #4a6f94;
     --fp-room: #1e232b; --fp-wc: #3a414c; --fp-wc-icon: #c9d0d9; --fp-lift: #1e232b; --fp-label: #8e98a6; --fp-label-strong: #e6eaf0;
@@ -89,7 +89,7 @@
   --team-5: #d55181; --team-6: #c08552; --team-7: #9085e9; --team-8: #e66767;
   --anon: #8f8e86;
   --seat-available: #2fb457; --seat-occupied: #5d7fb8; --seat-away: #e3a51a; --seat-offline: #4b5058;
-  --seat-glyph: #ffffff; --seat-away-ink: #3d2800; --seat-offline-ink: #c3c8cf;
+  --seat-glyph: #ffffff; --seat-away-ink: #3d2800; --seat-offline-ink: #c3c8cf; --seat-reserved: #2dd4bf;
   /* Floor plan: flat vector style, dark. */
   --fp-floor: #171b21; --fp-wall: #8a93a0; --fp-wall-soft: #5d6673; --fp-glass: #2b4561; --fp-glass-line: #4a6f94;
   --fp-room: #1e232b; --fp-wc: #3a414c; --fp-wc-icon: #c9d0d9; --fp-lift: #1e232b; --fp-label: #8e98a6; --fp-label-strong: #e6eaf0;
@@ -165,7 +165,7 @@ button, select, input { font: inherit; color: inherit; }
 /* ---------- Summary cards ---------- */
 .scope { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 13px; margin-bottom: -8px; }
 .scope b { color: var(--text-secondary); font-weight: 600; }
-.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
 .kpi { display: grid; grid-template-columns: auto 1fr; column-gap: 14px; align-items: start; align-content: start; padding: 18px; transition: border-color 0.15s, box-shadow 0.15s; }
 .kpi:hover { border-color: var(--border-strong); }
 .kpi .icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--k) 13%, var(--surface)); color: var(--k); grid-row: span 2; }
@@ -302,6 +302,11 @@ svg.fp { display: block; margin: 0 auto; }
 .st-offline .ws-light { fill: var(--fp-floor); stroke: var(--seat-offline-ink); stroke-width: 0.14; stroke-dasharray: 0.3 0.22; }
 .st-offline .ws-glyph-off { display: inline; stroke: var(--seat-offline-ink); }
 .st-offline .ws-chair { opacity: 0.55; }
+/* Reserved for a slot, waiting for its check-in: an empty chair with a dashed outline and a bookmark light. */
+.st-reserved { --k: var(--seat-reserved); }
+.st-reserved .ws-seat { fill: color-mix(in srgb, var(--seat-reserved) 14%, var(--surface)); stroke: var(--seat-reserved); stroke-width: 0.18; stroke-dasharray: 0.45 0.3; }
+.st-reserved .ws-back, .st-reserved .ws-arm { fill: color-mix(in srgb, var(--seat-reserved) 55%, var(--surface)); }
+.st-reserved .ws-glyph-res { display: inline; fill: #fff; stroke: none; }
 /* Project team view: the person and the light take the team's colour. */
 .team { --k: var(--c); --pc: var(--c); }
 /* Team assignment view: the desk itself carries the team's colour. */
@@ -452,6 +457,7 @@ svg.fp { display: block; margin: 0 auto; }
 .k-occupied { --k: var(--seat-occupied); }
 .k-away { --k: var(--seat-away-ink); }
 .k-offline { --k: var(--text-muted); }
+.k-reserved { --k: var(--seat-reserved); }
 
 /* ---------- Seat panel ---------- */
 .panel { position: sticky; top: 16px; padding: 0; overflow: hidden; }
@@ -481,6 +487,9 @@ kbd { font: 600 11px var(--font); padding: 0 5px; margin: 0 1px; border: 1px sol
 .usage { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); display: grid; gap: 4px; font-size: 13px; }
 .usage .row { display: flex; justify-content: space-between; gap: 12px; }
 .usage .row span:first-child { color: var(--text-muted); }
+.usage.resv-box { background: color-mix(in srgb, var(--seat-reserved) 8%, var(--surface)); border-color: color-mix(in srgb, var(--seat-reserved) 35%, var(--surface)); }
+.usage.resv-box .row b { color: var(--text-primary); }
+.usage.resv-box .btn { padding: 5px 10px; font-size: 12px; margin-top: 4px; }
 .usage .row span:last-child { text-align: right; font-weight: 500; }
 .flash { margin-top: 16px; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; font-size: 13px; animation: slide-in 0.2s ease; }
 .flash.ok { background: var(--available-soft); color: var(--text-primary); border: 1px solid color-mix(in srgb, var(--available) 35%, var(--surface)); }
@@ -629,4 +638,4 @@ td.num, th.num { text-align: right; }
 .dp-av { width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center; font: 700 11px var(--font); color: #fff; background: var(--c, var(--anon)); }
 .dp-tag { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; font-size: 10.5px; font-weight: 600; vertical-align: 1px;
   background: color-mix(in srgb, var(--k) 16%, var(--surface)); color: var(--text-primary); white-space: nowrap; }
-.s-onsite { --k: var(--available); } .s-away { --k: var(--seat-away); } .s-booked { --k: var(--occupied); } .s-team { --k: var(--team-3); }
+.s-onsite { --k: var(--available); } .s-away { --k: var(--seat-away); } .s-booked { --k: var(--occupied); } .s-team { --k: var(--team-3); } .s-reserved { --k: var(--seat-reserved); }

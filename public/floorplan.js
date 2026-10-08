@@ -286,7 +286,8 @@ const FloorPlan = (() => {
 
   const LIGHT = `<circle class="ws-light" r="0.62"/>
     <path class="ws-glyph ws-glyph-away" d="M0 -0.3V0l0.22 0.16"/>
-    <path class="ws-glyph ws-glyph-off" d="M0 -0.32V0.05M0 0.26v0.02"/>`;
+    <path class="ws-glyph ws-glyph-off" d="M0 -0.32V0.05M0 0.26v0.02"/>
+    <path class="ws-glyph ws-glyph-res" d="M-0.2 -0.3h0.4v0.6l-0.2-0.16-0.2 0.16z"/>`;
 
   /** A monitor from above: a slim dark screen on a small stand, facing the chair. */
   function monitorMarkup(m) {

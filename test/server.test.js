@@ -169,7 +169,9 @@ test('desk labels page is admin-only and encodes each desk check-in URL', async 
 
 test('check-in options expose the default and maximum duration', async () => {
   const res = await fetch(`${base}/api/checkin-options`);
-  const { projects, ...rest } = await res.json();
+  const { projects, reservations, ...rest } = await res.json();
+  assert.deepEqual(reservations.slots.map((x) => x.id), ['am', 'pm', 'day']);
+  assert.equal(reservations.dates.length, 2); // today and tomorrow
   assert.deepEqual(rest, {
     checkinDurationMinutes: 180,
     checkinMaxMinutes: 480,
@@ -182,27 +184,26 @@ test('check-in options expose the default and maximum duration', async () => {
   assert.equal(projects.length, 8);
 });
 
-test('employees book several desks for their team (public, capped, project required)', async () => {
+test('employees reserve several desks for their team (public, capped, project required)', async () => {
   // Its own server with free seats and a cap of 3.
   const app = createApp({ engine: new OccupancyEngine({ seats: expandLayout({ floors: [{ id: 'L1', name: 'Level 1', zones: [{ id: 'A', name: 'A', rows: 1, cols: 4 }] }] }) }),
     publicDir: resolve(import.meta.dirname, '../public'), teamBookingMaxSeats: 3 });
   await new Promise((r) => app.listen(0, r));
   const url = `http://127.0.0.1:${app.address().port}`;
   const post = (path, body) => fetch(url + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  const book = (body) => post('/api/team-bookings', body);
-  assert.equal((await book({ user: '', projectTeam: 'SAP', seats: ['L1-A-01'] })).status, 400);
-  assert.equal((await book({ user: 'Mei', seats: ['L1-A-01'] })).status, 400);
-  assert.equal((await book({ user: 'Mei', projectTeam: 'SAP', seats: ['L1-A-01', 'L1-A-02', 'L1-A-03', 'L1-A-04'] })).status, 400);
-  const res = await book({ user: 'Mei', projectTeam: 'SAP', minutes: 60, seats: ['L1-A-01', 'L1-A-02'] });
-  assert.equal(res.status, 200);
-  const seats = await res.json();
-  assert.deepEqual(seats.map((x) => [x.id, x.status, x.teamBooking]), [['L1-A-01', 'occupied', true], ['L1-A-02', 'occupied', true]]);
-  assert.ok(seats.every((x) => !('checkedInBy' in x)));
-  assert.equal((await book({ user: 'Wei', projectTeam: 'SAP', seats: ['L1-A-02'] })).status, 409);
-  // The booker releases them one by one with their name, like any check-in.
-  for (const id of ['L1-A-01', 'L1-A-02']) {
-    assert.equal((await post(`/api/seats/${id}/checkout`, { user: 'Mei', projectTeam: 'SAP' })).status, 200);
-  }
+  const { reservations: { dates: [, tomorrow] } } = await (await fetch(`${url}/api/checkin-options`)).json();
+  const reserve = (body) => post('/api/reservations', { date: tomorrow, slot: 'am', forTeam: true, ...body });
+  // Holding desks without a check-in is gone: a team reserves them instead.
+  assert.equal((await post('/api/team-bookings', { user: 'Mei', projectTeam: 'SAP', seats: ['L1-A-01'] })).status, 404);
+  assert.equal((await reserve({ user: '', projectTeam: 'SAP', seats: ['L1-A-01'] })).status, 400);
+  assert.equal((await reserve({ user: 'Mei', seats: ['L1-A-01'] })).status, 400);
+  assert.equal((await reserve({ user: 'Mei', projectTeam: 'SAP', seats: ['L1-A-01', 'L1-A-02', 'L1-A-03', 'L1-A-04'] })).status, 400);
+  const res = await reserve({ user: 'Mei', projectTeam: 'SAP', seats: ['L1-A-01', 'L1-A-02'] });
+  assert.equal(res.status, 201);
+  const made = await res.json();
+  assert.deepEqual(made.map((r) => [r.seatId, r.status, r.forTeam]), [['L1-A-01', 'booked', true], ['L1-A-02', 'booked', true]]);
+  assert.ok(made.every((r) => !('user' in r)) && made[0].group && made[0].group === made[1].group);
+  assert.equal((await reserve({ user: 'Wei', projectTeam: 'SAP', seats: ['L1-A-02'] })).status, 409);
   app.close();
 });
 
@@ -224,6 +225,30 @@ test('floor display: people in today need the display key or the admin token', a
   ]);
   // The display key opens nothing else.
   assert.equal((await fetch(`${url}/api/seats?key=show`)).status, 401);
+  app.close();
+});
+
+test('reservations API: reserve for tomorrow, see your own, cancel; names stay private', async () => {
+  const engine = new OccupancyEngine({ seats: expandLayout({ floors: [{ id: 'L1', name: 'Level 1', zones: [{ id: 'A', name: 'A', rows: 1, cols: 3 }] }] }) });
+  const app = createApp({ engine, publicDir: resolve(import.meta.dirname, '../public'), adminToken: 'admin-token' });
+  await new Promise((r) => app.listen(0, r));
+  const url = `http://127.0.0.1:${app.address().port}`;
+  const send = (path, body, headers = {}) => fetch(url + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  const { reservations } = await (await fetch(`${url}/api/checkin-options`)).json();
+  const tomorrow = reservations.dates[1];
+  const res = await send('/api/reservations', { seatId: 'L1-A-01', user: 'Mei Ling', projectTeam: 'SAP', date: tomorrow, slot: 'day' });
+  assert.equal(res.status, 201);
+  const [made] = await res.json();
+  assert.equal(made.user, undefined); // not echoed in public responses
+  assert.equal((await send('/api/reservations', { seats: ['L1-A-02', 'L1-A-03'], user: 'Wei', projectTeam: 'SAP', date: tomorrow, slot: 'am' })).status, 400); // one desk unless forTeam
+  assert.equal((await send('/api/reservations', { seatId: 'L1-A-01', user: 'Wei', projectTeam: 'SAP', date: tomorrow, slot: 'am' })).status, 409);
+  const avail = await (await fetch(`${url}/api/availability?date=${tomorrow}&slot=pm`)).json();
+  assert.deepEqual(avail.map((x) => x.slotState.state), ['reserved', 'free', 'free']);
+  assert.ok(avail.every((x) => !x.reservation || x.reservation.user === undefined));
+  assert.equal((await (await fetch(`${url}/api/reservations?user=mei%20ling`)).json()).length, 1);
+  assert.equal((await fetch(`${url}/api/reservations`)).status, 401); // everyone's needs the admin token
+  assert.equal((await send(`/api/reservations/${made.id}/cancel`, { user: 'Wei' })).status, 409);
+  assert.equal((await send(`/api/reservations/${made.id}/cancel`, { user: 'Mei Ling' })).status, 200);
   app.close();
 });
 

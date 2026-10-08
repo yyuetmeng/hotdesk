@@ -1,10 +1,20 @@
 import { EventEmitter } from 'node:events';
+import { randomUUID } from 'node:crypto';
 
 export const Status = Object.freeze({
   AVAILABLE: 'available',
   OCCUPIED: 'occupied',
   AWAY: 'away',
   OFFLINE: 'offline',
+  // Booked ahead for this slot and waiting for its person to check in (shown from 15 min before).
+  RESERVED: 'reserved',
+});
+
+/** Reservation slots (hours, server time zone). A reservation is for today or tomorrow. */
+export const SLOTS = Object.freeze({
+  am: Object.freeze({ label: 'Morning', from: 8, to: 13 }),
+  pm: Object.freeze({ label: 'Afternoon', from: 13, to: 19 }),
+  day: Object.freeze({ label: 'Full day', from: 8, to: 19 }),
 });
 
 export const DEFAULT_RULES = Object.freeze({
@@ -18,6 +28,14 @@ export const DEFAULT_RULES = Object.freeze({
   checkinMaxMinutes: 480,
   // A sensor that has not reported for this long is considered offline.
   sensorOfflineMinutes: 15,
+  // Reservations: check in from this long before the slot starts…
+  reservationEarlyMinutes: 15,
+  // …and no later than this long after it starts (or after booking, if booked late); else a no-show.
+  reservationGraceMinutes: 30,
+  // How many days ahead a desk can be reserved (1 = today and tomorrow).
+  reservationDaysAhead: 1,
+  // Most reservations one person can hold in a week (Monday to Sunday).
+  reservationMaxPerWeek: 5,
 });
 
 /** Project teams requesters choose from when they check in or out (config/building.json "projectTeams"). */
@@ -162,6 +180,10 @@ const MAX_BOOKING_SEATS = 100;
 
 /** Calendar day in the server's time zone (TZ), e.g. 2026-10-05. */
 const dayKey = (t) => new Date(t).toLocaleDateString('en-CA');
+/** The Monday that starts the week of `t` (server time zone), as a day key. */
+const weekKey = (t) => { const d = new Date(t); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dayKey(d.getTime()); };
+const sameName = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+const RESERVATIONS_KEPT_DAYS = 14;
 
 export class OccupancyEngine extends EventEmitter {
   /**
@@ -198,6 +220,8 @@ export class OccupancyEngine extends EventEmitter {
     this.sensorLinks = { ...(state.sensorLinks ?? {}) };
     // Sensors that report but are not linked to any desk yet, so an admin can link them.
     this.unlinked = new Map(Object.entries(state.unlinkedSensors ?? {}));
+    // Desks booked ahead for a slot (id -> reservation); confirmed by checking in.
+    this.reservations = new Map((state.reservations ?? []).map((r) => [r.id, r]));
 
     const saved = state.seats ?? {};
     for (const def of seats) {
@@ -213,7 +237,7 @@ export class OccupancyEngine extends EventEmitter {
     this.allocations = new Map(Object.entries(state.allocations ?? {})
       .filter(([id, team]) => this.seats.has(id) && this.projectTeams.includes(team)));
     const now = this.clock();
-    for (const seat of this.seats.values()) this.lastStatus.set(seat.id, deriveStatus(seat, now, this.rules));
+    for (const seat of this.seats.values()) this.lastStatus.set(seat.id, this.#statusOf(seat, now));
   }
 
   // ---------- Projects and seat pre-allocation ----------
@@ -440,6 +464,20 @@ export class OccupancyEngine extends EventEmitter {
     }
     const seat = this.getSeat(seatId);
     const now = this.clock();
+    // A desk reserved for this slot can only be taken by the person (or, for a team booking, a
+    // member of the team) it is reserved for: their check-in confirms the reservation.
+    const active = this.#activeReservation(seat, now);
+    if (active && !this.#mayClaim(active, user, team)) {
+      throw new ConflictError(`Seat ${seatId} is reserved for ${this.#slotText(active)}. If it is your reservation, check in with the name${active.forTeam ? ' and project' : ''} you reserved under; otherwise choose another seat.`);
+    }
+    // A reservation later on: a walk-in can use the desk until its check-in window opens.
+    const next = this.#nextReservation(seat, now);
+    let until = now + minutes * MINUTE, claim = active;
+    if (next && !this.#mayClaim(next, user, team)) {
+      const limit = this.#windowOpens(next);
+      if (limit - now < 5 * MINUTE) throw new ConflictError(`Seat ${seatId} is reserved for ${this.#slotText(next)}. Choose another seat.`);
+      until = Math.min(until, limit);
+    } else if (next && next.start < until) claim = next; // arriving early for their own reservation
     const status = deriveStatus(seat, now, this.rules);
     if (seat.checkedInBy && seat.checkedInBy !== user && status !== Status.AVAILABLE) {
       throw new ConflictError(`Seat ${seatId} is already taken`);
@@ -460,10 +498,18 @@ export class OccupancyEngine extends EventEmitter {
     }
     seat.checkedInBy = user;
     seat.checkedInAt = now;
-    seat.checkedInUntil = now + minutes * MINUTE;
+    seat.checkedInUntil = until;
     seat.checkedInTeam = team;
     seat.teamBooking = teamBooking;
-    this.#log(now, seat, renewing ? 'renew' : 'checkin', user, team);
+    if (claim) {
+      // Checking in confirms the reservation and holds the desk to the end of its slot.
+      claim.status = 'checked-in'; claim.checkedInAt = now; claim.checkedInBy = user;
+      seat.checkedInUntil = Math.max(seat.checkedInUntil, claim.end);
+      seat.teamBooking = false;
+      this.emit('reservations');
+    }
+    // A check-in that confirms a reservation is marked as such in the activity feed.
+    this.#log(now, seat, renewing ? 'renew' : 'checkin', user, team, claim ? { slot: this.#slotText(claim) } : undefined);
     if (!renewing) this.#countTeam(now, team, 'checkins');
     this.#noteRequester(user, team, now, { seatId: seat.id, checkin: !renewing });
     this.#refresh(seat, now);
@@ -493,6 +539,10 @@ export class OccupancyEngine extends EventEmitter {
     // Someone else's check-in, or a person sitting there, makes a seat unavailable.
     const taken = ids.filter((id) => {
       const seat = this.seats.get(id);
+      // Reserved now, or reserved before this booking would end.
+      if (this.#activeReservation(seat, now)) return true;
+      const next = this.#nextReservation(seat, now);
+      if (next && this.#windowOpens(next) < now + minutes * MINUTE) return true;
       if (seat.checkedInBy === user) return false;
       const status = deriveStatus(seat, now, this.rules);
       return status === Status.OCCUPIED || status === Status.AWAY;
@@ -519,7 +569,8 @@ export class OccupancyEngine extends EventEmitter {
    * Who is in today, for the floor display's colleague finder: one entry per person (per project) who
    * is checked in or has booked desks. People sitting without a check-in are anonymous and not listed.
    * Status: `onsite` (at the desk, or checked in at a desk without a sensor), `away` (stepped away,
-   * desk held), `booked` (checked in but not seen at the desk yet), `team` (desks booked for the team).
+   * desk held), `booked` (checked in but not seen at the desk yet), `team` (desks booked for the team),
+   * `reserved` (a reservation whose check-in window is open, not checked in yet).
    */
   peopleIn(now = this.clock()) {
     const people = new Map();
@@ -538,11 +589,19 @@ export class OccupancyEngine extends EventEmitter {
       p.since = Math.min(p.since, seat.checkedInAt);
       p.until = Math.max(p.until, seat.checkedInUntil);
     }
-    const rank = { onsite: 0, away: 1, booked: 2 };
+    // Reservations waiting for their check-in (window open): expected any minute.
+    for (const seat of this.seats.values()) {
+      const r = !seat.checkedInBy && this.#activeReservation(seat, now);
+      if (!r) continue;
+      const key = `${r.user.toLowerCase()}|${r.team ?? ''}|res${r.forTeam ? '-team' : ''}`;
+      if (!people.has(key)) people.set(key, { name: r.user, team: r.team ?? null, teamBooking: r.forTeam, reserved: true, seats: [], since: r.start, until: r.end });
+      people.get(key).seats.push({ id: seat.id, floor: seat.floor, floorName: seat.floorName, zone: seat.zone, zoneName: seat.zoneName, status: 'reserved', deadline: r.deadline });
+    }
+    const rank = { onsite: 0, away: 1, booked: 2, reserved: 3 };
     return [...people.values()].map((p) => {
       p.seats.sort((a, b) => a.id.localeCompare(b.id));
       // A person at a single desk takes that desk's status; a team booking is listed as such.
-      p.status = p.teamBooking ? 'team' : p.seats.map((s) => s.status).sort((a, b) => rank[a] - rank[b])[0];
+      p.status = p.reserved ? 'reserved' : p.teamBooking ? 'team' : p.seats.map((s) => s.status).sort((a, b) => rank[a] - rank[b])[0];
       return p;
     }).sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -558,6 +617,8 @@ export class OccupancyEngine extends EventEmitter {
     // Optionally forget who has been in too (requester list, activity feed, check-in counts per
     // project), so a restarted demo shows no names from earlier runs.
     if (people) { this.requesters.clear(); this.activity = []; this.teamDays = {}; }
+    // Reservations are live state too: a fresh floor has none.
+    this.reservations.clear();
     for (const seat of this.seats.values()) {
       if (seat.presence || seat.lastPresenceAt || seat.checkedInBy) cleared++;
       seat.presence = false;
@@ -567,9 +628,10 @@ export class OccupancyEngine extends EventEmitter {
       seat.checkedInUntil = null;
       seat.checkedInTeam = null;
       seat.teamBooking = false;
-      this.lastStatus.set(seat.id, deriveStatus(seat, now, this.rules));
+      this.lastStatus.set(seat.id, this.#statusOf(seat, now));
       this.emit('change', this.view(seat, now));
     }
+    this.emit('reservations');
     return { cleared, ...(people ? { peopleCleared: true } : {}) };
   }
 
@@ -593,6 +655,17 @@ export class OccupancyEngine extends EventEmitter {
   /** Re-evaluate every seat: auto-release expired seats, emit changes, sample history. */
   sweep() {
     const now = this.clock();
+    // Reservations nobody checked in to by the deadline are no-shows; old ones are dropped.
+    let changed = false;
+    for (const r of this.reservations.values()) {
+      if (r.status === 'booked' && now >= r.deadline) {
+        r.status = 'no-show'; changed = true;
+        const seat = this.seats.get(r.seatId);
+        if (seat) { this.#log(now, seat, 'no-show', r.user, r.team, { slot: this.#slotText(r) }); this.emit('change', this.view(seat, now)); }
+      }
+      if (r.end < now - RESERVATIONS_KEPT_DAYS * 86_400_000) { this.reservations.delete(r.id); changed = true; }
+    }
+    if (changed) this.emit('reservations');
     for (const seat of this.seats.values()) this.#refresh(seat, now);
     const last = this.history.at(-1);
     if (!last || now - last.t >= MINUTE) {
@@ -633,11 +706,8 @@ export class OccupancyEngine extends EventEmitter {
 
   #refresh(seat, now) {
     if (seat.checkedInBy && now >= seat.checkedInUntil) this.#release(seat, now, 'expired');
-    let status = deriveStatus(seat, now, this.rules);
-    if (status === Status.AVAILABLE && seat.checkedInBy) {
-      this.#release(seat, now, 'auto-release');
-      status = deriveStatus(seat, now, this.rules);
-    }
+    if (deriveStatus(seat, now, this.rules) === Status.AVAILABLE && seat.checkedInBy) this.#release(seat, now, 'auto-release');
+    const status = this.#statusOf(seat, now);
     const prev = this.lastStatus.get(seat.id);
     if (prev !== status) {
       this.lastStatus.set(seat.id, status);
@@ -730,20 +800,21 @@ export class OccupancyEngine extends EventEmitter {
     });
   }
 
-  #log(at, seat, type, detail, team) {
-    const entry = { at, seatId: seat.id, type, detail: detail ?? null };
+  #log(at, seat, type, detail, team, extra) {
+    const entry = { at, seatId: seat.id, type, detail: detail ?? null, ...extra };
     if (team) entry.team = team;
     this.activity.push(entry);
     if (this.activity.length > ACTIVITY_LIMIT) this.activity.splice(0, this.activity.length - ACTIVITY_LIMIT);
   }
 
   view(seat, now = this.clock()) {
-    const status = deriveStatus(seat, now, this.rules);
+    const status = this.#statusOf(seat, now);
     const sensorOnline = hasSensor(seat)
       ? Boolean(seat.lastSensorSeenAt) && now - seat.lastSensorSeenAt <= this.rules.sensorOfflineMinutes * MINUTE
       : null;
     let holdExpiresAt = null;
     if (status === Status.AWAY) holdExpiresAt = seat.lastPresenceAt + this.rules.awayGraceMinutes * MINUTE;
+    else if (status === Status.RESERVED) holdExpiresAt = this.#activeReservation(seat, now).deadline;
     else if (status === Status.OCCUPIED && !seat.presence && seat.checkedInAt) {
       // Unconfirmed check-in on a working sensor ends early if nobody sits down; a team booking doesn't.
       holdExpiresAt = seat.sensorId && sensorOnline && !seat.teamBooking
@@ -774,6 +845,8 @@ export class OccupancyEngine extends EventEmitter {
       lastPresenceAt: seat.lastPresenceAt,
       holdExpiresAt,
       allocatedTo: this.allocations.get(seat.id) ?? null,
+      // The reservation that applies now (check-in window open) or the next one coming up.
+      reservation: (() => { const r = this.#activeReservation(seat, now) ?? this.#nextReservation(seat, now); return r ? this.reservationView(r) : null; })(),
     };
   }
 
@@ -792,13 +865,167 @@ export class OccupancyEngine extends EventEmitter {
   }
 
   counts(now = this.clock(), filter = () => true) {
-    const c = { total: 0, available: 0, occupied: 0, away: 0, offline: 0 };
+    const c = { total: 0, available: 0, occupied: 0, away: 0, offline: 0, reserved: 0 };
     for (const seat of this.seats.values()) {
       if (!filter(seat)) continue;
       c.total++;
-      c[deriveStatus(seat, now, this.rules)]++;
+      c[this.#statusOf(seat, now)]++;
     }
     return c;
+  }
+
+  // ---------- Reservations: booked ahead for a slot, confirmed by checking in ----------
+
+  /** Start and end of a slot on a date ('YYYY-MM-DD', server time zone). */
+  slotTimes(date, slot) {
+    const s = SLOTS[slot];
+    if (!s) throw new ValidationError(`Unknown slot "${slot}". Use one of: ${Object.keys(SLOTS).join(', ')}`);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date ?? ''));
+    if (!m) throw new ValidationError('date must be YYYY-MM-DD');
+    const at = (h) => new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), h).getTime();
+    return { start: at(s.from), end: at(s.to) };
+  }
+
+  /** Dates a desk can be reserved for: today and the next `reservationDaysAhead` days. */
+  reservableDates(now = this.clock()) {
+    const d = new Date(now);
+    return Array.from({ length: this.rules.reservationDaysAhead + 1 }, (_, i) => dayKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() + i, 12).getTime()));
+  }
+
+  #live(r) { return r.status === 'booked' || r.status === 'checked-in'; }
+  #windowOpens(r) { return r.start - this.rules.reservationEarlyMinutes * MINUTE; }
+  #slotText(r) {
+    const f = (t) => new Date(t).toTimeString().slice(0, 5);
+    const day = new Date(r.start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `the ${SLOTS[r.slot]?.label.toLowerCase() ?? r.slot} of ${day} (${f(r.start)}–${f(r.end)})`;
+  }
+  /** A booked reservation for this seat whose check-in window is open now. */
+  #activeReservation(seat, now) {
+    for (const r of this.reservations.values()) if (r.seatId === seat.id && r.status === 'booked' && now >= this.#windowOpens(r) && now < r.deadline) return r;
+    return null;
+  }
+  /** The seat's next booked reservation whose check-in window has not opened yet. */
+  #nextReservation(seat, now) {
+    let best = null;
+    for (const r of this.reservations.values()) if (r.seatId === seat.id && r.status === 'booked' && this.#windowOpens(r) > now && (!best || r.start < best.start)) best = r;
+    return best;
+  }
+  /** The person it is for, or anyone in the project for a desk booked for the team. */
+  #mayClaim(r, user, team) { return sameName(r.user, user) || Boolean(r.forTeam && team && r.team === team); }
+  /** Live status, with "reserved" for a free desk whose reservation is waiting for its check-in. */
+  #statusOf(seat, now) {
+    const st = deriveStatus(seat, now, this.rules);
+    if ((st === Status.AVAILABLE || st === Status.OFFLINE) && this.#activeReservation(seat, now)) return Status.RESERVED;
+    return st;
+  }
+
+  reservationView(r) {
+    const seat = this.seats.get(r.seatId);
+    return {
+      id: r.id, seatId: r.seatId, floorName: seat?.floorName, zoneName: seat?.zoneName,
+      user: r.user, team: r.team, forTeam: r.forTeam, group: r.group ?? null,
+      date: r.date, slot: r.slot, slotLabel: SLOTS[r.slot]?.label ?? r.slot, start: r.start, end: r.end,
+      checkInFrom: this.#windowOpens(r), deadline: r.deadline, status: r.status, createdAt: r.createdAt,
+    };
+  }
+
+  /**
+   * Reserve desks for a slot today or tomorrow. One desk per person per slot and at most
+   * `reservationMaxPerWeek` a week; a project lead can book several desks for their team
+   * (`forTeam`), which anyone in that project confirms by checking in. All or nothing.
+   */
+  reserve(seatIds, user, { team, date, slot, forTeam = false, maxSeats = MAX_BOOKING_SEATS } = {}) {
+    user = String(user ?? '').trim();
+    if (!user) throw new ValidationError('user is required');
+    team = this.projectTeam(team);
+    const now = this.clock();
+    const dates = this.reservableDates(now);
+    if (!dates.includes(date)) throw new ValidationError(`Desks can be reserved for ${dates.length === 2 ? 'today or tomorrow' : dates.join(', ')} only`);
+    const { start, end } = this.slotTimes(date, slot);
+    if (now > end - 60 * MINUTE) throw new ValidationError(`The ${SLOTS[slot].label.toLowerCase()} slot on ${date} is over or nearly over. Choose a later slot.`);
+    if (!Array.isArray(seatIds)) throw new ValidationError('seats must be a list of seat ids');
+    const ids = [...new Set(seatIds.map((id) => String(id ?? '').trim().toUpperCase()).filter(Boolean))];
+    if (!ids.length) throw new ValidationError('Choose a desk');
+    if (!forTeam && ids.length > 1) throw new ValidationError('Reserve one desk for yourself, or book several for your team');
+    if (ids.length > maxSeats) throw new ValidationError(`At most ${maxSeats} desks can be reserved at once`);
+    const unknown = ids.filter((id) => !this.seats.has(id));
+    if (unknown.length) throw new ValidationError(`Unknown seats: ${unknown.join(', ')}`);
+    const overlaps = (r) => this.#live(r) && r.start < end && start < r.end;
+    if (!forTeam) {
+      const mine = [...this.reservations.values()].filter((r) => !r.forTeam && sameName(r.user, user));
+      const clash = mine.find(overlaps);
+      if (clash) throw new ConflictError(`You already have ${clash.seatId} reserved for ${this.#slotText(clash)}. Cancel it first to reserve another desk.`);
+      const week = weekKey(start);
+      if (mine.filter((r) => r.status !== 'cancelled' && weekKey(r.start) === week).length >= this.rules.reservationMaxPerWeek) {
+        throw new ValidationError(`You can reserve at most ${this.rules.reservationMaxPerWeek} desks a week`);
+      }
+    }
+    const opens = start - this.rules.reservationEarlyMinutes * MINUTE;
+    const taken = ids.filter((id) => {
+      const seat = this.seats.get(id);
+      if ([...this.reservations.values()].some((r) => r.seatId === id && overlaps(r))) return true;
+      const st = deriveStatus(seat, now, this.rules);
+      const someoneElse = seat.checkedInBy ? !sameName(seat.checkedInBy, user) : st === Status.OCCUPIED || st === Status.AWAY;
+      // In use by someone else now, if the slot has (nearly) started or their check-in runs into it.
+      return someoneElse && (st === Status.OCCUPIED || st === Status.AWAY) && (opens <= now || (seat.checkedInUntil ?? 0) > opens);
+    });
+    if (taken.length) throw new ConflictError(`Already reserved or in use for that slot: ${taken.join(', ')}`);
+    const group = forTeam ? randomUUID().slice(0, 8) : null;
+    const out = ids.map((id) => {
+      const r = {
+        id: randomUUID().slice(0, 8), seatId: id, user, team, date, slot, start, end,
+        deadline: Math.max(start, now) + this.rules.reservationGraceMinutes * MINUTE,
+        status: 'booked', createdAt: now, forTeam: Boolean(forTeam), group,
+      };
+      this.reservations.set(r.id, r);
+      const seat = this.seats.get(id);
+      this.#log(now, seat, 'reserve', user, team, { slot: this.#slotText(r), ...(forTeam ? { forTeam: true } : {}) });
+      this.#refresh(seat, now);
+      this.emit('change', this.view(seat, now));
+      return this.reservationView(r);
+    });
+    this.emit('reservations');
+    return out;
+  }
+
+  /** Cancel a reservation that has not been checked in. `user` must be its booker (omit for admins). */
+  cancelReservation(id, user) {
+    const r = this.reservations.get(String(id));
+    if (!r) throw new NotFoundError(`Unknown reservation ${id}`);
+    if (user !== undefined && !sameName(r.user, user)) throw new ConflictError('Only the person who made the reservation can cancel it');
+    if (r.status !== 'booked') throw new ConflictError(`This reservation is ${r.status === 'checked-in' ? 'already checked in' : r.status === 'no-show' ? 'a no-show' : 'already cancelled'}`);
+    const now = this.clock();
+    r.status = 'cancelled'; r.cancelledAt = now;
+    const seat = this.seats.get(r.seatId);
+    if (seat) { this.#log(now, seat, 'cancel', r.user, r.team, { slot: this.#slotText(r) }); this.#refresh(seat, now); this.emit('change', this.view(seat, now)); }
+    this.emit('reservations');
+    return this.reservationView(r);
+  }
+
+  /** Reservations, newest slot first; filter by booker name, date or desk. */
+  listReservations({ user, date, seatId } = {}) {
+    return [...this.reservations.values()]
+      .filter((r) => (!user || sameName(r.user, user)) && (!date || r.date === date) && (!seatId || r.seatId === seatId))
+      .sort((a, b) => a.start - b.start || a.seatId.localeCompare(b.seatId))
+      .map((r) => this.reservationView(r));
+  }
+
+  /**
+   * Which desks can be reserved for a slot: 'free', 'reserved' (someone booked it) or 'taken'
+   * (in use by someone now, when the slot is under way or their check-in runs into it).
+   */
+  slotAvailability(date, slot) {
+    const { start, end } = this.slotTimes(date, slot);
+    const now = this.clock(), opens = start - this.rules.reservationEarlyMinutes * MINUTE;
+    const out = {};
+    for (const seat of this.seats.values()) {
+      const res = [...this.reservations.values()].find((r) => r.seatId === seat.id && this.#live(r) && r.start < end && start < r.end);
+      if (res) { out[seat.id] = { state: 'reserved', team: res.team, forTeam: res.forTeam }; continue; }
+      const st = deriveStatus(seat, now, this.rules);
+      const busy = st === Status.OCCUPIED || st === Status.AWAY;
+      out[seat.id] = { state: busy && (opens <= now || (seat.checkedInUntil ?? 0) > opens) ? 'taken' : 'free' };
+    }
+    return out;
   }
 
   summary() {
@@ -842,6 +1069,7 @@ export class OccupancyEngine extends EventEmitter {
       history: this.history,
       hourly: this.hourly,
       activity: this.activity,
+      reservations: [...this.reservations.values()],
       sensorLinks: this.sensorLinks,
       unlinkedSensors: Object.fromEntries(this.unlinked),
       requesters: Object.fromEntries(this.requesters),

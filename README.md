@@ -9,8 +9,9 @@ and gives administrators a live dashboard of seat availability.
 - **Admin dashboard:** interactive live floor plan with a two-tab side panel: a **Colleague finder** (who is in and
   where) and **Seat booking** (check someone in, extend or check out). KPIs that follow the floor filter, 24 h occupancy trend,
   per-zone utilisation, activity feed.
-- **For employees:** a self-service booking page (`/book`) with the floor plan, and a phone check-in page
-  (`/checkin`) that a desk's QR code opens, or that takes a typed desk ID.
+- **For employees:** a self-service reservation page (`/book`) with the floor plan (reserve a desk for a morning,
+  afternoon or full day, today or tomorrow), and a phone check-in page (`/checkin`) that a desk's QR code opens,
+  or that takes a typed desk ID. A reservation only holds the desk: the person still checks in when they arrive.
 - **Floor display:** a page for a projector or wall screen at the office (`/display`): the live floor plan and a
   colleague finder that shows who is checked in or has booked, and where.
 
@@ -92,7 +93,7 @@ in the QR sticker on each desk.
 | `CHECKIN_MAX_MINUTES` | 480 | Longest check-in a user can choose |
 | `PUBLIC_URL` | *(address the page was opened at)* | Base URL encoded in the desk QR labels, e.g. `https://hotdesk.example.com` |
 | `DISPLAY_KEY` | *(none)* | Key for the floor display (`/display?key=…`), which shows names; the admin token works too |
-| `TEAM_BOOKING_MAX_SEATS` | `10` | Most desks an employee can book for their team at once on `/book` (admins on the dashboard: 100) |
+| `TEAM_BOOKING_MAX_SEATS` | `10` | Most desks an employee can reserve for their team at once on `/book` (admins on the dashboard: 100) |
 | `SENSOR_OFFLINE_MINUTES` | 15 | Silence after which a sensor counts as offline |
 | `BUILDING_FILE` | `config/building.json` | Floors, zones and desk grid |
 | `STATE_FILE` | `data/state.json` | Persisted state |
@@ -285,21 +286,55 @@ Admin API (token required):
 
 ## Ways to book a desk
 
+**A check-in is always what makes a desk taken. A reservation is optional:** it holds a desk for a slot so
+nobody else can take it, until the person arrives and checks in.
+
 | Way | Who | Page |
 |---|---|---|
-| Scan the QR code on the desk | Anyone | `/checkin?seat=<desk>` opens with the desk chosen |
+| Scan the QR code on the desk (check in) | Anyone | `/checkin?seat=<desk>` opens with the desk chosen |
 | Type the desk ID printed on the label (when a camera won't scan) | Anyone | `/checkin`: enter the ID, e.g. `L1-DF-07`; suggestions show each desk's status |
-| Pick a desk on the floor plan | Anyone | `/book`: choose your project (its pre-allocated desks are highlighted), tap a free chair, enter your name and time |
-| Book several desks for your team | Anyone | `/book` → **Several desks for my team**: tap free chairs (up to 10), enter your name and time; held for the whole time like the dashboard's team bookings |
+| Reserve a desk ahead | Anyone | `/book`: choose your project (its pre-allocated desks are highlighted), the day and slot, tap a free chair and enter your name |
+| Reserve several desks for your team | Anyone | `/book` → **Desks for my team**: tap free chairs (up to 10); anyone in the project confirms a desk by checking in at it |
 | Check someone in, or book several seats for a team | Admin | The dashboard's side panel |
 
-`/book` and `/checkin` need no admin token and show no names. Team bookings from `/book` go through
-`POST /api/team-bookings` (`user`, `projectTeam`, `seats`, `minutes`), capped at `TEAM_BOOKING_MAX_SEATS` desks
-(default 10); desks not pre-allocated to the project get one warning first. **Release these desks** checks them all out. `/book` remembers the person's project and,
-after booking, shows **You are checked in at … until …** with **I'm leaving** to check out. It refreshes every 10 seconds.
+`/book` and `/checkin` need no admin token and show no names. `/book` remembers the person's project and the
+names they reserved under, and lists them under **My reservations** with **Show on plan**, **Check in** (once the
+window opens) and **Cancel**. It refreshes every 10 seconds.
 In demo mode (`npm run demo`, or `DEMO_MODE=1`, or `?demo` on the page), `/book` and `/checkin` fill the name with a
-random sample name from a list of 50 Chinese names (`public/demo-names.js`), with **Another sample name** to pick a
+random sample name from a list of 80 Chinese names (`public/demo-names.js`), with **Another sample name** to pick a
 different one. Each desk or booking gets a new name, and sample names are not remembered; `?demo=0` turns it off.
+
+### Reservations
+
+| Rule | Value |
+|---|---|
+| How far ahead | Today and tomorrow only |
+| Slots | **Morning** 08:00–13:00, **Afternoon** 13:00–19:00, **Full day** 08:00–19:00 (server local time). A slot can't be reserved in its last hour |
+| Check-in window | From 15 minutes before the slot starts until 30 minutes after (for a reservation made after the start: 30 minutes after it was made) |
+| No-show | Nobody checked in by the end of the window: the reservation is released and the activity feed records a no-show |
+| Limits | One desk per person per slot (overlapping slots count), and at most 5 reservations per person per week. Team reservations are exempt |
+| Team reservations | Up to `TEAM_BOOKING_MAX_SEATS` desks for a project; any member of that project confirms one by checking in at it |
+
+- While a reservation's window is open the desk shows as **Reserved** (teal, dashed chair) on every plan, and only
+  the person it is for (same name; for a team reservation, anyone in the project) can check in there. Their
+  check-in confirms the reservation and holds the desk to the end of the slot.
+- Before the window opens anyone can still use the desk: a walk-in check-in is cut short when the window opens.
+- Checking in confirms a reservation the same way whether the person scans the desk's QR code, uses **Check in**
+  under **My reservations**, or an admin checks them in.
+- Admins see the reservation (who, slot, deadline) in the seat panel and can **Cancel reservation**. The dashboard
+  and the floor display count reserved desks, and list the person in the colleague finder with a **Reserved** tag.
+- The dashboard's own multi-seat team booking (`POST /api/bookings`) is unchanged: it holds the seats straight
+  away for a set time, without a check-in.
+
+API (no admin token needed; responses never include who reserved a desk):
+
+| Call | Body / query | Does |
+|---|---|---|
+| `GET /api/checkin-options` | | `reservations`: the dates that can be reserved, the slots, the window and the weekly limit |
+| `GET /api/availability?date=&slot=` | | Each desk with `slotState` (`free`, `reserved` or `taken`) for that slot |
+| `POST /api/reservations` | `{ "seatId" or "seats", "user", "projectTeam", "date", "slot", "forTeam"? }` | Reserve (201), 409 if taken or over a limit |
+| `GET /api/reservations?user=` | | That person's reservations (admins: everyone's, without `user`) |
+| `POST /api/reservations/:id/cancel` | `{ "user" }` | Cancel (only the person who made it; admins without `user`) |
 
 ### Demo on one laptop (no phone needed)
 
@@ -318,16 +353,18 @@ Windows firewall on private networks.
 
 `/display` is made for a projector or wall screen at the office (landscape, full screen). It shows:
 
-- four summary cards for the whole office above the plan: **Occupancy**, **Available**, **Occupied** and
-  **Away (held)**, the same as the dashboard's (they stay put while the plan moves between tabs);
+- four summary cards for the whole office above the plan: **Occupancy**, **Available** (noting desks reserved and
+  waiting for their check-in), **Occupied** and **Away (held)**, the same as the dashboard's (they stay put while the
+  plan moves between tabs);
 
 - the live floor plan with taken desks in their project's colour. A floor with several zones is shown one zone at
   a time so it fills the screen (tabs **L1 · Digital Factory**, **L1 · Discussion Area**, **L1 · AI Lab**, then
   **Level 2**); only the display splits floors like this;
 - a **Colleague Finder**: everyone who is checked in or has booked desks today, with their project and desk
   (floor and area underneath). Most people are simply at their desk; the others get a small tag by their name:
-  **Away** (stepped away, desk held), **Booked** (checked in but not at the desk yet) or **Booked for team**
-  (one row per person who booked several desks). People who sit down without checking in are not listed;
+  **Away** (stepped away, desk held), **Not arrived** (checked in but not at the desk yet), **Reserved** (a
+  reservation waiting for its check-in, with the time it is released) or **Booked for team** (one row per person
+  who booked several desks). People who sit down without checking in are not listed;
 - search by name, project or desk, and filters for project and floor. Tapping a name switches to their
   floor and makes their desk pulse.
 

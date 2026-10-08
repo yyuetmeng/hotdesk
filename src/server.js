@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
-import { ConflictError, NotFoundError, ValidationError } from './occupancy.js';
+import { ConflictError, NotFoundError, ValidationError, SLOTS } from './occupancy.js';
 import { buildInsights } from './insights.js';
 import { renderLabelsPage } from './labels.js';
 import { parseChirpstack, parseTtn } from './integrations.js';
@@ -60,9 +60,11 @@ function requestOrigin(req) {
 
 /** What employees may see: status only, never who is sitting where. */
 function publicView(v) {
-  const { checkedInBy, checkedInAt, presence, lastPresenceAt, sensorId, lastSensorSeenAt, projectTeam, ...rest } = v;
-  return rest;
+  const { checkedInBy, checkedInAt, presence, lastPresenceAt, sensorId, lastSensorSeenAt, projectTeam, reservation, ...rest } = v;
+  // A reservation shows its slot and project, never who made it.
+  return { ...rest, reservation: reservation ? publicReservation(reservation) : null };
 }
+const publicReservation = ({ user, ...r }) => r;
 
 /**
  * @param {object} opts
@@ -106,6 +108,8 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
   };
 
   let insightsCache = null;
+
+  const isAdmin = (req, url) => { try { requireAdmin(req, url); return true; } catch { return false; } };
 
   const requireSensorKey = (req) => {
     if (!sensorApiKey) return;
@@ -276,7 +280,15 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
     if (method === 'GET' && url.pathname === '/api/checkin-options') {
       const { checkinDurationMinutes, checkinMaxMinutes } = engine.rules;
       const projects = engine.listProjects().map(({ name, code, color, slot }) => ({ name, code, color, slot }));
-      return send(res, 200, { checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams, projects, teamBookingMaxSeats, ...(demo ? { demo: true } : {}) });
+      const { reservationEarlyMinutes, reservationGraceMinutes, reservationMaxPerWeek } = engine.rules;
+      return send(res, 200, {
+        checkinDurationMinutes, checkinMaxMinutes, projectTeams: engine.projectTeams, projects, teamBookingMaxSeats,
+        reservations: {
+          dates: engine.reservableDates(), earlyMinutes: reservationEarlyMinutes, graceMinutes: reservationGraceMinutes, maxPerWeek: reservationMaxPerWeek,
+          slots: Object.entries(SLOTS).map(([id, s]) => ({ id, ...s })),
+        },
+        ...(demo ? { demo: true } : {}),
+      });
     }
     if (method === 'GET' && url.pathname === '/api/project-teams') {
       return send(res, 200, engine.projectTeams);
@@ -289,18 +301,32 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
       })));
     }
     if (method === 'GET' && url.pathname === '/api/availability') {
-      return send(res, 200, engine.list({ floor: url.searchParams.get('floor') ?? undefined }).map(publicView));
+      const seats = engine.list({ floor: url.searchParams.get('floor') ?? undefined }).map(publicView);
+      // With ?date=&slot=, also say which desks can be reserved for that slot.
+      const date = url.searchParams.get('date'), slot = url.searchParams.get('slot');
+      if (date && slot) { const avail = engine.slotAvailability(date, slot); for (const s of seats) s.slotState = avail[s.id]; }
+      return send(res, 200, seats);
     }
-    // An employee books several seats for their project team (/book). Same rules as the dashboard's
-    // team booking (held for the whole time, all or nothing), but capped and the project is required.
-    if (method === 'POST' && url.pathname === '/api/team-bookings') {
+    // --- Reservations: book a desk for a slot today or tomorrow; checking in confirms it ---
+    if (url.pathname === '/api/reservations' && method === 'GET') {
+      // Your own (by name), or everyone's for an admin.
+      const user = url.searchParams.get('user'), date = url.searchParams.get('date') ?? undefined;
+      if (!user) { requireAdmin(req, url); return send(res, 200, engine.listReservations({ date })); }
+      return send(res, 200, engine.listReservations({ user, date }).map(publicReservation));
+    }
+    if (url.pathname === '/api/reservations' && method === 'POST') {
       const body = await readJson(req);
-      const user = typeof body.user === 'string' ? body.user.trim().slice(0, 100) : '';
-      if (!user) throw new HttpError(400, 'user is required');
-      if (typeof body.projectTeam !== 'string' || !body.projectTeam) throw new HttpError(400, 'projectTeam is required');
-      const minutes = body.minutes === undefined ? undefined : Number(body.minutes);
-      const seats = engine.bookSeats(body.seats, user, { minutes, team: body.projectTeam, maxSeats: teamBookingMaxSeats });
-      return send(res, 200, seats.map(publicView));
+      const forTeam = body.forTeam === true;
+      const seats = Array.isArray(body.seats) ? body.seats : [body.seatId];
+      const made = engine.reserve(seats, body.user, { team: body.projectTeam, date: body.date, slot: body.slot, forTeam, maxSeats: forTeam ? teamBookingMaxSeats : 1 });
+      return send(res, 201, made.map(publicReservation));
+    }
+    if (parts[1] === 'reservations' && parts[2] && parts[3] === 'cancel' && parts.length === 4 && method === 'POST') {
+      const body = await readJson(req);
+      // An admin may cancel anyone's; everyone else gives the name it was made under.
+      const user = typeof body.user === 'string' && body.user.trim() ? body.user : isAdmin(req, url) ? undefined : null;
+      if (user === null) throw new HttpError(400, 'user is required');
+      return send(res, 200, publicReservation(engine.cancelReservation(parts[2], user)));
     }
     if (parts[1] === 'seats' && parts[2] && parts.length === 4 && method === 'POST') {
       const body = await readJson(req);

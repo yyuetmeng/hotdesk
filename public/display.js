@@ -17,7 +17,7 @@ const auth = key ? { 'x-display-key': key } : token ? { authorization: `Bearer $
 // Idle reset and floor rotation, in seconds: ?idle=60&rotate=20 (the defaults).
 const secs = (name, def) => Math.max(3, Number(params.get(name)) || def) * 1000;
 const IDLE_MS = secs('idle', 60), ROTATE_MS = secs('rotate', 20), REFRESH_MS = 5_000;
-const STATUS = { onsite: 'On-site', away: 'Away', booked: 'Booked', team: 'Booked for team' };
+const STATUS = { onsite: 'On-site', away: 'Away', booked: 'Not arrived', team: 'Booked for team', reserved: 'Reserved' };
 const state = {
   floors: [], seats: new Map(), people: [], projects: [], floor: '',
   // What the plan shows: a whole floor, or one zone of a floor with several (too wide for a screen).
@@ -83,7 +83,7 @@ function renderSelection() {
   const where = p.seats.length === 1 ? `${esc(p.seats[0].id)} · ${esc(p.seats[0].floorName)}, ${esc(p.seats[0].zoneName)}`
     : `${p.seats.length} desks: ${p.seats.map((s) => esc(s.id)).join(', ')}`;
   $('sel').innerHTML = `<span class="dp-av" style="--c:${projectColor(p.team)}">${esc(initials(p.name))}</span>
-    <span><b>${esc(p.name)}</b>${p.team ? ` · ${esc(p.team)}` : ''} · ${where} · <span class="dp-st s-${p.status}">${STATUS[p.status]}</span>${p.status === 'team' || p.status === 'booked' ? ` until ${fmtTime(p.until)}` : ` since ${fmtTime(p.since)}`}</span>
+    <span><b>${esc(p.name)}</b>${p.team ? ` · ${esc(p.team)}` : ''} · ${where} · <span class="dp-st s-${p.status}">${STATUS[p.status]}</span>${p.status === 'reserved' ? ` · check in by ${fmtTime(p.seats[0].deadline)}` : p.status === 'team' || p.status === 'booked' ? ` until ${fmtTime(p.until)}` : ` since ${fmtTime(p.since)}`}</span>
     <button type="button" class="btn" id="clearSel">Clear</button>`;
   $('clearSel').onclick = () => selectPerson(state.selected);
 }
@@ -175,6 +175,7 @@ function renderLegend() {
   $('legend').innerHTML = `<span class="litem">${ws('st-available')}Free</span>
     <span class="litem">${ws('st-occupied')}Taken</span>
     <span class="litem">${ws('st-away')}Away</span>
+    <span class="litem">${ws('st-reserved')}Reserved</span>
     ${teams.map((t) => `<span class="litem">${ws('st-occupied team', `--c:${projectColor(t)}`)}${esc(t)}</span>`).join('')}`;
 }
 
@@ -195,7 +196,7 @@ function renderKpis() {
   $('kpis').innerHTML =
     tile('var(--accent)', KPI_ICON.rate, 'Occupancy', pct, `${c.occupied + c.away} of ${c.total} seats in use`,
       `<div class="meter" role="presentation"><i style="width:${pct}"></i></div>`) +
-    tile('var(--available)', KPI_ICON.available, 'Available', c.available, 'free to take now') +
+    tile('var(--available)', KPI_ICON.available, 'Available', c.available, c.reserved ? `free now · ${c.reserved} more reserved, awaiting check-in` : 'free to take now') +
     tile('var(--seat-occupied)', KPI_ICON.occupied, 'Occupied', c.occupied, 'at a desk or checked in') +
     tile('var(--seat-away-ink)', KPI_ICON.away, 'Away (held)', c.away, state.awayGrace ? `held ≤ ${state.awayGrace} min, then released` : 'desk held for a while');
 }

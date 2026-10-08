@@ -1,7 +1,9 @@
 // Simulates an office day against a running server: people from the project teams arrive,
 // sit down (desk sensors see them), mostly check in with their project, and leave again;
-// team leads now and then book a few seats for their team; a few visitors sit without
-// checking in; two sensors break so their desks show offline.
+// team leads now and then book a few seats for their team; now and then someone reserves a desk
+// for the current slot and checks in when they arrive (a few never come, so their reservation is
+// released as a no-show); a few visitors sit without checking in; two sensors break so their
+// desks show offline.
 //
 // Usage: node scripts/simulate.js [baseUrl] [--reset]
 //   --speed=N  run N times faster than real time (e.g. 10 for a demo; see scripts/demo.js,
@@ -42,6 +44,9 @@ const PREFER_ALLOCATED = 0.8;   // chance to pick their project's pre-allocated 
 const TEAM_BOOKING = 1 / 12;    // a team lead books seats for the team about every 12 minutes
 const MAX_BOOKINGS = 3;         // ...while fewer than this many team bookings are running
 const BOOKING_MINUTES = Math.max(1, Math.round(60 / SPEED));
+const RESERVE = 1 / 3;          // someone reserves a desk for the current slot about every 3 minutes
+const MAX_RESERVED = 6;         // ...while fewer than this many are waiting for their check-in
+const NO_SHOW = 0.25;           // share of reservations nobody comes for (released after the grace)
 /** The chance of something that happens `perMinute` times a minute happening in one round. */
 const chance = (perMinute) => 1 - Math.exp(-perMinute * SPEED * interval / 60_000);
 
@@ -56,7 +61,7 @@ let teams = (building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C
 // Names: the sample names the booking pages use in demo mode (public/demo-names.js, 80 of them), in order.
 const NAMES = [...readFileSync(new URL('../public/demo-names.js', import.meta.url), 'utf8').matchAll(/'([A-Z][a-z]+(?: [A-Z][a-z]+)+)'/g)].map((m) => m[1]);
 if (NAMES.length < PEOPLE) { console.error(`public/demo-names.js has ${NAMES.length} names; the simulator needs ${PEOPLE}.`); process.exit(1); }
-const people = NAMES.slice(0, PEOPLE).map((name) => ({ name, team: null, seat: null, checkedIn: false }));
+const people = NAMES.slice(0, PEOPLE).map((name) => ({ name, team: null, seat: null, checkedIn: false, res: null }));
 const visitors = Array.from({ length: VISITORS }, () => ({ seat: null }));
 const teamBooked = new Map(); // seat id -> { team, until, booking } for seats our team leads booked
 let bookingCount = 0;
@@ -80,8 +85,9 @@ async function syncTeams() {
   try {
     const res = await fetch(`${base}/api/checkin-options`);
     if (res.ok) {
-      const list = (await res.json()).projectTeams;
+      const options = await res.json(), list = options.projectTeams;
       if (Array.isArray(list) && list.length) teams = list;
+      reservationOptions = options.reservations ?? null;
     }
   } catch {}
   const external = teams.find(isExternal), projects = projectTeams();
@@ -112,7 +118,8 @@ async function availability() {
 
 /** A seat for someone from `team`: a seat booked for their team, else their pre-allocated seats, else any free seat. */
 function chooseSeat(team, avail, taken) {
-  const free = (id) => !taken.has(id) && avail.get(id)?.status === 'available';
+  // Free, and with no reservation coming up (the server would cut a walk-in check-in short).
+  const free = (id) => !taken.has(id) && avail.get(id)?.status === 'available' && !avail.get(id)?.reservation;
   const booked = [...teamBooked].filter(([id, b]) => b.team === team && !taken.has(id)).map(([id]) => id);
   if (booked.length) return pick(booked);
   const mine = seats.filter((s) => avail.get(s.id)?.allocatedTo === team && free(s.id));
@@ -135,7 +142,7 @@ function stand(seatId) {
 /** A project team lead books 2–4 seats for their team, preferring the team's pre-allocated seats. */
 async function bookForTeam(avail, taken) {
   const team = pick(projectTeams());
-  const free = (s) => !taken.has(s.id) && avail.get(s.id)?.status === 'available' && !teamBooked.has(s.id);
+  const free = (s) => !taken.has(s.id) && avail.get(s.id)?.status === 'available' && !avail.get(s.id)?.reservation && !teamBooked.has(s.id);
   const mine = shuffle(seats.filter((s) => free(s) && avail.get(s.id)?.allocatedTo === team));
   const others = shuffle(seats.filter((s) => free(s) && !avail.get(s.id)?.allocatedTo));
   const chosen = [...mine, ...others].slice(0, 2 + Math.floor(Math.random() * 3)).map((s) => s.id);
@@ -158,6 +165,30 @@ async function bookForTeam(avail, taken) {
   for (const id of chosen) teamBooked.set(id, { team, until, booking });
 }
 
+/** The slot whose check-in window is open now (from 15 minutes before it starts), if any. */
+let reservationOptions = null;
+function currentSlot() {
+  const o = reservationOptions; if (!o) return null;
+  const now = new Date(), h = now.getHours() + now.getMinutes() / 60 + o.earlyMinutes / 60;
+  const slot = o.slots.filter((x) => x.id !== 'day').find((x) => h >= x.from && h < x.to - 1);
+  return slot ? { date: o.dates[0], slot: slot.id } : null;
+}
+/** Someone who is out reserves a free desk (their project's if one is free) for the current slot. */
+async function reserveDesk(avail, taken) {
+  const when = currentSlot(); if (!when) return;
+  const p = pick(people.filter((x) => !x.seat && !x.res && x.team));
+  if (!p) return;
+  const free = (s) => !taken.has(s.id) && avail.get(s.id)?.status === 'available' && !avail.get(s.id)?.reservation && !teamBooked.has(s.id);
+  const mine = seats.filter((s) => free(s) && avail.get(s.id)?.allocatedTo === p.team);
+  const open = seats.filter((s) => free(s) && !avail.get(s.id)?.allocatedTo);
+  const seat = (mine.length ? pick(mine) : open.length ? pick(open) : null)?.id;
+  if (!seat) return;
+  const res = await fetch(`${base}/api/reservations`, { method: 'POST', headers, body: JSON.stringify({ seatId: seat, user: p.name, projectTeam: p.team, ...when }) });
+  if (!res.ok) return; // weekly limit, or the desk went in the meantime
+  const [r] = await res.json();
+  p.res = { seatId: r.seatId, deadline: r.deadline, noShow: Math.random() < NO_SHOW };
+}
+
 let round = 0;
 async function tick() {
   round++;
@@ -168,6 +199,16 @@ async function tick() {
   const checkins = [], checkouts = [];
 
   for (const p of people) {
+    // Someone with a reservation comes to that desk and checks in (claiming it), or never comes.
+    if (p.res && !p.seat) {
+      if (Date.now() > p.res.deadline || avail.get(p.res.seatId)?.status !== 'reserved') { p.res = null; continue; }
+      if (!p.res.noShow && Math.random() < chance(ARRIVE * 2)) {
+        p.seat = p.res.seatId; p.res = null; taken.add(p.seat); sit(p.seat);
+        p.checkedIn = true;
+        checkins.push({ seat: p.seat, user: p.name, projectTeam: p.team });
+      }
+      continue;
+    }
     if (p.seat && Math.random() < chance(LEAVE)) {
       stand(p.seat);
       if (p.checkedIn && Math.random() < CHECK_OUT) checkouts.push({ seat: p.seat, user: p.name, projectTeam: p.team });
@@ -206,6 +247,8 @@ async function tick() {
   // One booking right away so it shows from the start, then every few minutes.
   const running = new Set([...teamBooked.values()].map((b) => b.booking)).size;
   if (teamBookings && running < MAX_BOOKINGS && (round === 2 || Math.random() < chance(TEAM_BOOKING))) await bookForTeam(await availability(), taken);
+  const waiting = people.filter((p) => p.res).length;
+  if (waiting < MAX_RESERVED && (round === 3 || Math.random() < chance(RESERVE))) await reserveDesk(await availability(), taken);
 }
 
 try {

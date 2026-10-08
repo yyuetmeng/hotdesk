@@ -4,6 +4,7 @@ const STATUS = {
   available: { label: 'Available', sub: 'free to take now' },
   occupied: { label: 'Occupied', sub: 'presence detected / checked in' },
   away: { label: 'Away (held)', sub: '' },
+  reserved: { label: 'Reserved', sub: 'waiting for check-in' },
   offline: { label: 'Sensor offline', sub: 'sensors needing attention' },
 };
 
@@ -25,8 +26,9 @@ const ICON = {
   trash: svg('<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/>', 'i'),
   okCircle: svg('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/>', 'i'),
   search: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', 'i'),
+  bookmark: svg('<path d="M7 3.5h10v17l-5-3.5-5 3.5z"/>', 'i'),
 };
-const STATUS_ICON = { available: ICON.seat, occupied: ICON.person.replace('<svg class=""', '<svg class="i"'), away: ICON.clock.replace('<svg class=""', '<svg class="i"'), offline: ICON.alert };
+const STATUS_ICON = { available: ICON.seat, occupied: ICON.person.replace('<svg class=""', '<svg class="i"'), away: ICON.clock.replace('<svg class=""', '<svg class="i"'), reserved: ICON.bookmark, offline: ICON.alert };
 
 const params = new URLSearchParams(location.search);
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
@@ -103,7 +105,7 @@ const filtersActive = () => Boolean(state.status || state.project || state.team)
 // ---------- Summary cards ----------
 function renderKpis() {
   const s = state.summary; if (!s) return;
-  const c = { total: 0, available: 0, occupied: 0, away: 0, offline: 0 };
+  const c = { total: 0, available: 0, occupied: 0, away: 0, reserved: 0, offline: 0 };
   for (const seat of state.seats.values()) if (inScope(seat)) { c.total++; c[seat.status]++; }
   const rate = c.total ? (c.occupied + c.away) / c.total : 0;
   const floorName = state.floor ? (s.floors.find((f) => f.id === state.floor)?.name ?? state.floor) : 'All floors';
@@ -122,6 +124,7 @@ function renderKpis() {
     tile('available', 'var(--available)', STATUS_ICON.available, 'Available', c.available, STATUS.available.sub) +
     tile('occupied', 'var(--seat-occupied)', STATUS_ICON.occupied, 'Occupied', c.occupied, STATUS.occupied.sub) +
     tile('away', 'var(--seat-away-ink)', STATUS_ICON.away, 'Away (held)', c.away, `held ≤ ${s.rules.awayGraceMinutes} min, then released`) +
+    tile('reserved', 'var(--seat-reserved)', STATUS_ICON.reserved, 'Reserved', c.reserved, `waiting for check-in (≤ ${s.rules.reservationGraceMinutes ?? 30} min after start)`) +
     tile('offline', 'var(--text-muted)', STATUS_ICON.offline, 'Sensor offline', c.offline, STATUS.offline.sub);
 }
 
@@ -149,7 +152,7 @@ function renderFloorFilter() {
 
 function renderStatusFilter() {
   const opts = [['', 'All statuses', null], ...Object.entries(STATUS).map(([k, v]) => [k, v.label, k])];
-  const dot = { available: 'var(--seat-available)', occupied: 'var(--seat-occupied)', away: 'var(--seat-away)', offline: 'var(--seat-offline)' };
+  const dot = { available: 'var(--seat-available)', occupied: 'var(--seat-occupied)', away: 'var(--seat-away)', reserved: 'var(--seat-reserved)', offline: 'var(--seat-offline)' };
   $('statusFilter').innerHTML = opts.map(([k, label, d]) =>
     `<button type="button" class="chipbtn" data-status="${k}" aria-pressed="${state.status === k}">${d ? `<span class="dot" style="background:${dot[d]}"></span>` : ''}${esc(label)}</button>`).join('');
 }
@@ -507,7 +510,10 @@ function seatDetails(s, el) {
   if (hasTeams()) rows.push(s.teamName ? `Assigned to ${s.teamName}` : 'Open hot desk');
   const n = Number(el?.dataset.tableSeats);
   if (el?.dataset.kind) rows.push(n > 1 ? `${el.dataset.kind} · ${n} seats` : el.dataset.kind);
-  if (s.holdExpiresAt) rows.push(`Auto-release ${fmtTime(s.holdExpiresAt)}`);
+  const r = s.reservation;
+  if (r && s.status === 'reserved') rows.push(`Reserved by ${r.user}${r.forTeam ? ` for ${r.team}` : ` (${r.team})`} · ${r.slotLabel.toLowerCase()} ${fmtTime(r.start)}–${fmtTime(r.end)}`);
+  else if (r) rows.push(`Next reservation: ${r.slotLabel.toLowerCase()} ${fmtTime(r.start)}${new Date(r.start).toDateString() === new Date().toDateString() ? '' : ' tomorrow'} (${r.user})`);
+  if (s.holdExpiresAt) rows.push(`${s.status === 'reserved' ? 'Released if no check-in by' : 'Auto-release'} ${fmtTime(s.holdExpiresAt)}`);
   if (!s.hasSensor) rows.push('QR check-in only');
   return rows;
 }
@@ -625,8 +631,8 @@ function renderPanel() {
 // ---------- Colleague finder (side panel tab) ----------
 // Everyone checked in or with booked desks, built from the live seats (the dashboard already has
 // names). Same rules as the floor display: people sitting without a check-in are anonymous.
-const PSTATUS = { onsite: 'On-site', away: 'Away', booked: 'Booked', team: 'Booked for team' };
-const personKey = (p) => `${p.name.toLowerCase()}|${p.team ?? ''}|${p.teamBooking ? 'team' : ''}`;
+const PSTATUS = { onsite: 'On-site', away: 'Away', booked: 'Not arrived', team: 'Booked for team', reserved: 'Reserved' };
+const personKey = (p) => p.key ?? `${p.name.toLowerCase()}|${p.team ?? ''}|${p.teamBooking ? 'team' : ''}`;
 const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
 function peopleIn() {
   const people = new Map();
@@ -639,17 +645,26 @@ function peopleIn() {
     p.seats.push(s);
     p.since = Math.min(p.since, s.checkedInAt); p.until = Math.max(p.until, s.checkedInUntil);
   }
+  // Reservations waiting for their check-in (window open): expected any minute.
+  for (const s of state.seats.values()) {
+    const r = s.status === 'reserved' && s.reservation;
+    if (!r?.user) continue;
+    const p0 = { name: r.user, team: r.team ?? null, teamBooking: Boolean(r.forTeam), reserved: true };
+    const k = `${personKey(p0)}|res`;
+    if (!people.has(k)) people.set(k, { ...p0, key: k, seats: [], since: r.start, until: r.deadline });
+    people.get(k).seats.push(s);
+  }
   const rank = { onsite: 0, away: 1, booked: 2 };
   return [...people.values()].map((p) => {
     p.seats.sort((a, b) => a.id.localeCompare(b.id));
-    p.status = p.teamBooking ? 'team' : p.seats.map((s) => (s.status === 'away' ? 'away'
+    p.status = p.reserved ? 'reserved' : p.teamBooking ? 'team' : p.seats.map((s) => (s.status === 'away' ? 'away'
       : s.presence || !s.hasSensor || s.status === 'offline' ? 'onsite' : 'booked')).sort((a, b) => rank[a] - rank[b])[0];
     return p;
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 function personAt(id) {
   const s = state.seats.get(id);
-  if (!s?.checkedInBy || s.status === 'available') return null;
+  if ((!s?.checkedInBy || s.status === 'available') && s?.status !== 'reserved') return null;
   return peopleIn().find((p) => p.seats.some((x) => x.id === id)) ?? null;
 }
 
@@ -710,7 +725,7 @@ function renderFinder() {
     const tag = p.status === 'onsite' ? '' : ` <span class="dp-tag s-${p.status}">${PSTATUS[p.status]}</span>`;
     const desk = p.seats.length === 1 ? `${esc(p.seats[0].id)}<small>${esc(p.seats[0].zoneName)}</small>` : `${p.seats.length} desks<small>${esc(p.seats[0].floorName)}</small>`;
     const more = one ? `<div class="finder-more">
-        <div>${p.status === 'team' || p.status === 'booked' ? `Until ${fmtTime(p.until)}` : `Since ${fmtTime(p.since)} · until ${fmtTime(p.until)}`}</div>
+        <div>${p.status === 'reserved' ? `${p.teamBooking ? `Reserved for ${esc(p.team)}` : 'Reserved'} · check in by ${fmtTime(p.until)} or released` : p.status === 'team' || p.status === 'booked' ? `Until ${fmtTime(p.until)}` : `Since ${fmtTime(p.since)} · until ${fmtTime(p.until)}`}</div>
         <div class="finder-desks">${p.seats.map((s) => `<button type="button" class="btn" data-manage="${esc(s.id)}">Manage ${esc(s.id)}</button>`).join('')}</div>
       </div>` : '';
     return `<li data-person="${esc(personKey(p))}" class="${one ? 'on' : ''}">
@@ -908,7 +923,7 @@ function panelDetails(s) {
   if (s.checkedInAt) usage.push(['Since', fmtTime(s.checkedInAt)]);
   if (s.checkedInUntil) usage.push(['Until', fmtTime(s.checkedInUntil)]);
   if (s.status === 'away' && s.lastPresenceAt) usage.push(['Last seen', fmtTime(s.lastPresenceAt)]);
-  if (s.holdExpiresAt) usage.push(['Auto-release', fmtTime(s.holdExpiresAt)]);
+  if (s.holdExpiresAt && s.status !== 'reserved') usage.push(['Auto-release', fmtTime(s.holdExpiresAt)]);
   const sensor = s.hasSensor
     ? `<li>${ICON.sensor}<span><b>Presence sensor</b> · ${s.sensorOnline ? (s.presence ? 'someone is at the desk' : 'online, nobody detected') : 'offline'}<br><span class="muted">${esc(s.sensorId)}</span></span></li>`
     : `<li>${ICON.qr}<span><b>QR check-in only</b> · no sensor on this desk</span></li>`;
@@ -925,11 +940,30 @@ function panelDetails(s) {
       <li>${ICON.qr}<span><a href="/checkin?seat=${encodeURIComponent(s.id)}" data-phone title="The page this desk's QR code opens, in a phone-sized window">Open check-in page</a> <span class="muted">· phone view</span></span></li>
     </ul>
     ${usage.length ? `<div class="usage">${usage.map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}</div>` : ''}
+    ${reservationBox(s)}
     ${flash}`;
 }
 
+/** The reservation holding this desk now (waiting for its check-in), or the next one. */
+function reservationBox(s) {
+  const r = s.reservation;
+  if (!r) return '';
+  const today = new Date(r.start).toDateString() === new Date().toDateString();
+  const rows = [
+    [r.forTeam ? 'Reserved for the team by' : 'Reserved by', r.user ?? '—'],
+    ['Project team', r.team ?? '—'],
+    ['Slot', `${today ? 'Today' : 'Tomorrow'}, ${r.slotLabel.toLowerCase()} ${fmtTime(r.start)}–${fmtTime(r.end)}`],
+    [s.status === 'reserved' ? 'Released if no check-in by' : 'Check-in window', s.status === 'reserved' ? fmtTime(r.deadline) : `${fmtTime(r.checkInFrom)}–${fmtTime(r.deadline)}`],
+  ];
+  return `<div class="usage resv-box"><div class="row"><b>${s.status === 'reserved' ? 'Reservation, waiting for check-in' : 'Next reservation'}</b></div>
+    ${rows.map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}
+    <div class="row"><span></span><button type="button" class="btn" data-cancel-res="${esc(r.id)}">Cancel reservation</button></div></div>`;
+}
+
 function checkinForm(s) {
-  const lead = s.status === 'available' ? 'Starts now and lasts for the chosen time.'
+  const r = s.status === 'reserved' && s.reservation;
+  const lead = r ? `Reserved for ${r.forTeam ? `${esc(r.team)} (anyone in the project)` : `${esc(r.user)} (${esc(r.team)})`}. Checking them in confirms the reservation; anyone else is refused until it is released.`
+    : s.status === 'available' ? 'Starts now and lasts for the chosen time.'
     : s.status === 'offline' ? 'The sensor is offline, so a check-in is the only way to show this desk as taken.'
     : 'Someone is at this desk but nobody has checked in. You can check in the person sitting here.';
   if (!state.bookingFor) {
@@ -1164,6 +1198,17 @@ function toggleAllocation(id) {
 }
 
 $('panel').addEventListener('click', async (e) => {
+  const cancel = e.target.closest('[data-cancel-res]');
+  if (cancel) {
+    if (!confirm('Cancel this reservation? The desk becomes free for that slot.')) return;
+    cancel.disabled = true;
+    try {
+      await apiSend('POST', `/api/reservations/${encodeURIComponent(cancel.dataset.cancelRes)}/cancel`, {});
+      state.flash = { seatId: state.selected, text: 'Reservation cancelled.' };
+      await reloadSeats();
+    } catch (err) { cancel.disabled = false; alert(err.message); }
+    return;
+  }
   if (state.view !== 'alloc') return;
   const pick = e.target.closest('[data-pick]'), del = e.target.closest('[data-del]');
   if (pick) {
@@ -1230,6 +1275,7 @@ function renderLegend() {
     <span class="litem">${ws('st-available is-selected')}Selected</span>
     <span class="litem">${ws('st-occupied')}Occupied${project ? ', no check-in' : ''}</span>
     <span class="litem" title="The chair is pushed back while the seat is held">${ws('st-away')}Away (held)</span>
+    <span class="litem" title="Reserved for a slot, waiting for the person to check in">${ws('st-reserved')}Reserved</span>
     <span class="litem">${ws('st-offline')}Sensor offline</span></div>`;
   let extra = '';
   if (project) {
@@ -1302,7 +1348,10 @@ async function loadProjects() {
 // ---------- Activity ----------
 const who = (a) => `${esc(a.detail)}${a.team ? ` <span class="muted">(${esc(a.team)})</span>` : ''}`;
 const ACT = {
-  checkin: (a) => `${who(a)} checked in at <b>${esc(a.seatId)}</b>`,
+  checkin: (a) => `${who(a)} checked in at <b>${esc(a.seatId)}</b>${a.slot ? `, as reserved for ${esc(a.slot)}` : ''}`,
+  reserve: (a) => `${who(a)} reserved <b>${esc(a.seatId)}</b>${a.forTeam ? ' for the team' : ''} for ${esc(a.slot)}`,
+  cancel: (a) => `${who(a)} cancelled the reservation of <b>${esc(a.seatId)}</b> for ${esc(a.slot)}`,
+  'no-show': (a) => `${who(a)} did not check in at <b>${esc(a.seatId)}</b> for ${esc(a.slot)}: released`,
   book: (a) => `${who(a)} booked <b>${esc(a.seatId)}</b> for the team`,
   checkout: (a) => `${who(a)} checked out of <b>${esc(a.seatId)}</b>`,
   moved: (a) => `${who(a)} moved away from <b>${esc(a.seatId)}</b>`,
@@ -1470,7 +1519,7 @@ function connect() {
 }
 
 function renderLoading() {
-  $('kpis').innerHTML = Array.from({ length: 5 }, () =>
+  $('kpis').innerHTML = Array.from({ length: 6 }, () =>
     '<div class="card kpi loading" aria-hidden="true"><div class="icon"></div><div class="label">Loading</div><div class="value">00</div><div class="sub">loading seats</div></div>').join('');
   renderPanel();
 }

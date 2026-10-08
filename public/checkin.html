@@ -38,6 +38,8 @@
   .links a { color: var(--accent); text-decoration: none; font-weight: 500; }
   .links a:hover { text-decoration: underline; }
   .demo-name { justify-self: start; padding: 2px 6px; margin-top: -4px; font-size: 12px; color: var(--accent); }
+  .resv { color: var(--text-primary); background: color-mix(in srgb, var(--seat-reserved) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--seat-reserved) 40%, var(--surface)); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
+  .resv b { display: block; margin-bottom: 2px; }
   .note { display: flex; gap: 8px; color: var(--text-muted); font-size: 13px; margin: 0; }
   .note svg { width: 16px; height: 16px; margin-top: 2px; }
 </style>
@@ -66,6 +68,7 @@
     <div class="where" id="where"></div>
     <span class="pill" id="status">Loading…</span>
     <p class="hint" id="hint"></p>
+    <div class="resv" id="resv" hidden></div>
     <div class="pform">
       <label for="user">Your name or employee ID
         <input id="user" autocomplete="username">
@@ -87,12 +90,12 @@
 
   <div class="links">
     <a href="/checkin" id="changeDesk" hidden>← Change desk</a>
-    <a href="/book">Book on the floor plan →</a>
+    <a href="/book">Reserve a desk ahead →</a>
   </div>
 </main>
 <script src="/static/demo-names.js"></script>
 <script>
-const LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away — held for its user', offline: 'Sensor offline' };
+const LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away — held for its user', offline: 'Sensor offline', reserved: 'Reserved' };
 let seatId = new URLSearchParams(location.search).get('seat');
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -115,9 +118,25 @@ function render(s) {
   $('where').textContent = `${[s.floorName, s.zoneName, s.teamName].filter(Boolean).join(' · ')}`;
   $('status').textContent = LABEL[s.status] + (s.checkedInUntil ? ` · until ${fmtTime(s.checkedInUntil)}` : '');
   $('status').className = `pill k-${s.status}`;
+  renderReservation(s);
   $('hint').textContent = (s.allocatedTo ? `Pre-allocated to ${s.allocatedTo}. ` : '') + (s.hasSensor
     ? 'This desk has a presence sensor: it frees itself automatically once you have been away for a while.'
     : 'This desk has no sensor: please tap "I\'m leaving" when you go.');
+}
+
+// A reservation on this desk: the one being held now (check-in window open), or the next one today.
+const hh = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+function renderReservation(s) {
+  const r = s.reservation, box = $('resv');
+  box.hidden = !r;
+  if (!r) return;
+  const slot = `${r.slotLabel.toLowerCase()} ${hh(r.start)}–${hh(r.end)}`;
+  const who = r.forTeam ? `anyone in ${esc(r.team)}` : `the person who reserved it (${esc(r.team)})`;
+  box.innerHTML = s.status === 'reserved'
+    ? `<b>Reserved for the ${esc(slot)}</b>Held for ${who} until ${hh(r.deadline)}. If this is your reservation, check in with the name you reserved under; if nobody does by then, the desk is released.`
+    : new Date(r.start).toDateString() !== new Date().toDateString()
+      ? `<b>Reserved tomorrow, ${esc(slot)}</b>Free to use today.`
+      : `<b>Reserved from ${hh(r.start)} (${esc(r.slotLabel.toLowerCase())})</b>You can use it until ${hh(r.checkInFrom)}: a check-in now ends by then at the latest. If the reservation is yours, check in from ${hh(r.checkInFrom)} with the name you reserved under.`;
 }
 
 async function loadDurations() {
@@ -179,7 +198,7 @@ async function allocationWarning(team) {
   const seats = await call('/api/availability');
   const here = seats.find((x) => x.id === seatId);
   const mine = seats.filter((x) => x.allocatedTo === team);
-  if (!here || !mine.length || here.allocatedTo === team) return null;
+  if (!here || !mine.length || here.allocatedTo === team || here.reservation?.team === team) return null;
   return { here, free: mine.filter((x) => x.status === 'available' || x.status === 'offline') };
 }
 $('team').addEventListener('change', () => { confirmedTeam = ''; $('in').textContent = IN_LABEL; setMsg($('msg'), '', ''); });
