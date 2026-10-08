@@ -273,8 +273,8 @@ async function refresh() {
   state.awayGrace = people.awayGraceMinutes;
   $('bname').textContent = people.building ? `· ${people.building}` : '';
   if (state.selected && !state.people.some((p) => personKey(p) === state.selected)) { state.selected = null; renderSelection(); }
-  $('live').className = 'live on';
-  $('live').innerHTML = `Live <span class="sep">·</span> ${fmtTime(Date.now())}`;
+  // The clock already shows the time: the pill only appears while the server can't be reached.
+  $('live').hidden = true;
   patchSeats(); updateCounts(); renderList(); renderLegend(); renderKpis();
   if (state.selected) renderSelection();
 }
@@ -287,7 +287,7 @@ async function init() {
     renderFilters(); renderFloors();
     await refresh();
     renderPlan();
-    setInterval(() => refresh().catch(() => { $('live').className = 'live'; $('live').textContent = 'Reconnecting…'; }), REFRESH_MS);
+    setInterval(() => refresh().catch(() => { $('live').hidden = false; }), REFRESH_MS);
   } catch (e) {
     if (e.status === 401) {
       $('main').innerHTML = `<div class="card dp-auth" style="grid-column:1/-1"><h2>This display needs its key</h2>
