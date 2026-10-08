@@ -36,6 +36,14 @@
   .dp-theme { background: transparent; border: 1px solid rgb(255 255 255 / 0.18); color: var(--sidebar-text); border-radius: 999px; padding: 6px 9px; cursor: pointer; display: grid; place-items: center; }
   .dp-theme:hover { color: #fff; }
   .dp-main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, 31%); gap: 16px; padding: 16px; }
+  /* Left column: whole-office summary cards above the floor plan. */
+  .dp-left { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; }
+  .dp-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .dp-kpis .kpi { padding: 14px 16px; }
+  .dp-kpis .kpi .label { font-size: 14px; }
+  .dp-kpis .kpi .value { font-size: 32px; }
+  .dp-kpis .kpi .sub { font-size: 12.5px; margin-top: 6px; }
+  .dp-kpis .kpi .meter { margin-top: 8px; }
   .dp-plan { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; padding: 16px 18px; }
   .dp-plan-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .dp-plan-head h2 { font-size: 20px; }
@@ -95,6 +103,9 @@
     body { overflow: auto; }
     .dp { height: auto; }
     .dp-main { grid-template-columns: minmax(0, 1fr); }
+    .dp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dp-left { grid-template-rows: auto auto; }
+    .dp-plan { min-height: 60vh; }
     .dp-finder { max-height: 80vh; }
     .dp-top { flex-wrap: wrap; }
   }
@@ -112,6 +123,8 @@
   </header>
 
   <main class="dp-main" id="main">
+    <div class="dp-left">
+    <section class="dp-kpis" id="kpis" aria-label="Seats across the whole office"></section>
     <section class="card dp-plan" aria-label="Floor plan">
       <div class="dp-plan-head"><h2 id="floorName">Floor plan</h2><span class="sub" id="floorCount"></span></div>
       <div id="plan"></div>
@@ -120,6 +133,7 @@
         <div class="dp-foot" id="legend"></div>
       </div>
     </section>
+    </div>
 
     <aside class="card dp-finder" aria-label="Colleague finder">
       <div>

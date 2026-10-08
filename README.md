@@ -318,6 +318,9 @@ Windows firewall on private networks.
 
 `/display` is made for a projector or wall screen at the office (landscape, full screen). It shows:
 
+- four summary cards for the whole office above the plan: **Occupancy**, **Available**, **Occupied** and
+  **Away (held)**, the same as the dashboard's (they stay put while the plan moves between tabs);
+
 - the live floor plan with taken desks in their project's colour. A floor with several zones is shown one zone at
   a time so it fills the screen (tabs **L1 · Digital Factory**, **L1 · Discussion Area**, **L1 · AI Lab**, then
   **Level 2**); only the display splits floors like this;

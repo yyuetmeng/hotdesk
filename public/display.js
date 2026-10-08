@@ -178,6 +178,28 @@ function renderLegend() {
     ${teams.map((t) => `<span class="litem">${ws('st-occupied team', `--c:${projectColor(t)}`)}${esc(t)}</span>`).join('')}`;
 }
 
+// ---------- Whole-office summary cards ----------
+const svgIcon = (d) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const KPI_ICON = {
+  rate: svgIcon('<path d="M4.5 18a8.5 8.5 0 1 1 15 0"/><path d="m12 13 4-4"/>'),
+  available: svgIcon('<path d="M7 11V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v5"/><path d="M5 11h14v4H5zM8 15v5M16 15v5"/>'),
+  occupied: svgIcon('<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>'),
+  away: svgIcon('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+};
+function renderKpis() {
+  const c = { total: 0, available: 0, occupied: 0, away: 0, offline: 0 };
+  for (const s of state.seats.values()) { c.total++; c[s.status] = (c[s.status] ?? 0) + 1; }
+  const rate = c.total ? (c.occupied + c.away) / c.total : 0, pct = `${Math.round(rate * 100)}%`;
+  const tile = (color, icon, label, value, sub, extra = '') => `<div class="card kpi" style="--k:${color}">
+      <div class="icon">${icon}</div><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div>${extra}</div>`;
+  $('kpis').innerHTML =
+    tile('var(--accent)', KPI_ICON.rate, 'Occupancy', pct, `${c.occupied + c.away} of ${c.total} seats in use`,
+      `<div class="meter" role="presentation"><i style="width:${pct}"></i></div>`) +
+    tile('var(--available)', KPI_ICON.available, 'Available', c.available, 'free to take now') +
+    tile('var(--seat-occupied)', KPI_ICON.occupied, 'Occupied', c.occupied, 'at a desk or checked in') +
+    tile('var(--seat-away-ink)', KPI_ICON.away, 'Away (held)', c.away, state.awayGrace ? `held ≤ ${state.awayGrace} min, then released` : 'desk held for a while');
+}
+
 // ---------- Filters ----------
 function renderFilters() {
   const keep = (id, opts, all) => {
@@ -247,11 +269,12 @@ async function refresh() {
   const [list, people] = await Promise.all([call('/api/availability'), call('/api/display/people', auth)]);
   state.seats = new Map(list.map((s) => [s.id, s]));
   state.people = people.people;
+  state.awayGrace = people.awayGraceMinutes;
   $('bname').textContent = people.building ? `· ${people.building}` : '';
   if (state.selected && !state.people.some((p) => personKey(p) === state.selected)) { state.selected = null; renderSelection(); }
   $('live').className = 'live on';
   $('live').innerHTML = `Live <span class="sep">·</span> ${fmtTime(Date.now())}`;
-  patchSeats(); updateCounts(); renderList(); renderLegend();
+  patchSeats(); updateCounts(); renderList(); renderLegend(); renderKpis();
   if (state.selected) renderSelection();
 }
 

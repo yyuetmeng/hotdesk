@@ -148,7 +148,7 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
     if (method === 'GET' && url.pathname === '/display') return serveStatic(res, 'display.html');
     if (method === 'GET' && url.pathname === '/api/display/people') {
       requireDisplay(req, url);
-      return send(res, 200, { building: buildingName, at: Date.now(), people: engine.peopleIn() });
+      return send(res, 200, { building: buildingName, at: Date.now(), awayGraceMinutes: engine.rules.awayGraceMinutes, people: engine.peopleIn() });
     }
     if (method === 'GET' && url.pathname === '/sensors') return serveStatic(res, 'sensors.html');
     if (method === 'GET' && parts[0] === 'static') return serveStatic(res, parts.slice(1).join('/'));
