@@ -6,8 +6,8 @@ and gives administrators a live dashboard of seat availability.
 - **Detection:** under-desk presence sensors (primary) plus QR-code check-in (fallback / sensorless areas).
 - **Auto-release:** a desk whose occupant has been gone longer than a grace period (default 20 min)
   becomes available again. Unconfirmed or expired check-ins are released too.
-- **Admin dashboard:** interactive live floor plan (hover a seat to preview it, click to select it and check someone
-  in, extend or check out from the side panel), KPIs that follow the floor filter, 24 h occupancy trend,
+- **Admin dashboard:** interactive live floor plan with a two-tab side panel: a **Colleague finder** (who is in and
+  where) and **Seat booking** (check someone in, extend or check out). KPIs that follow the floor filter, 24 h occupancy trend,
   per-zone utilisation, activity feed.
 - **For employees:** a self-service booking page (`/book`) with the floor plan, and a phone check-in page
   (`/checkin`) that a desk's QR code opens, or that takes a typed desk ID.
@@ -239,7 +239,12 @@ Allocations are saved with the app's state (`data/state.json`), and each seat's 
 **Booking against allocations.** Pre-allocation guides people to their project's seats but doesn't block other
 seats:
 
-- **Dashboard:** checking someone in follows four steps in the side panel:
+- **Dashboard side panel:** two tabs. **Colleague finder** (the default) lists everyone checked in or with booked
+  desks on the plan's floor, with search and a project filter, and the same Away / Booked / Booked for team tags as
+  the floor display. Clicking a taken desk on the plan opens its person in the finder (their desks are highlighted);
+  **Manage** opens that desk in Seat booking to extend or check out. Clicking a free desk (or one where someone sits
+  without a check-in) opens **Seat booking**. The sidebar's **Colleague finder** link jumps to the search.
+- **Dashboard seat booking:** checking someone in follows four steps in the Seat booking tab:
   1. **Choose a project.** Its pre-allocated seats are highlighted on the plan in its colour, with how many are free.
   2. **Choose a seat** on the plan.
   3. **Fill in the details** (name, duration). The project is the one from step 1 and isn't asked for again.

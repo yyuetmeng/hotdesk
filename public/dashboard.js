@@ -24,6 +24,7 @@ const ICON = {
   pointer: svg('<path d="m5 3 14 7-6 2-2 6z"/>', 'i'),
   trash: svg('<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/>', 'i'),
   okCircle: svg('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/>', 'i'),
+  search: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', 'i'),
 };
 const STATUS_ICON = { available: ICON.seat, occupied: ICON.person.replace('<svg class=""', '<svg class="i"'), away: ICON.clock.replace('<svg class=""', '<svg class="i"'), offline: ICON.alert };
 
@@ -42,6 +43,8 @@ const state = {
   // Booking several seats for the team: `multi` turns it on, `picked` holds the chosen seats.
   multi: false, picked: new Set(), multiFlash: '',
   selected: null, flash: null,
+  // The side panel's tabs: 'finder' (Colleague finder, the default) or 'book' (Seat booking).
+  tab: 'finder', finderQ: '', finderProject: '', finderPerson: null, found: new Set(),
 };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -350,7 +353,8 @@ function seatLabel(s) {
 function patchSeat(el, s = state.seats.get(el.dataset.seat)) {
   if (!s) return;
   const look = seatLook(s);
-  const sel = state.view === 'live' && (state.multi ? state.picked.has(s.id) : state.selected === s.id);
+  const sel = state.view === 'live' && (state.tab === 'finder' ? state.found.has(s.id)
+    : state.multi ? state.picked.has(s.id) : state.selected === s.id);
   const dim = state.view === 'live' ? !matches(s) : !inFloor(s);
   const sig = [look.cls, look.color, look.pa, sel, dim].join('|');
   if (el.dataset.sig !== sig) {
@@ -418,9 +422,14 @@ function select(id) {
 /** A seat was clicked or Enter was pressed on it. */
 function activate(id) {
   hidePop();
-  if (state.view === 'alloc') toggleAllocation(id);
-  else if (state.multi) togglePick(id);
-  else select(state.selected === id ? null : id);
+  if (state.view === 'alloc') { toggleAllocation(id); return; }
+  if (state.multi && state.tab === 'book') { togglePick(id); return; }
+  // A desk someone has checked in to or booked: show that person in the colleague finder.
+  // Any other desk (free, or someone sitting there without a check-in): the seat booking tab.
+  const person = personAt(id);
+  if (person) { selectPerson(personKey(person)); return; }
+  if (state.tab !== 'book') setTab('book', { keep: true });
+  select(state.selected === id ? null : id);
 }
 
 const bookable = (x) => x && (x.status === 'available' || x.status === 'offline');
@@ -479,6 +488,7 @@ $('plan').addEventListener('keydown', (e) => {
 });
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.multi && state.picked.size && !e.target.closest?.('input, select')) { setMulti(true); return; }
+  if (e.key === 'Escape' && state.tab === 'finder' && state.finderPerson && !e.target.closest?.('input, select')) { clearPerson(); return; }
   if (e.key !== 'Escape' || !state.selected) return;
   if (e.target.closest?.('input, select')) return;
   const el = $('plan').querySelector(`[data-seat="${CSS.escape(state.selected)}"]`);
@@ -560,11 +570,23 @@ function renderPanel() {
   const panel = $('panel');
   if (state.view === 'alloc') { panel.classList.remove('open'); renderAllocPanel(); return; }
   if (panelKey.startsWith('alloc')) { panel.innerHTML = ''; panelKey = ''; }
+  // Two tabs: the colleague finder (default) and seat booking.
+  if (!$('panelTabs')) {
+    panel.innerHTML = `<div class="ptabs" id="panelTabs" role="tablist" aria-label="Side panel">
+        <button type="button" role="tab" data-tab="finder">${ICON.users.replace('<svg class=""', '<svg class="i"')}Colleague finder</button>
+        <button type="button" role="tab" data-tab="book">${ICON.pointer}Seat booking</button>
+      </div><div id="finderPane" role="tabpanel"></div><div id="bookPane" role="tabpanel"></div>`;
+    panelKey = '';
+  }
+  for (const b of $('panelTabs').querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === state.tab));
+  $('finderPane').hidden = state.tab !== 'finder';
+  $('bookPane').hidden = state.tab !== 'book';
+  renderFinder();
   const s = state.selected && state.seats.get(state.selected);
-  panel.classList.toggle('open', Boolean(s));
+  panel.classList.toggle('open', Boolean(s) && state.tab === 'book');
   // Step 1, choosing the project, stays at the top; live updates only refresh its counts.
   if (!$('panelBody')) {
-    panel.innerHTML = `<div class="book-bar" id="bookBar"><label for="bookFor"><span class="step">1</span>Choose a project</label>
+    $('bookPane').innerHTML = `<div class="book-bar" id="bookBar"><label for="bookFor"><span class="step">1</span>Choose a project</label>
       <select id="bookFor">${bookingOptions()}</select><div class="book-sum" id="bookSum"></div>
       <div class="seg seat-mode" id="seatMode" role="group" aria-label="How many seats">
         <button type="button" data-multi="0" aria-pressed="true">One seat</button>
@@ -599,6 +621,119 @@ function renderPanel() {
   body.querySelector('form')?.addEventListener('submit', onPanelSubmit);
   updateAllocWarning();
 }
+
+// ---------- Colleague finder (side panel tab) ----------
+// Everyone checked in or with booked desks, built from the live seats (the dashboard already has
+// names). Same rules as the floor display: people sitting without a check-in are anonymous.
+const PSTATUS = { onsite: 'On-site', away: 'Away', booked: 'Booked', team: 'Booked for team' };
+const personKey = (p) => `${p.name.toLowerCase()}|${p.team ?? ''}|${p.teamBooking ? 'team' : ''}`;
+const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
+function peopleIn() {
+  const people = new Map();
+  for (const s of state.seats.values()) {
+    if (!s.checkedInBy || s.status === 'available') continue;
+    const p0 = { name: s.checkedInBy, team: s.projectTeam ?? null, teamBooking: Boolean(s.teamBooking) };
+    const k = personKey(p0);
+    if (!people.has(k)) people.set(k, { ...p0, seats: [], since: s.checkedInAt, until: s.checkedInUntil });
+    const p = people.get(k);
+    p.seats.push(s);
+    p.since = Math.min(p.since, s.checkedInAt); p.until = Math.max(p.until, s.checkedInUntil);
+  }
+  const rank = { onsite: 0, away: 1, booked: 2 };
+  return [...people.values()].map((p) => {
+    p.seats.sort((a, b) => a.id.localeCompare(b.id));
+    p.status = p.teamBooking ? 'team' : p.seats.map((s) => (s.status === 'away' ? 'away'
+      : s.presence || !s.hasSensor || s.status === 'offline' ? 'onsite' : 'booked')).sort((a, b) => rank[a] - rank[b])[0];
+    return p;
+  }).sort((a, b) => a.name.localeCompare(b.name));
+}
+function personAt(id) {
+  const s = state.seats.get(id);
+  if (!s?.checkedInBy || s.status === 'available') return null;
+  return peopleIn().find((p) => p.seats.some((x) => x.id === id)) ?? null;
+}
+
+function setTab(tab, { keep = false } = {}) {
+  state.tab = tab;
+  if (tab === 'book' && !keep) select(null);
+  if (tab === 'finder') { state.selected = null; panelKey = ''; }
+  patchAllSeats(); renderPanel();
+  if (tab === 'book' && state.multi && narrow()) $('multiBar').hidden = !state.picked.size;
+}
+
+function selectPerson(k) {
+  const p = peopleIn().find((x) => personKey(x) === k);
+  if (!p) return;
+  state.tab = 'finder'; state.selected = null; panelKey = '';
+  state.finderPerson = k;
+  state.found = new Set(p.seats.map((s) => s.id));
+  // Show their floor if the plan is filtered to another one.
+  if (state.floor && !p.seats.some((s) => s.floor === state.floor)) {
+    state.floor = p.seats[0].floor; safeSet('hotdesk.floor', state.floor);
+    syncFilterControls(); renderPlan(); renderKpis();
+  }
+  patchAllSeats(); renderPanel();
+  revealSeat(p.seats[0].id);
+}
+function clearPerson() {
+  state.finderPerson = null; state.found = new Set();
+  patchAllSeats(); renderPanel();
+}
+
+function renderFinder() {
+  const pane = $('finderPane');
+  if (!$('finderList')) {
+    pane.innerHTML = `<div class="finder">
+      <div class="finder-head"><span class="muted" id="finderCount"></span></div>
+      <label class="finder-search">${ICON.search}<input id="finderQ" type="search" placeholder="Name, project or desk" autocomplete="off" aria-label="Search colleagues"></label>
+      <select id="finderProject" aria-label="Project"></select>
+      <div id="finderBack"></div>
+      <ul class="finder-list" id="finderList"></ul>
+    </div>`;
+    $('finderQ').value = state.finderQ;
+  }
+  if (document.activeElement?.id !== 'finderProject') {
+    $('finderProject').innerHTML = `<option value="">All projects</option>${(state.options?.projectTeams ?? []).map((t) => `<option${t === state.finderProject ? ' selected' : ''}>${esc(t)}</option>`).join('')}`;
+  }
+  const all = peopleIn().filter((p) => !state.floor || p.seats.some((s) => s.floor === state.floor));
+  const one = state.finderPerson && all.find((p) => personKey(p) === state.finderPerson);
+  if (state.finderPerson && !one) { state.finderPerson = null; state.found = new Set(); patchAllSeats(); }
+  const q = state.finderQ.trim().toLowerCase();
+  const rows = one ? [one] : all.filter((p) => (!state.finderProject || p.team === state.finderProject)
+    && (!q || [p.name, p.team, ...p.seats.flatMap((s) => [s.id, s.zoneName, s.floorName])].some((t) => String(t ?? '').toLowerCase().includes(q))));
+  $('finderBack').innerHTML = one ? `<button type="button" class="btn btn-ghost finder-backbtn" data-finder-back>← All colleagues</button>` : '';
+  const scope = state.floor ? 'on this floor' : 'in today';
+  $('finderCount').textContent = one ? 'Showing one colleague' : rows.length === all.length
+    ? `${all.length} colleague${all.length === 1 ? '' : 's'} ${scope}` : `${rows.length} of ${all.length} colleagues ${scope}`;
+  const color = (p) => { const t = projectInfo(p.team); return t ? projectColor(t) : 'var(--anon)'; };
+  $('finderList').innerHTML = rows.length ? rows.map((p) => {
+    const tag = p.status === 'onsite' ? '' : ` <span class="dp-tag s-${p.status}">${PSTATUS[p.status]}</span>`;
+    const desk = p.seats.length === 1 ? `${esc(p.seats[0].id)}<small>${esc(p.seats[0].zoneName)}</small>` : `${p.seats.length} desks<small>${esc(p.seats[0].floorName)}</small>`;
+    const more = one ? `<div class="finder-more">
+        <div>${p.status === 'team' || p.status === 'booked' ? `Until ${fmtTime(p.until)}` : `Since ${fmtTime(p.since)} · until ${fmtTime(p.until)}`}</div>
+        <div class="finder-desks">${p.seats.map((s) => `<button type="button" class="btn" data-manage="${esc(s.id)}">Manage ${esc(s.id)}</button>`).join('')}</div>
+      </div>` : '';
+    return `<li data-person="${esc(personKey(p))}" class="${one ? 'on' : ''}">
+      <div class="finder-row"><span class="dp-av" style="--c:${color(p)}">${esc(initials(p.name))}</span>
+        <span class="finder-who"><b>${esc(p.name)}</b>${tag}<small>${esc(p.team ?? '')}</small></span>
+        <span class="finder-desk">${desk}</span></div>${more}</li>`;
+  }).join('') : `<li class="finder-empty">${all.length ? 'No colleagues match.' : `Nobody has checked in${state.floor ? ' on this floor' : ''} yet.`}</li>`;
+}
+$('panel').addEventListener('input', (e) => {
+  if (e.target.id === 'finderQ') { state.finderQ = e.target.value; if (state.finderPerson) clearPerson(); else renderFinder(); }
+});
+$('panel').addEventListener('change', (e) => {
+  if (e.target.id === 'finderProject') { state.finderProject = e.target.value; renderFinder(); }
+});
+$('panel').addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-tab]');
+  if (tab) { if (tab.dataset.tab !== state.tab) setTab(tab.dataset.tab); return; }
+  if (e.target.closest('[data-finder-back]')) { clearPerson(); return; }
+  const manage = e.target.closest('[data-manage]');
+  if (manage) { state.found = new Set(); setTab('book', { keep: true }); select(manage.dataset.manage); return; }
+  const row = e.target.closest('[data-person]');
+  if (row && !e.target.closest('button')) { if (state.finderPerson === row.dataset.person) clearPerson(); else selectPerson(row.dataset.person); }
+});
 
 // ---------- Booking for a project: pre-allocated seats ----------
 const allocatedTo = (team) => [...state.seats.values()].filter((x) => x.allocatedTo === team);
@@ -927,6 +1062,11 @@ function switchView(view) {
 }
 $('planView').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) switchView(b.dataset.view); });
 $('allocLink').addEventListener('click', () => switchView('alloc'));
+$('finderLink').addEventListener('click', () => {
+  if (state.view === 'alloc') switchView('live');
+  if (state.tab !== 'finder') setTab('finder');
+  setTimeout(() => $('finderQ')?.focus({ preventScroll: true }), 350);
+});
 
 /** A colour for a new project: the first palette colour no project uses yet. */
 function suggestColor() {
