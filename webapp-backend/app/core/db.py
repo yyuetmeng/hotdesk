@@ -7,10 +7,22 @@ _engines = {}
 
 def get_engine() -> Engine:
     uri = current_app.config["SQLALCHEMY_DATABASE_URI"]
+    search_path = current_app.config.get("SQL_SEARCH_PATH", "public")
     options = current_app.config.get("SQLALCHEMY_ENGINE_OPTIONS", {})
-    key = uri
+    key = (uri, search_path)
     if key not in _engines:
-        _engines[key] = create_engine(uri, **options)
+        engine = create_engine(uri, **options)
+
+        from sqlalchemy import event
+
+        @event.listens_for(engine, "connect")
+        def _set_search_path(dbapi_conn, _record):
+            cur = dbapi_conn.cursor()
+            cur.execute(f"set search_path to {search_path}, public")
+            cur.close()
+            dbapi_conn.commit()
+
+        _engines[key] = engine
     return _engines[key]
 
 
