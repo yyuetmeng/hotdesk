@@ -37,6 +37,18 @@ def run_query(sql: str, params: dict | None = None):
     return session.execute(text(sql), params or {}).mappings().all()
 
 
+def run_one(sql: str, params: dict | None = None):
+    session = get_session()
+    return session.execute(text(sql), params or {}).mappings().first()
+
+
+def run_write(sql: str, params: dict | None = None) -> int:
+    session = get_session()
+    result = session.execute(text(sql), params or {})
+    session.commit()
+    return result.rowcount
+
+
 def init_db(app):
     @app.teardown_appcontext
     def close_session(exc):
