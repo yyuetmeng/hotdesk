@@ -2,16 +2,18 @@ import datetime as dt
 import logging
 from functools import wraps
 
-from flask import g, jsonify, request
+from flask import current_app, g, jsonify, request
 from flask_jwt_extended import create_access_token, get_jwt_identity, verify_jwt_in_request
 
 from app.core.audit import write_audit
 from app.core.db import run_one, run_write
+from app.core.email import send_email
 from app.core.errors import error
-from app.core.security import verify_password
+from app.core.security import hash_password, verify_password
 from app.core.users import fetch_user
 
 from . import auth_bp
+from .tokens import consume_token, issue_token, validate_token
 
 log = logging.getLogger("app.auth")
 MAX_FAILED_ATTEMPTS = 5
@@ -92,3 +94,65 @@ def me():
     if user is None:
         return error("user not found", 401)
     return jsonify(user)
+
+
+RESET_HOURS = 1
+
+
+def _find_identifier(identity: str):
+    return run_one(
+        "select id::text as id, email, is_active, password_hash from users "
+        "where email = :i or username = :i", {"i": identity})
+
+
+@auth_bp.post("/forgot-password")
+def forgot_password():
+    body = request.get_json(silent=True) or {}
+    row = _find_identifier((body.get("email") or "").strip())
+    if row and row["is_active"]:
+        raw = issue_token(row["id"], "reset", RESET_HOURS)
+        link = f"{current_app.config['FRONTEND_URL']}/set-password?token={raw}"
+        try:
+            send_email(row["email"], "Reset your password",
+                       f'<p>Use the link within 1 hour to set a new password:</p>'
+                       f'<p><a href="{link}">{link}</a></p>')
+        except Exception as exc:
+            log.error("forgot-password email failed: %s", exc)
+        write_audit(row["id"], "password_reset.requested", row["id"], {})
+    return ("", 204)
+
+
+@auth_bp.get("/set-password/verify")
+def verify_set_password():
+    raw = request.args.get("token", "")
+    purpose = request.args.get("purpose", "reset")
+    if purpose not in ("reset", "activate"):
+        return error("invalid purpose", 400)
+    rec = validate_token(raw, purpose)
+    valid = rec is not None
+    if valid and purpose == "reset":
+        user = run_one("select is_active from users where id = :i", {"i": rec["user_id"]})
+        valid = bool(user and user["is_active"])
+    return jsonify(valid=valid)
+
+
+@auth_bp.post("/set-password")
+def set_password():
+    body = request.get_json(silent=True) or {}
+    raw, password = body.get("token", ""), body.get("password") or ""
+    fields = {}
+    if len(password) < 8:
+        fields["password"] = "password must be at least 8 characters"
+    if fields:
+        return error("validation failed", 400, fields=fields)
+    rec = validate_token(raw, "activate") or validate_token(raw, "reset")
+    if rec is None:
+        log.warning("invalid or expired set-password token used")
+        return error("invalid or expired token", 400)
+    run_write("update users set password_hash = :h, failed_attempts = 0, "
+              "is_active = true, updated_at = now() where id = :i",
+              {"h": hash_password(password), "i": rec["user_id"]})
+    consume_token(rec["token_hash"])
+    write_audit(rec["user_id"], "account.activated" if rec["purpose"] == "activate"
+                else "password_reset.completed", rec["user_id"], {})
+    return ("", 204)

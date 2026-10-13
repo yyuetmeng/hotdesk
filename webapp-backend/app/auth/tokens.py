@@ -21,7 +21,7 @@ def issue_token(user_id: str, purpose: str, hours: int) -> str:
 
 def validate_token(raw: str, purpose: str):
     return run_one(
-        "select user_id::text as user_id, token_hash from user_tokens "
+        "select user_id::text as user_id, token_hash, purpose from user_tokens "
         "where token_hash = :h and purpose = :p and used_at is null and expires_at > now()",
         {"h": _hash(raw), "p": purpose},
     )
