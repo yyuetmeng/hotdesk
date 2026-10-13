@@ -42,7 +42,8 @@ def fetch_user(user_id: str):
 
 def email_exists(email: str, exclude_id: str | None = None) -> bool:
     row = run_one(
-        "select 1 from users where email = :e and (:ex is null or id != cast(:ex as uuid))",
+        "select 1 from users where email = :e "
+        "and (cast(:ex as uuid) is null or id != cast(:ex as uuid))",
         {"e": email, "ex": exclude_id},
     )
     return row is not None
@@ -50,7 +51,8 @@ def email_exists(email: str, exclude_id: str | None = None) -> bool:
 
 def username_exists(username: str, exclude_id: str | None = None) -> bool:
     row = run_one(
-        "select 1 from users where username = :u and (:ex is null or id != cast(:ex as uuid))",
+        "select 1 from users where username = :u "
+        "and (cast(:ex as uuid) is null or id != cast(:ex as uuid))",
         {"u": username, "ex": exclude_id},
     )
     return row is not None

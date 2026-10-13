@@ -14,3 +14,20 @@ def send_email(to: str, subject: str, html: str) -> None:
     if resp is None or (isinstance(resp, dict) and resp.get("name") and not resp.get("id")):
         log.error("resend send failed: %s", resp)
         raise RuntimeError("email send failed")
+
+
+def invitation_email(full_name: str, link: str) -> tuple[str, str]:
+    return (
+        "Activate your HotDesk account",
+        f'<p>Hi {full_name},</p><p>An account has been created for you. '
+        f'Set your password to activate it (link valid 72 hours):</p>'
+        f'<p><a href="{link}">Set password</a></p>',
+    )
+
+
+def reset_email(full_name: str, link: str) -> tuple[str, str]:
+    return (
+        "Reset your HotDesk password",
+        f'<p>Hi {full_name},</p><p>Use the link within 1 hour to set a new password:</p>'
+        f'<p><a href="{link}">Reset password</a></p>',
+    )
