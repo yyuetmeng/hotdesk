@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.db import run_one
+from app.core.db import run_one, run_write
 from app.core.security import hash_password
 
 ADMIN_PW = "adminpw1"
@@ -122,3 +122,87 @@ def test_department_filter(client, db, admin_token):
     r = client.get("/api/admin/users", headers=hdr(admin_token),
                    query_string={"department": "tagged"})
     assert [u["email"] for u in r.get_json()["items"]] == ["t1@x.com"]
+
+
+def _mk_plain(client, admin_token, email, username, role="user"):
+    return client.post("/api/admin/users", headers=hdr(admin_token),
+                       json={"email": email, "username": username,
+                             "full_name": "P Q", "role": role}).get_json()
+
+
+def test_patch_fields_and_departments(client, db, admin_token):
+    uid = _mk_plain(client, admin_token, "p1@x.com", "p1")["id"]
+    d1 = run_one("insert into departments (name) values ('D1') returning id::text as id")["id"]
+    r = client.patch(f"/api/admin/users/{uid}", headers=hdr(admin_token),
+                     json={"full_name": "Renamed", "email": "p1new@x.com",
+                           "is_active": False, "department_ids": [d1],
+                           "start_date": "2026-01-01", "end_date": "2026-12-31"})
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["email"] == "p1new@x.com" and body["is_active"] is False
+    assert body["full_name"] == "Renamed" and body["departments"][0]["id"] == d1
+    assert run_one("select action from audit_logs where action = 'user.update'")
+    assert run_one("select action from audit_logs where action = 'user.disable'")
+
+
+def test_patch_duplicate_email_409(client, db, admin_token):
+    _mk_plain(client, admin_token, "q1@x.com", "q1")
+    uid2 = _mk_plain(client, admin_token, "q2@x.com", "q2")["id"]
+    r = client.patch(f"/api/admin/users/{uid2}", headers=hdr(admin_token),
+                     json={"email": "q1@X.com"})
+    assert r.status_code == 409
+
+
+def test_patch_invalid_role_or_date_400(client, db, admin_token):
+    uid = _mk_plain(client, admin_token, "r1@x.com", "r1")["id"]
+    r = client.patch(f"/api/admin/users/{uid}", headers=hdr(admin_token), json={"role": "king"})
+    assert r.status_code == 400 and "role" in r.get_json()["fields"]
+    r = client.patch(f"/api/admin/users/{uid}", headers=hdr(admin_token),
+                     json={"start_date": "2026-05-05", "end_date": "2026-01-01"})
+    assert r.status_code == 400
+
+
+def test_patch_unlock_clears_failed_attempts(client, db, admin_token):
+    uid = _mk_plain(client, admin_token, "lk@x.com", "lk")["id"]
+    run_write("update users set failed_attempts = 3, is_active = false where id = :i", {"i": uid})
+    client.patch(f"/api/admin/users/{uid}", headers=hdr(admin_token), json={"is_active": True})
+    row = run_one("select failed_attempts, is_active from users where id = :i", {"i": uid})
+    assert row["failed_attempts"] == 0 and row["is_active"] is True
+    assert run_one("select action from audit_logs where action = 'user.enable'")
+
+
+def test_self_safeguards_409(client, db, admin_token):
+    me = run_one("select id::text as id from users where username = 'root'")["id"]
+    for body in ({"is_active": False}, {"role": "user"}):
+        r = client.patch(f"/api/admin/users/{me}", headers=hdr(admin_token), json=body)
+        assert r.status_code == 409, body
+    assert client.delete(f"/api/admin/users/{me}", headers=hdr(admin_token)).status_code == 409
+
+
+def test_last_active_admin_safeguard_409(client, db, admin_token):
+    other = _mk_plain(client, admin_token, "ad2@x.com", "ad2", role="admin")["id"]
+    assert client.patch(f"/api/admin/users/{other}", headers=hdr(admin_token),
+                        json={"is_active": False}).status_code == 200
+    client.patch(f"/api/admin/users/{other}", headers=hdr(admin_token),
+                 json={"is_active": True})
+    me = run_one("select id::text as id from users where username = 'root'")["id"]
+    run_write("update users set is_active = false where id = :i", {"i": me})
+    assert client.delete(f"/api/admin/users/{other}", headers=hdr(admin_token)).status_code == 409
+
+
+def test_delete_removes_user_and_membership(client, db, admin_token):
+    d1 = run_one("insert into departments (name) values ('Z') returning id::text as id")["id"]
+    uid = client.post("/api/admin/users", headers=hdr(admin_token),
+                      json={"email": "dl@x.com", "username": "dl", "full_name": "DL",
+                            "role": "user", "department_ids": [d1]}).get_json()["id"]
+    assert client.delete(f"/api/admin/users/{uid}", headers=hdr(admin_token)).status_code == 204
+    assert run_one("select 1 from users where id = :i", {"i": uid}) is None
+    assert run_one("select action from audit_logs where action = 'user.delete'")
+
+
+def test_email_change_on_pending_resends_invitation(client, db, admin_token, stub_email):
+    uid = _mk_plain(client, admin_token, "pc@x.com", "pc")["id"]
+    assert len(stub_email) == 1
+    client.patch(f"/api/admin/users/{uid}", headers=hdr(admin_token),
+                 json={"email": "pcnew@x.com"})
+    assert stub_email[-1][0] == "pcnew@x.com"

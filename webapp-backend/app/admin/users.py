@@ -6,7 +6,7 @@ from flask import current_app, g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy.exc import IntegrityError
 
-from app.auth.tokens import issue_token
+from app.auth.tokens import invalidate_tokens, issue_token
 from app.core.audit import write_audit
 from app.core.db import run_one, run_query, run_write
 from app.core.email import invitation_email, send_email
@@ -190,3 +190,142 @@ def get_user(user_id):
     if user is None:
         return error("user not found", 404)
     return jsonify(user)
+
+
+def is_last_active_admin(user_id: str) -> bool:
+    row = run_one(
+        "select count(*) as n from users u join roles r on r.id = u.role_id "
+        "where r.name = 'admin' and u.is_active and u.id != cast(:i as uuid)",
+        {"i": user_id},
+    )
+    return row["n"] == 0
+
+
+def _is_pending(user_id: str) -> bool:
+    row = run_one("select password_hash from users where id = :i", {"i": user_id})
+    return row is not None and row["password_hash"] is None
+
+
+PATCHABLE = ("full_name", "username", "email", "role", "is_active",
+             "start_date", "end_date", "department_ids")
+
+
+@admin_bp.patch("/users/<uuid:user_id>")
+@admin_required
+def patch_user(user_id):
+    user_id = str(user_id)
+    body = request.get_json(silent=True) or {}
+    unknown = set(body) - set(PATCHABLE)
+    if unknown:
+        return error("validation failed", 400,
+                     fields={k: "unknown field" for k in sorted(unknown)})
+    if not body:
+        return error("no fields provided", 400)
+    actor = get_jwt_identity()
+    g.jwt_uid = actor
+
+    fields = {}
+    if "email" in body and not _valid_email((body["email"] or "").strip()):
+        fields["email"] = "a valid email is required"
+    if "username" in body:
+        username = (body["username"] or "").strip()
+        if len(username) < 2 or not username.replace("_", "").isalnum():
+            fields["username"] = "username must be alphanumeric, at least 2 characters"
+    if "full_name" in body and not (body["full_name"] or "").strip():
+        fields["full_name"] = "full_name is required"
+    if "role" in body and body["role"] not in ROLE_NAMES:
+        fields["role"] = "role must be one of: user, admin"
+    start = valid_date(body["start_date"]) if body.get("start_date") else None
+    end = valid_date(body["end_date"]) if body.get("end_date") else None
+    if body.get("start_date") and start is None:
+        fields["start_date"] = "invalid date (use YYYY-MM-DD)"
+    if body.get("end_date") and end is None:
+        fields["end_date"] = "invalid date (use YYYY-MM-DD)"
+    if start or end:
+        cur = run_one("select start_date, end_date from users where id = :i", {"i": user_id})
+        s = start if "start_date" in body else cur["start_date"]
+        e = end if "end_date" in body else cur["end_date"]
+        if s and e and s > e:
+            fields["end_date"] = "end_date must be on or after start_date"
+    dept_ids = body.get("department_ids")
+    if dept_ids is not None and not _departments_exist(dept_ids):
+        fields["department_ids"] = "unknown department id"
+    if fields:
+        return error("validation failed", 400, fields=fields)
+
+    target = run_one("select r.name as role, u.is_active from users u "
+                     "join roles r on r.id = u.role_id where u.id = :i", {"i": user_id})
+    if target is None:
+        return error("user not found", 404)
+
+    demoting = body.get("role") and body["role"] != target["role"]
+    disabling = body.get("is_active") is False
+    if user_id == actor and (demoting or disabling):
+        return error("you cannot demote or disable your own account", 409)
+    if (demoting or disabling) and target["role"] == "admin" and target["is_active"]:
+        if is_last_active_admin(user_id):
+            return error("cannot remove or disable the last active admin", 409)
+
+    if "email" in body and email_exists(body["email"], exclude_id=user_id):
+        return error("email already exists", 409)
+    if "username" in body and username_exists(body["username"], exclude_id=user_id):
+        return error("username already exists", 409)
+
+    pending_before = _is_pending(user_id)
+    sets, params = [], {"i": user_id}
+    for col in ("full_name", "username", "email"):
+        if col in body:
+            sets.append(f"{col} = :{col}")
+            params[col] = body[col].strip()
+    if "role" in body:
+        sets.append("role_id = (select id from roles where name = :role)")
+        params["role"] = body["role"]
+    if "is_active" in body:
+        sets.append("is_active = :is_active")
+        params["is_active"] = body["is_active"]
+        if body["is_active"]:
+            sets.append("failed_attempts = 0")
+    if "start_date" in body:
+        sets.append("start_date = :start_date")
+        params["start_date"] = start
+    if "end_date" in body:
+        sets.append("end_date = :end_date")
+        params["end_date"] = end
+    if sets:
+        run_write("update users set " + ", ".join(sets) + ", updated_at = now() "
+                  "where id = :i", params)
+    if dept_ids is not None:
+        _set_departments(user_id, dept_ids)
+
+    if "department_ids" in body:
+        write_audit(actor, "user.departments_updated", user_id, {"department_ids": dept_ids})
+    changed = [k for k in body if k != "department_ids"]
+    if changed:
+        write_audit(actor, "user.update", user_id, {"fields": sorted(changed)})
+    if "is_active" in body:
+        write_audit(actor, "user.enable" if body["is_active"] else "user.disable",
+                    user_id, {})
+    if "email" in body and pending_before:
+        user = fetch_user(user_id)
+        invalidate_tokens(user_id, "activate")
+        _send_invitation(user_id, user["email"], user["full_name"], user["username"])
+    return jsonify(fetch_user(user_id))
+
+
+@admin_bp.delete("/users/<uuid:user_id>")
+@admin_required
+def delete_user(user_id):
+    user_id = str(user_id)
+    actor = get_jwt_identity()
+    g.jwt_uid = actor
+    target = run_one("select r.name as role, u.is_active from users u "
+                     "join roles r on r.id = u.role_id where u.id = :i", {"i": user_id})
+    if target is None:
+        return error("user not found", 404)
+    if user_id == actor:
+        return error("you cannot delete your own account", 409)
+    if target["role"] == "admin" and target["is_active"] and is_last_active_admin(user_id):
+        return error("cannot remove the last active admin", 409)
+    run_write("delete from users where id = :i", {"i": user_id})
+    write_audit(actor, "user.delete", user_id, {})
+    return ("", 204)
