@@ -11,7 +11,7 @@ from app.core.audit import write_audit
 from app.core.db import run_one, run_query, run_write
 from app.core.email import invitation_email, send_email
 from app.core.errors import error
-from app.core.security import admin_required
+from app.core.security import admin_required, hash_password
 from app.core.users import SELECT_PUBLIC_USER, email_exists, public_user, username_exists
 
 from . import admin_bp
@@ -328,4 +328,41 @@ def delete_user(user_id):
         return error("cannot remove the last active admin", 409)
     run_write("delete from users where id = :i", {"i": user_id})
     write_audit(actor, "user.delete", user_id, {})
+    return ("", 204)
+
+
+@admin_bp.post("/users/<uuid:user_id>/password")
+@admin_required
+def admin_set_password(user_id):
+    user_id = str(user_id)
+    body = request.get_json(silent=True) or {}
+    password = body.get("password") or ""
+    if len(password) < 8:
+        return error("validation failed", 400,
+                     fields={"password": "password must be at least 8 characters"})
+    if run_one("select 1 from users where id = :i", {"i": user_id}) is None:
+        return error("user not found", 404)
+    run_write("update users set password_hash = :h, failed_attempts = 0, "
+              "is_active = true, updated_at = now() where id = :i",
+              {"h": hash_password(password), "i": user_id})
+    invalidate_tokens(user_id)
+    actor = get_jwt_identity()
+    g.jwt_uid = actor
+    write_audit(actor, "user.password_reset", user_id, {})
+    return ("", 204)
+
+
+@admin_bp.post("/users/<uuid:user_id>/resend-invitation")
+@admin_required
+def resend_invitation(user_id):
+    user_id = str(user_id)
+    target = run_one("select email, full_name, username, password_hash from users "
+                     "where id = :i", {"i": user_id})
+    if target is None:
+        return error("user not found", 404)
+    if target["password_hash"] is not None:
+        return error("user already activated", 409)
+    actor = get_jwt_identity()
+    g.jwt_uid = actor
+    _send_invitation(user_id, target["email"], target["full_name"], target["username"])
     return ("", 204)
