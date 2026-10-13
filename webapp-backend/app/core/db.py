@@ -18,7 +18,7 @@ def get_engine() -> Engine:
         @event.listens_for(engine, "connect")
         def _set_search_path(dbapi_conn, _record):
             cur = dbapi_conn.cursor()
-            cur.execute(f"set search_path to {search_path}, public")
+            cur.execute(f"set search_path to {search_path}, public, extensions")
             cur.close()
             dbapi_conn.commit()
 
