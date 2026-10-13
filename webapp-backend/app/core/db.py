@@ -18,7 +18,7 @@ def get_engine() -> Engine:
         @event.listens_for(engine, "connect")
         def _set_search_path(dbapi_conn, _record):
             cur = dbapi_conn.cursor()
-            cur.execute(f"set search_path to {search_path}, public")
+            cur.execute(f"set search_path to {search_path}, public, extensions")
             cur.close()
             dbapi_conn.commit()
 
@@ -35,6 +35,18 @@ def get_session():
 def run_query(sql: str, params: dict | None = None):
     session = get_session()
     return session.execute(text(sql), params or {}).mappings().all()
+
+
+def run_one(sql: str, params: dict | None = None):
+    session = get_session()
+    return session.execute(text(sql), params or {}).mappings().first()
+
+
+def run_write(sql: str, params: dict | None = None) -> int:
+    session = get_session()
+    result = session.execute(text(sql), params or {})
+    session.commit()
+    return result.rowcount
 
 
 def init_db(app):

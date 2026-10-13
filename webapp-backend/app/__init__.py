@@ -15,14 +15,41 @@ def create_app(config_class=Config) -> Flask:
     CORS(app)
     init_db(app)
     setup_logging(app)
+    _init_jwt(app)
     _register_request_logging(app)
     app.register_blueprint(api_bp, url_prefix="/api")
+
+    from .auth import auth_bp
+
+    app.register_blueprint(auth_bp)
+
+    from .admin import admin_bp
+
+    app.register_blueprint(admin_bp)
 
     @app.errorhandler(404)
     def not_found(err):
         return jsonify(error="not found"), 404
 
     return app
+
+
+def _init_jwt(app):
+    from flask_jwt_extended import JWTManager
+
+    jwt_mgr = JWTManager(app)
+
+    @jwt_mgr.unauthorized_loader
+    def _unauthorized(reason):
+        return jsonify(error="authentication required"), 401
+
+    @jwt_mgr.invalid_token_loader
+    def _invalid(reason):
+        return jsonify(error="invalid token"), 401
+
+    @jwt_mgr.expired_token_loader
+    def _expired(hdr, claims):
+        return jsonify(error="token expired"), 401
 
 
 def _register_request_logging(app):

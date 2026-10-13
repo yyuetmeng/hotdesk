@@ -19,7 +19,7 @@ def admin_conn():
     @event.listens_for(engine, "connect")
     def _set_search_path(dbapi_conn, _record):
         cur = dbapi_conn.cursor()
-        cur.execute(f"set search_path to {TEST_SCHEMA}, public")
+        cur.execute(f"set search_path to {TEST_SCHEMA}, public, extensions")
         cur.close()
         dbapi_conn.commit()
 
