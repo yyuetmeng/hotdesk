@@ -1,6 +1,6 @@
 from flask import Blueprint, current_app, jsonify
 
-from .db import get_engine
+from .core.db import get_engine
 
 api_bp = Blueprint("api", __name__)
 

@@ -15,3 +15,10 @@ class Config:
         "pool_pre_ping": True,
         "pool_recycle": 300,
     }
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES", "43200"))
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+    EMAIL_FROM = os.getenv("EMAIL_FROM", "")
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FILE = os.getenv("LOG_FILE", "")

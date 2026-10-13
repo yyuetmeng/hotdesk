@@ -1,8 +1,11 @@
-from flask import Flask, jsonify
+import time
+
+from flask import Flask, g, jsonify, request
 from flask_cors import CORS
 
-from .config import Config
-from .db import init_db
+from .core.config import Config
+from .core.db import init_db
+from .core.logging import setup_logging
 from .routes import api_bp
 
 
@@ -11,6 +14,8 @@ def create_app(config_class=Config) -> Flask:
     app.config.from_object(config_class)
     CORS(app)
     init_db(app)
+    setup_logging(app)
+    _register_request_logging(app)
     app.register_blueprint(api_bp, url_prefix="/api")
 
     @app.errorhandler(404)
@@ -18,3 +23,22 @@ def create_app(config_class=Config) -> Flask:
         return jsonify(error="not found"), 404
 
     return app
+
+
+def _register_request_logging(app):
+    @app.before_request
+    def _start():
+        g.request_started = time.perf_counter()
+
+    @app.after_request
+    def _log(resp):
+        if not request.path.startswith("/api/health"):
+            import logging
+
+            started = getattr(g, "request_started", time.perf_counter())
+            ms = int((time.perf_counter() - started) * 1000)
+            logging.getLogger("app.request").info(
+                "%s %s %s %dms user=%s", request.method, request.path, resp.status_code, ms,
+                getattr(g, "jwt_uid", "-"),
+            )
+        return resp
