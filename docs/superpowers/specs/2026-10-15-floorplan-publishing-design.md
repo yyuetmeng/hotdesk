@@ -1,7 +1,7 @@
 # Floor Plan Drafts and Publishing — Design
 
 **Date:** 2026-10-15
-**Status:** For approval (product owner answers to §7 recorded)
+**Status:** Implemented 2026-10-15 (plan `docs/superpowers/plans/2026-10-15-floorplan-publishing.md`, commits 73364f5..cc83a32)
 **Scope:** Piece 1 of the seat booking programme (below). Floor plans get a working **draft** and a **published** version; admins publish explicitly. Element IDs become permanent so seats keep their identity across saves and publishes.
 
 ## 0. The programme this belongs to
