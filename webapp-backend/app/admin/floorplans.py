@@ -7,38 +7,61 @@ from sqlalchemy import func, select
 
 from app.core.audit import write_audit
 from app.core.errors import error
-from app.core.floorplan_models import FloorPlan, FloorPlanElement
+from app.core.floorplan_models import FloorElement, FloorPlan, FloorPlanElement
 from app.core.orm import orm_session
 from app.core.security import admin_required
 
 from . import admin_bp
 
-CATALOG = {
-    "wall": {"label": "Wall", "w": 1, "h": 1, "color": "#64748b"},
-    "seat": {"label": "Seat", "w": 1, "h": 1, "color": "#16a34a"},
-    "toilet": {"label": "Toilet", "w": 2, "h": 2, "color": "#0d9488"},
-    "elevator": {"label": "Elevator", "w": 2, "h": 2, "color": "#7c3aed"},
-    "door": {"label": "Door", "w": 1, "h": 1, "color": "#b45309"},
-    "meeting_room": {"label": "Meeting room", "w": 3, "h": 2, "color": "#2563eb"},
-    "kitchen": {"label": "Kitchen", "w": 2, "h": 2, "color": "#db2777"},
-    "plant": {"label": "Plant", "w": 1, "h": 1, "color": "#15803d"},
-    "corridor": {"label": "Corridor", "w": 1, "h": 1, "color": "#94a3b8"},
-}
 MIN_DIM, MAX_DIM = 5, 80
+MAX_ELEMENT_SIZE = 20
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 ROTATIONS = (0, 90, 180, 270)
 
 
-def _size(etype: str, rotation: int):
-    entry = CATALOG[etype]
-    w, h = entry["w"], entry["h"]
+def _catalog() -> dict[str, FloorElement]:
+    """Element catalog from the floor_elements table, in palette order (loaded once per request)."""
+    if "floor_catalog" not in g:
+        rows = orm_session().scalars(
+            select(FloorElement).order_by(FloorElement.sort_order, FloorElement.type)).all()
+        g.floor_catalog = {row.type: row for row in rows}
+    return g.floor_catalog
+
+
+def _catalog_dto(entry: FloorElement) -> dict:
+    return {"type": entry.type, "label": entry.label, "w": entry.w, "h": entry.h,
+            "color": entry.color, "resizable": entry.resizable, "config": entry.config}
+
+
+def _size(w: int, h: int, rotation: int):
     return (h, w) if rotation in (90, 270) else (w, h)
 
 
+def _config_with_defaults(entry: FloorElement, config: dict | None) -> dict:
+    stored = config or {}
+    return {key: stored.get(key, default) for key, default in entry.config.items()}
+
+
+def _config_problems(entry: FloorElement, config) -> list[str]:
+    if config is None:
+        return []
+    if not isinstance(config, dict):
+        return ["config must be an object"]
+    problems = []
+    for key, value in config.items():
+        if key not in entry.config:
+            problems.append(f"config '{key}' is not supported for {entry.type}")
+        elif type(value) is not type(entry.config[key]):
+            problems.append(f"config '{key}' must be {type(entry.config[key]).__name__}")
+    return problems
+
+
 def _element_dto(el: FloorPlanElement) -> dict:
+    entry = _catalog().get(el.type)
     return {"id": str(el.id), "type": el.type, "x": el.x, "y": el.y,
             "w": el.w, "h": el.h, "rotation": el.rotation,
-            "label": el.label, "color": el.color}
+            "label": el.label, "color": el.color,
+            "config": _config_with_defaults(entry, el.config) if entry else (el.config or {})}
 
 
 def _get_plan(plan_id: str) -> FloorPlan | None:
@@ -59,7 +82,7 @@ def _plan_payload(plan: FloorPlan) -> dict:
 @admin_required
 def floorplan_catalog():
     g.jwt_uid = get_jwt_identity()
-    return jsonify(items=[{"type": t, **entry} for t, entry in CATALOG.items()])
+    return jsonify(items=[_catalog_dto(entry) for entry in _catalog().values()])
 
 
 @admin_bp.get("/floor-plans")
@@ -157,8 +180,8 @@ def update_plan(plan_id):
 
     if not fields and (new_cols, new_rows) != (plan.cols, plan.rows):
         strayed = sum(1 for el in plan.elements
-                      if el.x + _size(el.type, el.rotation)[0] > new_cols
-                      or el.y + _size(el.type, el.rotation)[1] > new_rows)
+                      if el.x + _size(el.w, el.h, el.rotation)[0] > new_cols
+                      or el.y + _size(el.w, el.h, el.rotation)[1] > new_rows)
         if strayed:
             fields["elements"] = f"{strayed} elements fall outside the new grid; move them first"
 
@@ -197,13 +220,28 @@ def delete_plan(plan_id):
     return ("", 204)
 
 
+def _base_size(entry: FloorElement, el: dict):
+    """(w, h) for an element payload: its own size, or the catalog default when absent.
+    Returns (None, message) when invalid."""
+    w, h = el.get("w", entry.w), el.get("h", entry.h)
+    if type(w) is not int or type(h) is not int:
+        return None, "w and h must be integers"
+    if not entry.resizable and (w, h) != (entry.w, entry.h):
+        return None, f"{entry.type} size is fixed at {entry.w}x{entry.h}"
+    if not (1 <= w <= MAX_ELEMENT_SIZE and 1 <= h <= MAX_ELEMENT_SIZE):
+        return None, f"w and h must be between 1 and {MAX_ELEMENT_SIZE}"
+    return (w, h), None
+
+
 def _validate_elements(raw, cols, rows):
+    catalog = _catalog()
     problems, seen = [], {}
     for i, el in enumerate(raw):
         etype = el.get("type") if isinstance(el, dict) else None
-        if etype not in CATALOG:
+        if etype not in catalog:
             problems.append(f"element {i}: unknown type '{etype}'")
             continue
+        entry = catalog[etype]
         try:
             x, y, rotation = int(el.get("x")), int(el.get("y")), int(el.get("rotation", 0))
         except (TypeError, ValueError):
@@ -218,7 +256,12 @@ def _validate_elements(raw, cols, rows):
         label = el.get("label")
         if label is not None and len(str(label)) > 60:
             problems.append(f"element {i}: label must be 60 characters or fewer")
-        w, h = _size(etype, rotation)
+        problems.extend(f"element {i}: {p}" for p in _config_problems(entry, el.get("config")))
+        base, size_problem = _base_size(entry, el)
+        if size_problem:
+            problems.append(f"element {i}: {size_problem}")
+            continue
+        w, h = _size(*base, rotation)
         if x < 0 or y < 0 or x + w > cols or y + h > rows:
             problems.append(f"element {i} ({etype}): outside the {cols}x{rows} grid")
             continue
@@ -233,12 +276,14 @@ def _validate_elements(raw, cols, rows):
 
 
 def _normalized(raw):
-    out = []
+    catalog, out = _catalog(), []
     for item in raw:
-        entry = CATALOG[item["type"]]
+        entry = catalog[item["type"]]
+        (w, h), _ = _base_size(entry, item)
         out.append({"type": item["type"], "x": int(item["x"]), "y": int(item["y"]),
-                    "w": entry["w"], "h": entry["h"], "rotation": int(item.get("rotation", 0)),
-                    "label": (item.get("label") or None), "color": (item.get("color") or None)})
+                    "w": w, "h": h, "rotation": int(item.get("rotation", 0)),
+                    "label": (item.get("label") or None), "color": (item.get("color") or None),
+                    "config": _config_with_defaults(entry, item.get("config"))})
     return out
 
 

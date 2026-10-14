@@ -68,19 +68,23 @@ All protected calls pass `-H "Authorization: Bearer <token>"`.
 | `GET /api/admin/floor-plans/<id>` | Plan with all placed elements |
 | `PATCH /api/admin/floor-plans/<id>` | Rename / resize grid (guards stranded elements) |
 | `DELETE /api/admin/floor-plans/<id>` | Delete plan + elements |
-| `PUT /api/admin/floor-plans/<id>/elements` | Bulk save placements `{elements:[{type,x,y,rotation,label?,color?}]}` |
-| `GET /api/admin/floor-plans/catalog` | Fixed element catalog |
+| `PUT /api/admin/floor-plans/<id>/elements` | Bulk save placements `{elements:[{type,x,y,rotation,w?,h?,label?,color?,config?}]}` (`w`/`h` default to the catalog size; `config` keys come from the type's default config) |
+| `GET /api/admin/floor-plans/catalog` | Element catalog from the `floor_elements` table (label, default size, colour, resizable, default config) |
 
-Frontend editor: `webapp-frontend` → sidebar "Floor plans" (Vite proxies
+Frontend editor: `webapp-frontend` → sidebar "Manage Floor Plan" (Vite proxies
 `/api/auth` and `/api/admin/floor-plans` to the Flask API; set
 `VITE_FLASK_TARGET` if it is not on `http://localhost:5000`).
-Element types: wall, seat, toilet, elevator, door, meeting_room, kitchen,
-plant, corridor — fixed footprints, rotation 0/90/180/270.
+Element types live in the `floor_elements` table (seeded by `sql/0012_floor_elements.sql`):
+wall, seat, table, toilet, elevator, stairs, door, window, pantry, plant, corridor. Each row
+sets the default size and colour, whether the type can be resized (seats are fixed at 1x1),
+and its default `config` (seats: `{"bookable": true}`). Elements can be rotated
+0/90/180/270 and, unless fixed, resized from 1 to 20 cells per side. Add or change a type
+with SQL; the API and editor pick it up without a code change.
 
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in Supabase, JWT and Resend values.
-2. Run `sql/0001_...sql` through `sql/0007_seed_roles.sql` in the Supabase SQL editor, in order.
+2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0012_...`) in the Supabase SQL editor, in order.
 3. `pip install -r requirements.txt`
 4. `python scripts/create_admin.py` to create the first admin.
 5. `python run.py` to start the API; `python -m pytest` to run tests.

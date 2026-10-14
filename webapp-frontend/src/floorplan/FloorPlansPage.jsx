@@ -42,11 +42,11 @@ export default function FloorPlansPage() {
     catch (err) { setError(err.status === 401 ? 'Session expired — sign in again.' : err.message); }
   };
 
-  if (error) return <main className="page"><PageTitle title="Floor plans" /><Notice kind="error">{error}</Notice></main>;
+  if (error) return <main className="page"><PageTitle title="Manage Floor Plan" /><Notice kind="error">{error}</Notice></main>;
   if (!items) return <main className="page"><Loading label="Loading floor plans..." /></main>;
 
   return <main className="page">
-    <PageTitle title="Floor plans"><p>Design and manage office floor plan layouts.</p></PageTitle>
+    <PageTitle title="Manage Floor Plan"><p>Design and manage office floor plan layouts.</p></PageTitle>
     {notice && <Notice kind="error">{notice}</Notice>}
     <section className="card">
       <form className="fp-form" onSubmit={create}>

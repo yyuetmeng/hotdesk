@@ -83,12 +83,12 @@ def test_patch_shrink_guard_blocks_without_applying(client, db, admin_token):
     assert r.status_code == 400 and "elements" in r.get_json()["fields"]
     unchanged = client.get(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token)).get_json()
     assert (unchanged["cols"], unchanged["rows"]) == (10, 10)
-    # Rotation-aware: a meeting_room (3x2) rotated 90 effectively needs 2x3.
+    # Rotation-aware: a table (2x1) rotated 90 effectively needs 1x2.
     run_write(
         "insert into floor_plan_elements (plan_id, type, x, y, w, h, rotation) "
-        "values (cast(:p as uuid), 'meeting_room', 7, 7, 3, 2, 90)", {"p": plan["id"]})
+        "values (cast(:p as uuid), 'table', 7, 7, 2, 1, 90)", {"p": plan["id"]})
     r2 = client.patch(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token),
-                      json={"cols": 8, "rows": 9})
+                      json={"cols": 9, "rows": 8})
     assert r2.status_code == 400 and "elements" in r2.get_json()["fields"]
 
 
@@ -102,9 +102,59 @@ def test_get_unknown_plan_404(client, db, admin_token):
 def test_catalog(client, db, admin_token):
     items = client.get("/api/admin/floor-plans/catalog", headers=hdr(admin_token)).get_json()["items"]
     by_type = {i["type"]: i for i in items}
-    assert by_type["seat"] == {"type": "seat", "label": "Seat", "w": 1, "h": 1, "color": "#16a34a"}
-    assert set(by_type) == {"wall", "seat", "toilet", "elevator", "door",
-                            "meeting_room", "kitchen", "plant", "corridor"}
+    assert by_type["seat"] == {"type": "seat", "label": "Seat", "w": 1, "h": 1, "color": "#16a34a",
+                               "resizable": False, "config": {"bookable": True}}
+    assert by_type["wall"]["resizable"] is True and by_type["wall"]["config"] == {}
+    assert [i["type"] for i in items] == ["wall", "seat", "table", "toilet", "elevator", "stairs",
+                                          "door", "window", "pantry", "plant", "corridor"]
+
+
+def test_catalog_comes_from_floor_elements_table(client, db, admin_token):
+    run_write("insert into floor_elements (type, label, w, h, color, sort_order) "
+              "values ('locker', 'Locker', 1, 2, '#334155', 200)")
+    try:
+        items = client.get("/api/admin/floor-plans/catalog", headers=hdr(admin_token)).get_json()["items"]
+        assert items[-1]["type"] == "locker"
+        plan = _mk_plan(client, admin_token)
+        assert _save(client, admin_token, plan["id"],
+                     [{"type": "locker", "x": 0, "y": 0, "rotation": 0}]).status_code == 200
+    finally:
+        run_write("delete from floor_plan_elements where type = 'locker'")
+        run_write("delete from floor_elements where type = 'locker'")
+
+
+def test_custom_size_saved_and_used_for_bounds(client, db, admin_token):
+    plan = _mk_plan(client, admin_token, cols=6, rows=6)
+    ok = _save(client, admin_token, plan["id"],
+               [{"type": "wall", "x": 0, "y": 0, "rotation": 0, "w": 6, "h": 1},
+                {"type": "table", "x": 0, "y": 1, "rotation": 90, "w": 3, "h": 2}])
+    assert ok.status_code == 200
+    sizes = {e["type"]: (e["w"], e["h"]) for e in ok.get_json()["elements"]}
+    assert sizes == {"wall": (6, 1), "table": (3, 2)}
+    # Rotated 3x2 table occupies 2x3: at y=4 it would need rows up to 7.
+    bad = _save(client, admin_token, plan["id"],
+                [{"type": "table", "x": 0, "y": 4, "rotation": 90, "w": 3, "h": 2}])
+    assert bad.status_code == 400
+    # Grid shrink is checked against the custom size, not the catalog size.
+    r = client.patch(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token),
+                     json={"cols": 5})
+    assert r.status_code == 400 and "elements" in r.get_json()["fields"]
+
+
+def test_size_rules(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    cases = [
+        ([{"type": "seat", "x": 0, "y": 0, "rotation": 0, "w": 2, "h": 1}], "fixed at 1x1"),
+        ([{"type": "wall", "x": 0, "y": 0, "rotation": 0, "w": 0, "h": 1}], "between 1 and 20"),
+        ([{"type": "wall", "x": 0, "y": 0, "rotation": 0, "w": "3", "h": 1}], "must be integers"),
+    ]
+    for elements, fragment in cases:
+        r = _save(client, admin_token, plan["id"], elements)
+        assert r.status_code == 400, elements
+        assert any(fragment in m for m in r.get_json()["fields"]["elements"]), (fragment, r.get_json())
+    # Seats may still send their (fixed) size back unchanged.
+    assert _save(client, admin_token, plan["id"],
+                 [{"type": "seat", "x": 0, "y": 0, "rotation": 0, "w": 1, "h": 1}]).status_code == 200
 
 
 def _mk_plan(client, admin_token, cols=10, rows=10):
@@ -137,11 +187,24 @@ def test_save_replaces_and_persists(client, db, admin_token):
 def test_save_rotation_swaps_footprint(client, db, admin_token):
     plan = _mk_plan(client, admin_token, cols=5, rows=5)
     ok = _save(client, admin_token, plan["id"],
-               [{"type": "meeting_room", "x": 1, "y": 2, "rotation": 90}])
+               [{"type": "table", "x": 1, "y": 3, "rotation": 90}])
     assert ok.status_code == 200
     bad = _save(client, admin_token, plan["id"],
-                [{"type": "meeting_room", "x": 1, "y": 3, "rotation": 90}])
+                [{"type": "table", "x": 1, "y": 4, "rotation": 90}])
     assert bad.status_code == 400
+
+
+def test_seat_config_defaults_and_roundtrip(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    r = _save(client, admin_token, plan["id"], [
+        {"type": "seat", "x": 0, "y": 0, "rotation": 0},
+        {"type": "seat", "x": 2, "y": 0, "rotation": 0, "config": {"bookable": False}},
+        {"type": "wall", "x": 4, "y": 0, "rotation": 0},
+    ])
+    assert r.status_code == 200
+    els = client.get(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token)).get_json()["elements"]
+    by_x = {e["x"]: e["config"] for e in els}
+    assert by_x == {0: {"bookable": True}, 2: {"bookable": False}, 4: {}}
 
 
 def test_save_rejects_bad_elements(client, db, admin_token):
@@ -151,6 +214,9 @@ def test_save_rejects_bad_elements(client, db, admin_token):
         ([{"type": "seat", "x": 10, "y": 0, "rotation": 0}], "outside"),
         ([{"type": "seat", "x": 0, "y": 0, "rotation": 45}], "rotation"),
         ([{"type": "seat", "x": 0, "y": 0, "rotation": 0, "color": "red"}], "#rrggbb"),
+        ([{"type": "seat", "x": 0, "y": 0, "rotation": 0, "config": {"bookable": "yes"}}], "must be bool"),
+        ([{"type": "wall", "x": 0, "y": 0, "rotation": 0, "config": {"bookable": True}}], "not supported"),
+        ([{"type": "seat", "x": 0, "y": 0, "rotation": 0, "config": []}], "must be an object"),
         ([{"type": "seat", "x": 0, "y": 0, "rotation": 0},
           {"type": "seat", "x": 0, "y": 0, "rotation": 0}], "overlap"),
     ]

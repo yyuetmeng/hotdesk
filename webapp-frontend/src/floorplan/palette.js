@@ -1,18 +1,32 @@
-export const CATALOG = [
-  { type: 'wall', label: 'Wall', w: 1, h: 1, color: '#64748b' },
-  { type: 'seat', label: 'Seat', w: 1, h: 1, color: '#16a34a' },
-  { type: 'toilet', label: 'Toilet', w: 2, h: 2, color: '#0d9488' },
-  { type: 'elevator', label: 'Elevator', w: 2, h: 2, color: '#7c3aed' },
-  { type: 'door', label: 'Door', w: 1, h: 1, color: '#b45309' },
-  { type: 'meeting_room', label: 'Meeting room', w: 3, h: 2, color: '#2563eb' },
-  { type: 'kitchen', label: 'Kitchen', w: 2, h: 2, color: '#db2777' },
-  { type: 'plant', label: 'Plant', w: 1, h: 1, color: '#15803d' },
-  { type: 'corridor', label: 'Corridor', w: 1, h: 1, color: '#94a3b8' },
-];
+// Element catalog. Source of truth is the floor_elements table, served by
+// GET /api/admin/floor-plans/catalog; the editor calls setCatalog() before rendering.
+// These are live bindings: importers always see the latest catalog.
+export let CATALOG = [];
+export let catalogByType = {};
 
-export const catalogByType = Object.fromEntries(CATALOG.map((c) => [c.type, c]));
+export function setCatalog(items) {
+  CATALOG = items;
+  catalogByType = Object.fromEntries(items.map((c) => [c.type, c]));
+}
+
+export const MAX_ELEMENT_SIZE = 20;
+
+export const isResizable = (type) => catalogByType[type]?.resizable !== false;
 
 export function effectiveSize(type, rotation) {
   const { w, h } = catalogByType[type];
   return rotation === 90 || rotation === 270 ? { w: h, h: w } : { w, h };
+}
+
+/** Unrotated size of a placed element: its own w/h, or the catalog default (always for fixed types). */
+export function baseSize(el) {
+  const entry = catalogByType[el.type];
+  if (!isResizable(el.type)) return { w: entry.w, h: entry.h };
+  return { w: el.w ?? entry.w, h: el.h ?? entry.h };
+}
+
+/** Footprint of a placed element on the grid, with rotation applied. */
+export function sizeOf(el) {
+  const { w, h } = baseSize(el);
+  return el.rotation === 90 || el.rotation === 270 ? { w: h, h: w } : { w, h };
 }

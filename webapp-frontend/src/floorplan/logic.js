@@ -1,7 +1,7 @@
-import { catalogByType, effectiveSize } from './palette.js';
+import { MAX_ELEMENT_SIZE, catalogByType, isResizable, sizeOf } from './palette.js';
 
 export function cellsOf(el) {
-  const { w, h } = effectiveSize(el.type, el.rotation || 0);
+  const { w, h } = sizeOf(el);
   const cells = [];
   for (let dx = 0; dx < w; dx += 1) for (let dy = 0; dy < h; dy += 1) cells.push([el.x + dx, el.y + dy]);
   return cells;
@@ -9,7 +9,7 @@ export function cellsOf(el) {
 
 export function placementError(el, elements, cols, rows) {
   if (!el.type || !catalogByType[el.type]) return 'unknown type';
-  const { w, h } = effectiveSize(el.type, el.rotation || 0);
+  const { w, h } = sizeOf(el);
   if (el.x < 0 || el.y < 0 || el.x + w > cols || el.y + h > rows) return 'outside the grid';
   const occupied = new Set();
   for (const other of elements) {
@@ -45,6 +45,20 @@ export function rotateElement(elements, id, cols, rows) {
   const error = placementError(rotated, elements, cols, rows);
   if (error) return { elements, error };
   return { elements: elements.map((e) => (e.id === id ? rotated : e)), error: null };
+}
+
+/** Set an element's unrotated width/height in cells. Fixed-size types (seats) cannot be resized. */
+export function resizeElement(elements, id, w, h, cols, rows) {
+  const current = elements.find((e) => e.id === id);
+  if (!current) return { elements, error: 'element not found' };
+  if (!isResizable(current.type)) return { elements, error: `${current.type} size is fixed` };
+  if (![w, h].every((n) => Number.isInteger(n) && n >= 1 && n <= MAX_ELEMENT_SIZE)) {
+    return { elements, error: `size must be 1 to ${MAX_ELEMENT_SIZE} cells` };
+  }
+  const resized = { ...current, w, h };
+  const error = placementError(resized, elements, cols, rows);
+  if (error) return { elements, error };
+  return { elements: elements.map((e) => (e.id === id ? resized : e)), error: null };
 }
 
 export function removeElement(elements, id) {
