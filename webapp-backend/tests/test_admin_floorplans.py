@@ -105,3 +105,74 @@ def test_catalog(client, db, admin_token):
     assert by_type["seat"] == {"type": "seat", "label": "Seat", "w": 1, "h": 1, "color": "#16a34a"}
     assert set(by_type) == {"wall", "seat", "toilet", "elevator", "door",
                             "meeting_room", "kitchen", "plant", "corridor"}
+
+
+def _mk_plan(client, admin_token, cols=10, rows=10):
+    return client.post("/api/admin/floor-plans", headers=hdr(admin_token),
+                       json={"name": "Grid", "cols": cols, "rows": rows}).get_json()
+
+
+def _save(client, admin_token, pid, elements):
+    return client.put(f"/api/admin/floor-plans/{pid}/elements",
+                      headers=hdr(admin_token), json={"elements": elements})
+
+
+def test_save_replaces_and_persists(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    r = _save(client, admin_token, plan["id"], [
+        {"type": "seat", "x": 1, "y": 1, "rotation": 0, "label": "A1"},
+        {"type": "toilet", "x": 5, "y": 5, "rotation": 90, "color": "#ff0000"},
+    ])
+    assert r.status_code == 200
+    els = r.get_json()["elements"]
+    assert len(els) == 2
+    toilet = next(e for e in els if e["type"] == "toilet")
+    assert (toilet["w"], toilet["h"]) == (2, 2) and toilet["rotation"] == 90
+    r = _save(client, admin_token, plan["id"], [{"type": "wall", "x": 0, "y": 0, "rotation": 0}])
+    assert len(r.get_json()["elements"]) == 1
+    assert run_one("select count(*) as n from floor_plan_elements")["n"] == 1
+    assert run_one("select action from audit_logs where action = 'floorplan.elements_saved'")
+
+
+def test_save_rotation_swaps_footprint(client, db, admin_token):
+    plan = _mk_plan(client, admin_token, cols=5, rows=5)
+    ok = _save(client, admin_token, plan["id"],
+               [{"type": "meeting_room", "x": 1, "y": 2, "rotation": 90}])
+    assert ok.status_code == 200
+    bad = _save(client, admin_token, plan["id"],
+                [{"type": "meeting_room", "x": 1, "y": 3, "rotation": 90}])
+    assert bad.status_code == 400
+
+
+def test_save_rejects_bad_elements(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    cases = [
+        ([{"type": "desk", "x": 0, "y": 0, "rotation": 0}], "unknown type"),
+        ([{"type": "seat", "x": 10, "y": 0, "rotation": 0}], "outside"),
+        ([{"type": "seat", "x": 0, "y": 0, "rotation": 45}], "rotation"),
+        ([{"type": "seat", "x": 0, "y": 0, "rotation": 0, "color": "red"}], "#rrggbb"),
+        ([{"type": "seat", "x": 0, "y": 0, "rotation": 0},
+          {"type": "seat", "x": 0, "y": 0, "rotation": 0}], "overlap"),
+    ]
+    for elements, fragment in cases:
+        r = _save(client, admin_token, plan["id"], elements)
+        assert r.status_code == 400, elements
+        assert any(fragment in m for m in r.get_json()["fields"]["elements"]), (fragment, r.get_json())
+
+
+def test_save_invalid_batch_keeps_previous(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    _save(client, admin_token, plan["id"], [{"type": "seat", "x": 0, "y": 0, "rotation": 0}])
+    bad = _save(client, admin_token, plan["id"], [
+        {"type": "seat", "x": 1, "y": 1, "rotation": 0},
+        {"type": "seat", "x": 1, "y": 1, "rotation": 0}])
+    assert bad.status_code == 400
+    els = client.get(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token)).get_json()["elements"]
+    assert [e["x"] for e in els] == [0]
+
+
+def test_save_requires_elements_list(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    r = client.put(f"/api/admin/floor-plans/{plan['id']}/elements",
+                   headers=hdr(admin_token), json={"elements": "nope"})
+    assert r.status_code == 400 and "elements" in r.get_json()["fields"]

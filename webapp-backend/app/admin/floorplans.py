@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from flask import g, jsonify, request
@@ -24,6 +25,8 @@ CATALOG = {
     "corridor": {"label": "Corridor", "w": 1, "h": 1, "color": "#94a3b8"},
 }
 MIN_DIM, MAX_DIM = 5, 80
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+ROTATIONS = (0, 90, 180, 270)
 
 
 def _size(etype: str, rotation: int):
@@ -192,3 +195,77 @@ def delete_plan(plan_id):
     actor = get_jwt_identity()
     write_audit(actor, "floorplan.delete", plan_id, {"name": name})
     return ("", 204)
+
+
+def _validate_elements(raw, cols, rows):
+    problems, seen = [], {}
+    for i, el in enumerate(raw):
+        etype = el.get("type") if isinstance(el, dict) else None
+        if etype not in CATALOG:
+            problems.append(f"element {i}: unknown type '{etype}'")
+            continue
+        try:
+            x, y, rotation = int(el.get("x")), int(el.get("y")), int(el.get("rotation", 0))
+        except (TypeError, ValueError):
+            problems.append(f"element {i}: x, y and rotation must be integers")
+            continue
+        if rotation not in ROTATIONS:
+            problems.append(f"element {i}: rotation must be one of 0, 90, 180, 270")
+            continue
+        color = el.get("color")
+        if color and not COLOR_RE.match(str(color)):
+            problems.append(f"element {i}: color must be #rrggbb")
+        label = el.get("label")
+        if label is not None and len(str(label)) > 60:
+            problems.append(f"element {i}: label must be 60 characters or fewer")
+        w, h = _size(etype, rotation)
+        if x < 0 or y < 0 or x + w > cols or y + h > rows:
+            problems.append(f"element {i} ({etype}): outside the {cols}x{rows} grid")
+            continue
+        cells = [(x + dx, y + dy) for dx in range(w) for dy in range(h)]
+        clash = next((c for c in cells if c in seen), None)
+        if clash is not None:
+            problems.append(f"element {i} ({etype}) overlaps element {seen[clash]}")
+            continue
+        for c in cells:
+            seen[c] = i
+    return problems
+
+
+def _normalized(raw):
+    out = []
+    for item in raw:
+        entry = CATALOG[item["type"]]
+        out.append({"type": item["type"], "x": int(item["x"]), "y": int(item["y"]),
+                    "w": entry["w"], "h": entry["h"], "rotation": int(item.get("rotation", 0)),
+                    "label": (item.get("label") or None), "color": (item.get("color") or None)})
+    return out
+
+
+@admin_bp.put("/floor-plans/<uuid:plan_id>/elements")
+@admin_required
+def save_elements(plan_id):
+    plan_id = str(plan_id)
+    g.jwt_uid = get_jwt_identity()
+    session = orm_session()
+    plan = _get_plan(plan_id)
+    if plan is None:
+        return error("plan not found", 404)
+    body = request.get_json(silent=True) or {}
+    raw = body.get("elements")
+    if not isinstance(raw, list):
+        return error("validation failed", 400, fields={"elements": ["elements must be a list"]})
+    problems = _validate_elements(raw, plan.cols, plan.rows)
+    if problems:
+        return error("validation failed", 400, fields={"elements": problems})
+    plan.elements.clear()  # cascade delete-orphan: removes old rows on flush
+    for item in _normalized(raw):
+        plan.elements.append(FloorPlanElement(**item))
+    plan.updated_at = func.now()
+    session.commit()
+    write_audit(get_jwt_identity(), "floorplan.elements_saved", plan_id, {"count": len(raw)})
+    # expire_on_commit=False means plan.elements still holds the pre-commit Python
+    # objects/order in memory; expire() forces a clean reload of both the scalar
+    # columns (updated_at) and the elements relationship (fresh ids, DB order).
+    session.expire(plan)
+    return jsonify(_plan_payload(plan))
