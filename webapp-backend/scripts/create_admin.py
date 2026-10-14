@@ -5,31 +5,38 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy import func, select
+
 from app import create_app
 from app.core.audit import write_audit
-from app.core.db import run_one, run_write
+from app.core.auth_models import Role, User
+from app.core.orm import orm_session
 from app.core.security import hash_password
 
 
 def ensure_admin(email: str, username: str, full_name: str, password: str) -> str:
-    existing = run_one("select id::text as id from users where email = :e", {"e": email})
+    session = orm_session()
+    role_id = session.scalar(select(Role.id).where(Role.name == "admin"))
+    existing = session.scalars(
+        select(User).where(User.email == email).execution_options(populate_existing=True)
+    ).unique().first()
     if existing:
-        run_write(
-            "update users set username = :u, full_name = :f, password_hash = :h, "
-            "role_id = (select id from roles where name = 'admin'), "
-            "is_active = true, failed_attempts = 0, updated_at = now() where id = :i",
-            {"u": username, "f": full_name, "h": hash_password(password), "i": existing["id"]},
-        )
-        write_audit(None, "user.update", existing["id"],
+        existing.username = username
+        existing.full_name = full_name
+        existing.password_hash = hash_password(password)
+        existing.role_id = role_id
+        existing.is_active = True
+        existing.failed_attempts = 0
+        existing.updated_at = func.now()
+        session.commit()
+        write_audit(None, "user.update", str(existing.id),
                     {"fields": ["password", "role", "is_active"], "source": "create_admin"})
         return "updated"
-    row = run_one(
-        "insert into users (email, username, full_name, role_id, password_hash) "
-        "values (:e, :u, :f, (select id from roles where name = 'admin'), :h) "
-        "returning id::text as id",
-        {"e": email, "u": username, "f": full_name, "h": hash_password(password)},
-    )
-    write_audit(None, "user.create", row["id"],
+    user = User(email=email, username=username, full_name=full_name,
+                password_hash=hash_password(password), role_id=role_id)
+    session.add(user)
+    session.commit()
+    write_audit(None, "user.create", str(user.id),
                 {"email": email, "username": username, "role": "admin", "source": "create_admin"})
     return "created"
 
