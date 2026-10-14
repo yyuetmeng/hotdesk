@@ -9,7 +9,7 @@
 Agreed with the product owner on 2026-10-15, built in this order, each with its own spec and plan:
 
 1. **Drafts and publishing + permanent seat IDs** (this document).
-2. **Seat department tags:** one department/group, "free for all", or none (replaces "Allow booking").
+2. **Seat department tags:** one department/group, "free for all", or none (replaces "Allow booking"). The tags are the **same departments/groups users are assigned to in Manage Users** (`departments` table), so a user may use a seat tagged with any department they belong to.
 3. **Booking and check-in in the Flask backend:** book a seat one day ahead, check in by QR code, department rules, every booking and check-in stored for statistics; printable QR codes; new Book a desk / check-in pages replacing the legacy Node-backed ones.
 4. **Public floor dashboard** (no sign-in), drawing style "E" from brainstorming: architectural walls/doors/windows with icons; seats green (available), amber (booked, not checked in), red (checked in today), grey (not bookable); live counts.
 5. **Statistics pages** (later): seat usage rate, usage by team.
