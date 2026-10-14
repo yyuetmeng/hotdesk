@@ -158,7 +158,8 @@ export default function EditorPage() {
       <aside className="fp-palette">
         <h2>Elements</h2>
         {CATALOG.map((entry) => <div key={entry.type} className="fp-chip" draggable
-          onDragStart={(e) => { dragRef.current = { kind: 'add', type: entry.type }; e.dataTransfer.setData('text/plain', entry.type); }}>
+          onDragStart={(e) => { dragRef.current = { kind: 'add', type: entry.type }; e.dataTransfer.setData('text/plain', entry.type); }}
+          onDragEnd={() => { dragRef.current = null; setPreview(null); }}>
           <span className="fp-swatch" style={{ background: entry.color }} />
           <b>{entry.label}</b><small>{entry.w}×{entry.h}</small>
         </div>)}
@@ -174,6 +175,7 @@ export default function EditorPage() {
             return <div key={el.id} draggable
               className={`fp-el${selectedId === el.id ? ' selected' : ''}`}
               onDragStart={(e) => { dragRef.current = { kind: 'move', id: el.id }; e.dataTransfer.setData('text/plain', el.id); }}
+              onDragEnd={() => { dragRef.current = null; setPreview(null); }}
               onClick={(e) => { e.stopPropagation(); setSelectedId(el.id); }}
               title={`${el.type} (${el.x},${el.y})`}
               style={{ left: el.x * cell, top: el.y * cell, width: size.w * cell, height: size.h * cell,
