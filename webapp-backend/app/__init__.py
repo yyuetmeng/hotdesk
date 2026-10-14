@@ -6,6 +6,7 @@ from flask_cors import CORS
 from .core.config import Config
 from .core.db import init_db
 from .core.logging import setup_logging
+from .core.orm import init_orm
 from .routes import api_bp
 
 
@@ -14,6 +15,7 @@ def create_app(config_class=Config) -> Flask:
     app.config.from_object(config_class)
     CORS(app)
     init_db(app)
+    init_orm(app)
     setup_logging(app)
     _init_jwt(app)
     _register_request_logging(app)
