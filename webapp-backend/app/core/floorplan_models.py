@@ -56,6 +56,10 @@ class FloorPlanElement(Base):
     color: Mapped[str | None] = mapped_column(Text)
     config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict,
                                          server_default=text("'{}'::jsonb"))
+    department_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("departments.id", ondelete="SET NULL"))
+    open_to_all: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
+                                              server_default=text("false"))
 
     plan: Mapped[FloorPlan] = relationship(back_populates="elements")
 
@@ -115,3 +119,7 @@ class FloorPlanVersionElement(Base):
     color: Mapped[str | None] = mapped_column(Text)
     config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict,
                                          server_default=text("'{}'::jsonb"))
+    department_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("departments.id", ondelete="SET NULL"))
+    open_to_all: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
+                                              server_default=text("false"))

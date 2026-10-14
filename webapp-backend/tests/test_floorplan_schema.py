@@ -80,3 +80,43 @@ def test_version_tables_roundtrip(app, db):
     with db.connect() as conn:
         assert conn.execute(text("select count(*) from floor_plan_versions")).scalar_one() == 0
         assert conn.execute(text("select count(*) from floor_plan_version_elements")).scalar_one() == 0
+
+
+def _plan_with_seat(conn, department_id=None):
+    pid = conn.execute(text("insert into floor_plans (name, cols, rows) values ('T', 10, 10) returning id")).scalar_one()
+    eid = conn.execute(text(
+        "insert into floor_plan_elements (plan_id, type, x, y, w, h, rotation, department_id) "
+        "values (:p, 'seat', 0, 0, 1, 1, 0, :d) returning id"), {"p": pid, "d": department_id}).scalar_one()
+    return pid, eid
+
+
+def test_department_tag_columns_and_constraint(db):
+    with db.connect() as conn:
+        dept = conn.execute(text("insert into departments (name) values ('Eng') returning id")).scalar_one()
+        pid, _ = _plan_with_seat(conn, dept)
+        with pytest.raises(IntegrityError):
+            conn.execute(text(
+                "insert into floor_plan_elements (plan_id, type, x, y, w, h, rotation, department_id, open_to_all) "
+                "values (:p, 'seat', 2, 0, 1, 1, 0, :d, true)"), {"p": pid, "d": dept})
+
+
+def test_deleting_department_untags_seats(db):
+    with db.connect() as conn:
+        dept = conn.execute(text("insert into departments (name) values ('Ops') returning id")).scalar_one()
+        pid, eid = _plan_with_seat(conn, dept)
+        vid = conn.execute(text(
+            "insert into floor_plan_versions (plan_id, version, name, cols, rows) "
+            "values (:p, 1, 'T', 10, 10) returning id"), {"p": pid}).scalar_one()
+        conn.execute(text(
+            "insert into floor_plan_version_elements (version_id, element_id, type, x, y, w, h, rotation, department_id) "
+            "values (:v, :e, 'seat', 0, 0, 1, 1, 0, :d)"), {"v": vid, "e": eid, "d": dept})
+        conn.execute(text("delete from departments where id = :d"), {"d": dept})
+        assert conn.execute(text("select department_id from floor_plan_elements where id = :e"),
+                            {"e": eid}).scalar_one() is None
+        assert conn.execute(text("select department_id from floor_plan_version_elements where element_id = :e"),
+                            {"e": eid}).scalar_one() is None
+
+
+def test_seat_catalog_has_no_bookable(db):
+    with db.connect() as conn:
+        assert conn.execute(text("select config from floor_elements where type = 'seat'")).scalar_one() == {}
