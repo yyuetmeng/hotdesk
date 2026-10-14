@@ -116,12 +116,14 @@ def create_user():
     g.jwt_uid = actor
     write_audit(actor, "user.create", uid,
                 {"email": body["email"], "username": body["username"], "role": body["role"]})
-    _send_invitation(uid, body["email"], body["full_name"], body["username"])
+    sent = _send_invitation(uid, body["email"], body["full_name"], body["username"])
     session.refresh(user)  # reload server defaults and name-ordered departments
-    return jsonify(public_user(user)), 201
+    return jsonify({**public_user(user), "invitation_sent": sent}), 201
 
 
-def _send_invitation(user_id: str, email_addr: str, full_name: str, username: str) -> None:
+def _send_invitation(user_id: str, email_addr: str, full_name: str, username: str) -> bool:
+    """Issue an activation token and email it. Returns False (logged) if the email fails;
+    the user still exists and an admin can resend the invitation or set a password."""
     raw = issue_token(user_id, "activate", 72)
     link = f"{current_app.config['FRONTEND_URL']}/set-password?token={raw}"
     subject, html = invitation_email(full_name, link)
@@ -130,7 +132,8 @@ def _send_invitation(user_id: str, email_addr: str, full_name: str, username: st
         write_audit(get_jwt_identity(), "user.invitation_sent", user_id, {"email": email_addr})
     except Exception as exc:
         log.error("invitation email failed for %s: %s", email_addr, exc)
-        raise
+        return False
+    return True
 
 
 @admin_bp.get("/users")
@@ -353,5 +356,6 @@ def resend_invitation(user_id):
         return error("user already activated", 409)
     actor = get_jwt_identity()
     g.jwt_uid = actor
-    _send_invitation(user_id, user.email, user.full_name, user.username)
+    if not _send_invitation(user_id, user.email, user.full_name, user.username):
+        return error("invitation email could not be sent", 502)
     return ("", 204)

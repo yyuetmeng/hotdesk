@@ -5,7 +5,7 @@ const backend = process.env.VITE_DEV_API_TARGET ?? 'http://localhost:3000';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
-  // Flask API (auth + admin floor plans). VITE_FLASK_TARGET is the older name, still honored.
+  // Flask API (auth, admin users/departments, floor plans). VITE_FLASK_TARGET is the older name, still honored.
   const flaskBackend =
     env.VITE_DEV_AUTH_TARGET || process.env.VITE_FLASK_TARGET || 'http://localhost:5000';
   return {
@@ -16,6 +16,8 @@ export default defineConfig(({ mode }) => {
     proxy: {
       '/api/auth': { target: flaskBackend, changeOrigin: true },
       '/api/admin/floor-plans': { target: flaskBackend, changeOrigin: true },
+      '/api/admin/users': { target: flaskBackend, changeOrigin: true },
+      '/api/admin/departments': { target: flaskBackend, changeOrigin: true },
       '/api': { target: backend, changeOrigin: true },
       '/labels': { target: backend, changeOrigin: true },
       '/healthz': { target: backend, changeOrigin: true },

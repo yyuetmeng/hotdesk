@@ -200,6 +200,21 @@ def test_delete_removes_user_and_membership(client, db, admin_token):
     assert run_one("select action from audit_logs where action = 'user.delete'")
 
 
+def test_create_survives_email_failure(client, db, admin_token, monkeypatch):
+    def fail(to, subject, html):
+        raise RuntimeError("email send failed")
+    monkeypatch.setattr("app.admin.users.send_email", fail)
+    r = client.post("/api/admin/users", headers=hdr(admin_token),
+                    json={"email": "nomail@x.com", "username": "nomail", "full_name": "No Mail",
+                          "role": "user"})
+    assert r.status_code == 201
+    body = r.get_json()
+    assert body["invitation_sent"] is False and body["status"] == "pending_activation"
+    assert run_one("select 1 from users where email = 'nomail@x.com'")
+    resend = client.post(f"/api/admin/users/{body['id']}/resend-invitation", headers=hdr(admin_token))
+    assert resend.status_code == 502
+
+
 def test_email_change_on_pending_resends_invitation(client, db, admin_token, stub_email):
     uid = _mk_plain(client, admin_token, "pc@x.com", "pc")["id"]
     assert len(stub_email) == 1
