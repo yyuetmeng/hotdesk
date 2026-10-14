@@ -35,4 +35,7 @@ assert.match(validateAll(overlap, COLS, ROWS)[0], /overlaps/);
 
 assert.equal(placementError({ id: 'z', type: 'seat', x: 10, y: 0, rotation: 0 }, [], COLS, ROWS), 'outside the grid');
 
+assert.equal(placementError({ id: 'z', type: 'desk', x: 0, y: 0, rotation: 0 }, [], COLS, ROWS), 'unknown type');
+assert.match(validateAll([{ id: 'z', type: 'desk', x: 0, y: 0, rotation: 0 }], COLS, ROWS)[0], /unknown type/);
+
 console.log('floorplan logic smoke OK');

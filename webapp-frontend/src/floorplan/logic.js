@@ -1,4 +1,4 @@
-import { effectiveSize } from './palette.js';
+import { catalogByType, effectiveSize } from './palette.js';
 
 export function cellsOf(el) {
   const { w, h } = effectiveSize(el.type, el.rotation || 0);
@@ -8,7 +8,7 @@ export function cellsOf(el) {
 }
 
 export function placementError(el, elements, cols, rows) {
-  if (!el.type) return 'unknown type';
+  if (!el.type || !catalogByType[el.type]) return 'unknown type';
   const { w, h } = effectiveSize(el.type, el.rotation || 0);
   if (el.x < 0 || el.y < 0 || el.x + w > cols || el.y + h > rows) return 'outside the grid';
   const occupied = new Set();
