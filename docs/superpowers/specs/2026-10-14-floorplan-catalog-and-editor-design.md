@@ -113,4 +113,4 @@ ORM: `FloorElement` model in `app/core/floorplan_models.py`; `FloorPlanElement.t
 2. **No admin UI for the catalog.** Types are added or changed with SQL in `floor_elements`. A setting key also needs a label in `SETTING_LABELS` to read well.
 3. **Undo history noise.** Each keystroke in label/size fields and each move of the custom colour picker is a separate undo step (already noted as a Minor review item for the original editor).
 4. **Deferred review notes** from the original plan remain open: Task 3 (2 Minor), Task 5 (1 Important: secondary failures wipe the list page into an error), Task 6 (2 Minor).
-5. Dates on the floor plan list (`updated_at`) are shown as raw ISO strings; they should use `formatDateTime` per `docs/CODING_GUIDELINES.md`.
+5. ~~Dates on the floor plan list (`updated_at`) are shown as raw ISO strings~~ — done: shown with `formatDateTime` (`dd/MM/yyyy HH:mm:ss`, local time).

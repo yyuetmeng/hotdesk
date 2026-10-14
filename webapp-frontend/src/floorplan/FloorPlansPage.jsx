@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
+import { formatDateTime } from '../format.js';
 import './floorplan.css';
 
 export default function FloorPlansPage() {
@@ -64,7 +65,7 @@ export default function FloorPlansPage() {
           <td><Link to={`/floor-plans/${item.id}`}>{item.name}</Link></td>
           <td>{item.cols}×{item.rows}</td>
           <td>{item.element_count}</td>
-          <td>{item.updated_at}</td>
+          <td>{formatDateTime(item.updated_at)}</td>
           <td><button className="button subtle" onClick={() => remove(item)}>Delete</button></td>
         </tr>)}</tbody>
       </table>
