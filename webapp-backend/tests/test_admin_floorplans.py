@@ -105,22 +105,22 @@ def test_catalog(client, db, admin_token):
     assert by_type["seat"] == {"type": "seat", "label": "Seat", "w": 1, "h": 1, "color": "#16a34a",
                                "resizable": False, "config": {"bookable": True}}
     assert by_type["wall"]["resizable"] is True and by_type["wall"]["config"] == {}
-    assert [i["type"] for i in items] == ["wall", "seat", "table", "sofa", "toilet", "elevator", "stairs",
+    assert [i["type"] for i in items] == ["wall", "seat", "table", "sofa", "locker", "toilet", "elevator", "stairs",
                                           "door", "window", "pantry", "plant", "corridor"]
 
 
 def test_catalog_comes_from_floor_elements_table(client, db, admin_token):
     run_write("insert into floor_elements (type, label, w, h, color, sort_order) "
-              "values ('locker', 'Locker', 1, 2, '#334155', 200)")
+              "values ('bench', 'Bench', 1, 2, '#334155', 200)")
     try:
         items = client.get("/api/admin/floor-plans/catalog", headers=hdr(admin_token)).get_json()["items"]
-        assert items[-1]["type"] == "locker"
+        assert items[-1]["type"] == "bench"
         plan = _mk_plan(client, admin_token)
         assert _save(client, admin_token, plan["id"],
-                     [{"type": "locker", "x": 0, "y": 0, "rotation": 0}]).status_code == 200
+                     [{"type": "bench", "x": 0, "y": 0, "rotation": 0}]).status_code == 200
     finally:
-        run_write("delete from floor_plan_elements where type = 'locker'")
-        run_write("delete from floor_elements where type = 'locker'")
+        run_write("delete from floor_plan_elements where type = 'bench'")
+        run_write("delete from floor_elements where type = 'bench'")
 
 
 def test_custom_size_saved_and_used_for_bounds(client, db, admin_token):
