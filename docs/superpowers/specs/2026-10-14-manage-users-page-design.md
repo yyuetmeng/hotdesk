@@ -17,7 +17,7 @@ Email is sent through Resend. In the current environment `RESEND_API_KEY` and `E
 |---|---|---|
 | Location | Sidebar **Administration → Manage Users**, route `/users`, `src/pages/users/UsersPage.jsx` (+ `users.css`). | Follows the `src/pages/<name>/` convention. |
 | Layout | Reuses `content-split`: filterable user table on the left, edit panel on the right; departments section below. | Matches existing pages; no new layout system. |
-| Departments | Managed on the same page (add, rename, delete). | Users cannot be assigned departments if none can be created. |
+| Departments | Managed on the same page (add, rename, delete). Labelled "Departments / groups" in the UI: the same records serve as departments or ad-hoc groups (the API and table stay `departments`). | Users cannot be assigned departments if none can be created; product owner asked for the wider wording. |
 | Invitation failure | `_send_invitation` returns `False` instead of raising (the error is logged). `POST /users` returns `201` with `invitation_sent: false`; `POST /users/<id>/resend-invitation` returns `502 {"error": "invitation email could not be sent"}`. | The user exists either way; the admin needs a clear message and a way forward (set a password, or resend later). |
 | Routing | Vite proxies `/api/admin/users` and `/api/admin/departments` to Flask (only specific paths, because `/api` otherwise goes to the legacy Node API). | Same pattern as `/api/admin/floor-plans`. |
 | Dates | Access window shown as `dd/MM/yyyy` via `formatDate`; date inputs send `YYYY-MM-DD`. | `docs/CODING_GUIDELINES.md` §1. |

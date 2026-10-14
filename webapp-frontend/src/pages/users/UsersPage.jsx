@@ -62,7 +62,7 @@ export function UsersPage() {
 
   const pages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
   return <main className="page">
-    <PageTitle title="Manage Users"><p>Invite people, set their role and departments, and control access.</p></PageTitle>
+    <PageTitle title="Manage Users"><p>Invite people, set their role, departments and groups, and control access.</p></PageTitle>
     {error && <Notice kind="error">{error}</Notice>}
     {notice && <Notice kind={notice.kind}>{notice.message}</Notice>}
 
@@ -77,7 +77,7 @@ export function UsersPage() {
           <label>Status <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)}>
             <option value="">All</option><option value="active">Active</option><option value="inactive">Disabled</option>
           </select></label>
-          <label>Department <select value={filters.department} onChange={(e) => setFilter('department', e.target.value)}>
+          <label>Department / group <select value={filters.department} onChange={(e) => setFilter('department', e.target.value)}>
             <option value="">All</option>
             {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select></label>
@@ -86,7 +86,7 @@ export function UsersPage() {
 
         <div className="users-table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Departments</th><th>Access</th><th>Status</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Departments / groups</th><th>Access</th><th>Status</th></tr></thead>
             <tbody>{data.items.map((u) => {
               const [label, cls] = STATUS[statusOf(u)];
               return <tr key={u.id} className={`users-row${editing?.id === u.id ? ' selected' : ''}`}
@@ -217,11 +217,11 @@ function UserForm({ user, departments, isSelf, onClose, onChanged, onSaved }) {
       <label>Access until <input type="date" value={form.end_date} onChange={(e) => set('end_date', e.target.value)} />{err('end_date')}</label>
     </div>
     <fieldset className="users-depts">
-      <legend>Departments</legend>
+      <legend>Departments / groups</legend>
       {departments.length
         ? departments.map((d) => <label key={d.id} className="users-check">
           <input type="checkbox" checked={form.department_ids.includes(d.id)} onChange={() => toggleDept(d.id)} />{d.name}</label>)
-        : <small>No departments yet — add one below the user list.</small>}
+        : <small>No departments or groups yet — add one below the user list.</small>}
       {err('department_ids')}
     </fieldset>
     {!isNew && <label className="users-check">
@@ -259,11 +259,11 @@ function DepartmentsSection({ departments, onChanged }) {
     run(async () => {
       await flaskRequest('/api/admin/departments', { method: 'POST', body: { name } });
       setName('');
-      await onChanged(`Added department ${name.trim()}.`);
+      await onChanged(`Added ${name.trim()}.`);
     });
   };
   const rename = (dept) => {
-    const next = window.prompt('Rename department', dept.name);
+    const next = window.prompt('Rename department / group', dept.name);
     if (!next || next.trim() === dept.name) return;
     run(async () => {
       await flaskRequest(`/api/admin/departments/${dept.id}`, { method: 'PATCH', body: { name: next } });
@@ -272,22 +272,22 @@ function DepartmentsSection({ departments, onChanged }) {
   };
   const remove = (dept) => {
     const extra = dept.user_count ? ` ${dept.user_count} user(s) will be removed from it.` : '';
-    if (!window.confirm(`Delete department ${dept.name}?${extra}`)) return;
+    if (!window.confirm(`Delete ${dept.name}?${extra}`)) return;
     run(async () => {
       await flaskRequest(`/api/admin/departments/${dept.id}`, { method: 'DELETE' });
-      await onChanged(`Deleted department ${dept.name}.`);
+      await onChanged(`Deleted ${dept.name}.`);
     });
   };
 
   return <section className="card users-departments">
-    <h2>Departments</h2>
+    <h2>Departments / groups</h2>
     {message && <Notice kind="error">{message}</Notice>}
     <form className="inline-form" onSubmit={add}>
-      <label>Name <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Engineering" required /></label>
-      <button className="button primary">Add department</button>
+      <label>Name <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Engineering or Project Alpha" required /></label>
+      <button className="button primary">Add</button>
     </form>
     {departments.length
-      ? <table><thead><tr><th>Name</th><th>Users</th><th /></tr></thead>
+      ? <table><thead><tr><th>Department / group</th><th>Users</th><th /></tr></thead>
         <tbody>{departments.map((d) => <tr key={d.id}>
           <td>{d.name}</td><td>{d.user_count}</td>
           <td className="users-dept-actions">
@@ -295,6 +295,6 @@ function DepartmentsSection({ departments, onChanged }) {
             <button className="button users-danger" onClick={() => remove(d)}>Delete</button>
           </td>
         </tr>)}</tbody></table>
-      : <p className="state">No departments yet.</p>}
+      : <p className="state">No departments or groups yet.</p>}
   </section>;
 }
