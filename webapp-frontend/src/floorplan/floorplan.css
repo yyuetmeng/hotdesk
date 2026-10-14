@@ -5,3 +5,28 @@
 .fp-table { width: 100%; border-collapse: collapse; }
 .fp-table th, .fp-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
 .fp-table .button.subtle { background: none; border: 1px solid var(--border); color: var(--muted); }
+
+.fp-editor .fp-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+.fp-editor .fp-toolbar input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.fp-editor .fp-toolbar label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.fp-editor .fp-toolbar label input[type="number"] { width: 64px; }
+.fp-spacer { flex: 1; }
+.fp-panes { display: grid; grid-template-columns: 180px minmax(0, 1fr) 220px; gap: 14px; align-items: start; }
+.fp-palette .fp-chip { display: flex; align-items: center; gap: 8px; padding: 8px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); cursor: grab; }
+.fp-chip small { color: var(--muted); margin-left: auto; }
+.fp-swatch { width: 16px; height: 16px; border-radius: 4px; flex: none; }
+.fp-hint { color: var(--muted); font-size: 12px; }
+.fp-grid-wrap { overflow: auto; }
+.fp-grid { position: relative; background-color: var(--surface); background-image: linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px); background-size: var(--cell) var(--cell); border: 1px solid var(--border); border-radius: 6px; }
+.fp-el { position: absolute; color: #fff; font-size: 11px; padding: 3px; overflow: hidden; border-radius: 4px; border: 1px solid rgba(0, 0, 0, .25); cursor: grab; user-select: none; }
+.fp-el.selected { outline: 3px solid var(--accent); outline-offset: -1px; }
+.fp-preview { position: absolute; border-radius: 4px; pointer-events: none; opacity: .55; }
+.fp-preview.ok { outline: 2px dashed #16a34a; background: rgba(22, 163, 74, .35); }
+.fp-preview.bad { outline: 2px dashed #dc2626; background: rgba(220, 38, 38, .35); }
+.fp-inspector label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; margin: 8px 0; }
+.fp-inspector input { padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.fp-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.fp-swatches button { width: 22px; height: 22px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
+.fp-swatches button.active { border-color: var(--text); }
+.fp-actions { display: flex; gap: 8px; margin-top: 12px; }
+@media (max-width: 1100px) { .fp-panes { grid-template-columns: 1fr; } }

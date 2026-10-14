@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { DashboardPage, CheckInPage, BookingPage, DisplayPage, InsightsPage, SensorsPage } from './pages.jsx';
 import FloorPlansPage from './floorplan/FloorPlansPage.jsx';
+import EditorPage from './floorplan/EditorPage.jsx';
 
 const workspaceLinks = [['/', 'Floor plan', 'floorplan'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin']];
 const adminLinks = [['/insights', 'Insights', 'insights'], ['/sensors', 'Sensors', 'sensors'], ['/display', 'Floor display', 'display'], ['/floor-plans', 'Floor plans', 'planner']];
@@ -40,6 +41,7 @@ export default function App() {
       <Route path="/insights" element={<InsightsPage />} />
       <Route path="/sensors" element={<SensorsPage />} />
       <Route path="/floor-plans" element={<FloorPlansPage />} />
+      <Route path="/floor-plans/:id" element={<EditorPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></div>
   </div>;
