@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.db import run_one
+from app.core.db import run_one, run_write
 from app.core.security import hash_password
 
 ADMIN_PW = "adminpw1"
@@ -53,14 +53,49 @@ def test_create_get_list_update_delete(client, db, admin_token):
     patched = client.patch(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token),
                            json={"name": "Renamed"})
     assert patched.status_code == 200 and patched.get_json()["name"] == "Renamed"
+    assert patched.get_json()["updated_at"] != plan["updated_at"]
     assert client.delete(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token)).status_code == 204
     assert client.get(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token)).status_code == 404
     for action in ("floorplan.create", "floorplan.update", "floorplan.delete"):
         assert run_one("select action from audit_logs where action = :a", {"a": action})
 
 
+def test_patch_rejects_empty_body_and_unknown_fields(client, db, admin_token):
+    plan = client.post("/api/admin/floor-plans", headers=hdr(admin_token),
+                       json={"name": "Grid", "cols": 10, "rows": 10}).get_json()
+    assert client.patch(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token),
+                        json={}).status_code == 400
+    r = client.patch(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token),
+                     json={"bogus": 1})
+    assert r.status_code == 400 and r.get_json()["fields"]["bogus"] == "unknown field"
+
+
+def test_patch_shrink_guard_blocks_without_applying(client, db, admin_token):
+    # The element bulk-save endpoint (PUT .../elements) is added in a later task;
+    # insert the element directly to exercise the PATCH resize guard in isolation.
+    plan = client.post("/api/admin/floor-plans", headers=hdr(admin_token),
+                       json={"name": "Grid", "cols": 10, "rows": 10}).get_json()
+    run_write(
+        "insert into floor_plan_elements (plan_id, type, x, y, w, h, rotation) "
+        "values (cast(:p as uuid), 'seat', 8, 8, 1, 1, 0)", {"p": plan["id"]})
+    r = client.patch(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token),
+                     json={"cols": 5, "rows": 5})
+    assert r.status_code == 400 and "elements" in r.get_json()["fields"]
+    unchanged = client.get(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token)).get_json()
+    assert (unchanged["cols"], unchanged["rows"]) == (10, 10)
+    # Rotation-aware: a meeting_room (3x2) rotated 90 effectively needs 2x3.
+    run_write(
+        "insert into floor_plan_elements (plan_id, type, x, y, w, h, rotation) "
+        "values (cast(:p as uuid), 'meeting_room', 7, 7, 3, 2, 90)", {"p": plan["id"]})
+    r2 = client.patch(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token),
+                      json={"cols": 8, "rows": 9})
+    assert r2.status_code == 400 and "elements" in r2.get_json()["fields"]
+
+
 def test_get_unknown_plan_404(client, db, admin_token):
     assert client.get("/api/admin/floor-plans/" + "0" * 36,
+                      headers=hdr(admin_token)).status_code == 404
+    assert client.get("/api/admin/floor-plans/00000000-0000-0000-0000-000000000000",
                       headers=hdr(admin_token)).status_code == 404
 
 

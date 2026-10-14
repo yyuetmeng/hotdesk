@@ -41,7 +41,7 @@ def _element_dto(el: FloorPlanElement) -> dict:
 def _get_plan(plan_id: str) -> FloorPlan | None:
     try:
         pid = plan_id if isinstance(plan_id, uuid.UUID) else uuid.UUID(str(plan_id))
-    except (ValueError, AttributeError, TypeError):
+    except ValueError:
         return None
     return orm_session().get(FloorPlan, pid)
 
@@ -138,6 +138,8 @@ def update_plan(plan_id):
     if plan is None:
         return error("plan not found", 404)
     body = request.get_json(silent=True) or {}
+    if not body:
+        return error("no fields provided", 400)
     unknown = set(body) - {"name", "cols", "rows"}
     fields = {k: "unknown field" for k in sorted(unknown)}
 
@@ -163,6 +165,9 @@ def update_plan(plan_id):
     if "name" in body:
         plan.name = name
     plan.cols, plan.rows = new_cols, new_rows
+    # updated_at is a SQL expression (func.now()) until the row round-trips; the
+    # session is expire_on_commit=False, so expire() is required below to force
+    # a reload before _plan_payload() reads it as a real datetime.
     plan.updated_at = func.now()
     session = orm_session()
     session.commit()
