@@ -59,6 +59,24 @@ If the database check fails it returns HTTP `503` with:
 
 All protected calls pass `-H "Authorization: Bearer <token>"`.
 
+## Floor plans (`Authorization: Bearer <admin token>` required)
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/admin/floor-plans` | List plans (name, grid size, element count) |
+| `POST /api/admin/floor-plans` | Create plan `{name, cols, rows}` (5–80 grid) |
+| `GET /api/admin/floor-plans/<id>` | Plan with all placed elements |
+| `PATCH /api/admin/floor-plans/<id>` | Rename / resize grid (guards stranded elements) |
+| `DELETE /api/admin/floor-plans/<id>` | Delete plan + elements |
+| `PUT /api/admin/floor-plans/<id>/elements` | Bulk save placements `{elements:[{type,x,y,rotation,label?,color?}]}` |
+| `GET /api/admin/floor-plans/catalog` | Fixed element catalog |
+
+Frontend editor: `webapp-frontend` → sidebar "Floor plans" (Vite proxies
+`/api/auth` and `/api/admin/floor-plans` to the Flask API; set
+`VITE_FLASK_TARGET` if it is not on `http://localhost:5000`).
+Element types: wall, seat, toilet, elevator, door, meeting_room, kitchen,
+plant, corridor — fixed footprints, rotation 0/90/180/270.
+
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in Supabase, JWT and Resend values.
