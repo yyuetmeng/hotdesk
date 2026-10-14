@@ -4,7 +4,7 @@ import { flaskRequest } from '../api.js';
 import { formatDateTime } from '../format.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { CATALOG, MAX_ELEMENT_SIZE, baseSize, catalogByType, isResizable, setCatalog, sizeOf } from './palette.js';
-import { addElement, moveElement, placementError, removeElement, resizeElement, rotateElement, validateAll } from './logic.js';
+import { addElement, metaChanged, moveElement, placementError, removeElement, resizeElement, rotateElement, validateAll } from './logic.js';
 import './floorplan.css';
 
 let localSeq = 0;
@@ -181,7 +181,9 @@ export default function EditorPage() {
   // Publish / Unpublish / Discard (docs/superpowers/specs/2026-10-15-floorplan-publishing-design.md §3).
   const lifecycle = async (action, { confirmText, resetDraft = false } = {}) => {
     if (confirmText && !window.confirm(confirmText)) return;
+    // Publish exactly what the admin sees: unsaved elements first, then unapplied name/grid.
     if (action === 'publish' && dirty && !(await save())) return;
+    if (action === 'publish' && metaChanged(meta, plan) && !(await patchMeta())) return;
     setSaving(true); setProblems([]);
     try {
       const data = await flaskRequest(`/api/admin/floor-plans/${id}/${action}`, { method: 'POST' });
@@ -197,17 +199,24 @@ export default function EditorPage() {
     } finally { setSaving(false); }
   };
 
-  const applyMeta = async () => {
-    if (dirty && !window.confirm('Applying grid changes reloads the plan and discards unsaved edits. Continue?')) return;
+  // PATCH name/grid; returns true on success. Reloads the plan (and its saved elements).
+  const patchMeta = async () => {
     try {
       const data = await flaskRequest(`/api/admin/floor-plans/${id}`,
         { method: 'PATCH', body: { name: meta.name, cols: Number(meta.cols), rows: Number(meta.rows) } });
       setPlan(data); setElements(data.elements); setDirty(false); setError(null);
       setMeta({ name: data.name, cols: data.cols, rows: data.rows });
+      return true;
     } catch (err) {
       if (err.status === 400 && err.fields) setProblems(Object.values(err.fields));
       else setError(err.status === 401 ? 'Session expired — sign in again.' : err.message);
+      return false;
     }
+  };
+
+  const applyMeta = async () => {
+    if (dirty && !window.confirm('Applying grid changes reloads the plan and discards unsaved edits. Continue?')) return;
+    await patchMeta();
   };
 
   if (error) return <main className="page"><PageTitle title="Floor plan editor" /><Notice kind="error">{error}</Notice></main>;
@@ -230,8 +239,8 @@ export default function EditorPage() {
       <button className="button subtle" onClick={redo} disabled={!future.length}>Redo</button>
       <button className="button primary" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save *' : 'Saved'}</button>
       <button className="button primary" onClick={() => lifecycle('publish')}
-        disabled={saving || validateAll(elements, plan.cols, plan.rows).length > 0 || (plan.status === 'published' && !dirty)}>
-        {dirty ? 'Save & publish' : 'Publish'}</button>
+        disabled={saving || validateAll(elements, plan.cols, plan.rows).length > 0 || (plan.status === 'published' && !dirty && !metaChanged(meta, plan))}>
+        {dirty || metaChanged(meta, plan) ? 'Save & publish' : 'Publish'}</button>
       {plan.status === 'changed' && <button className="button subtle" disabled={saving}
         onClick={() => lifecycle('discard', { resetDraft: true,
           confirmText: 'Discard all changes since the last publish? The draft goes back to the published version.' })}>
@@ -241,7 +250,7 @@ export default function EditorPage() {
           confirmText: 'Unpublish this plan? Staff will no longer see it or be able to book it. The draft is kept.' })}>
         Unpublish</button>}
     </header>
-    <PublishBanner plan={plan} dirty={dirty} />
+    <PublishBanner plan={plan} dirty={dirty || metaChanged(meta, plan)} />
     {problems.length > 0 && <Notice kind="error">{problems.join(' · ')}</Notice>}
     <div className="fp-panes">
       <aside className="fp-palette">

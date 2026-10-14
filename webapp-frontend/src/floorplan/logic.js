@@ -79,3 +79,8 @@ export function validateAll(elements, cols, rows) {
   });
   return [...new Set(problems)];
 }
+
+/** True when the toolbar's name/grid fields differ from the saved plan (not yet applied). */
+export function metaChanged(meta, plan) {
+  return meta.name.trim() !== plan.name || Number(meta.cols) !== plan.cols || Number(meta.rows) !== plan.rows;
+}

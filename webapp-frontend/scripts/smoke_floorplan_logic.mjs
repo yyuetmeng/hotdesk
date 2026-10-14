@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { addElement, cellsOf, moveElement, resizeElement, rotateElement, removeElement, placementError, validateAll } from '../src/floorplan/logic.js';
+import { addElement, cellsOf, metaChanged, moveElement, resizeElement, rotateElement, removeElement, placementError, validateAll } from '../src/floorplan/logic.js';
 import { setCatalog, sizeOf } from '../src/floorplan/palette.js';
 
 // Same shape as GET /api/admin/floor-plans/catalog (seeded by sql/0012_floor_elements.sql).
@@ -66,3 +66,14 @@ console.log('floorplan logic smoke OK');
   assert.match(resizeElement(els, els[0].id, 4, 3, COLS, ROWS).error, /overlaps/);
 }
 console.log('floorplan resize smoke OK');
+
+// Toolbar name/grid edits not yet applied count as pending changes (publish must include them).
+{
+  const plan = { name: 'Level 1', cols: 20, rows: 15 };
+  assert.equal(metaChanged({ name: 'Level 1', cols: 20, rows: 15 }, plan), false);
+  assert.equal(metaChanged({ name: 'Level 1', cols: '20', rows: '15' }, plan), false); // number inputs give strings
+  assert.equal(metaChanged({ name: 'Level 2', cols: 20, rows: 15 }, plan), true);
+  assert.equal(metaChanged({ name: 'Level 1', cols: '24', rows: 15 }, plan), true);
+  assert.equal(metaChanged({ name: ' Level 1 ', cols: 20, rows: 15 }, plan), false); // server trims names
+}
+console.log('floorplan meta smoke OK');
