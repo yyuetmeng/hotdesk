@@ -105,7 +105,7 @@ def test_catalog(client, db, admin_token):
     assert by_type["seat"] == {"type": "seat", "label": "Seat", "w": 1, "h": 1, "color": "#16a34a",
                                "resizable": False, "config": {"bookable": True}}
     assert by_type["wall"]["resizable"] is True and by_type["wall"]["config"] == {}
-    assert [i["type"] for i in items] == ["wall", "seat", "table", "toilet", "elevator", "stairs",
+    assert [i["type"] for i in items] == ["wall", "seat", "table", "sofa", "toilet", "elevator", "stairs",
                                           "door", "window", "pantry", "plant", "corridor"]
 
 

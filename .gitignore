@@ -2,3 +2,6 @@ node_modules/
 dist/
 .env.local
 .env
+
+# Superpowers brainstorming mockups (local only)
+.superpowers/

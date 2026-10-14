@@ -63,6 +63,7 @@ Seeded catalog (palette order):
 | wall | Wall | 1×1 | `#64748b` | yes | `{}` |
 | seat | Seat | 1×1 | `#16a34a` | **no** | `{"bookable": true}` |
 | table | Table | 2×1 | `#ca8a04` | yes | `{}` |
+| sofa | Sofa | 2×1 | `#4f46e5` | yes | `{}` | (added 2026-10-15 by `0013_add_sofa.sql`)
 | toilet | Toilet | 2×2 | `#0d9488` | yes | `{}` |
 | elevator | Elevator | 2×2 | `#7c3aed` | yes | `{}` |
 | stairs | Stairs | 2×2 | `#ea580c` | yes | `{}` |

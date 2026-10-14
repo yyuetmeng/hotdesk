@@ -82,7 +82,7 @@ Frontend editor: `webapp-frontend` → sidebar "Manage Floor Plan" (Vite proxies
 `/api/auth` and `/api/admin/floor-plans` to the Flask API; set
 `VITE_FLASK_TARGET` if it is not on `http://localhost:5000`).
 Element types live in the `floor_elements` table (seeded by `sql/0012_floor_elements.sql`):
-wall, seat, table, toilet, elevator, stairs, door, window, pantry, plant, corridor. Each row
+wall, seat, table, sofa, toilet, elevator, stairs, door, window, pantry, plant, corridor. Each row
 sets the default size and colour, whether the type can be resized (seats are fixed at 1x1),
 and its default `config` (seats: `{"bookable": true}`). Elements can be rotated
 0/90/180/270 and, unless fixed, resized from 1 to 20 cells per side. Add or change a type
@@ -91,7 +91,7 @@ with SQL; the API and editor pick it up without a code change.
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in Supabase, JWT and Resend values.
-2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0012_...`) in the Supabase SQL editor, in order.
+2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0013_...`) in the Supabase SQL editor, in order.
 3. `pip install -r requirements.txt`
 4. `python scripts/create_admin.py` to create the first admin.
 5. `python run.py` to start the API; `python -m pytest` to run tests.
