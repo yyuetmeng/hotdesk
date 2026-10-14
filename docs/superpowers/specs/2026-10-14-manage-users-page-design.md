@@ -53,6 +53,6 @@ Email is sent through Resend. In the current environment `RESEND_API_KEY` and `E
 
 1. **Email not configured:** set `RESEND_API_KEY` and `EMAIL_FROM` in `webapp-backend/.env` for invitations and password resets to send.
 2. **Invitation links are wrong:** `FRONTEND_URL` is `http://localhost:3000` (the legacy Node app), but the React app runs on the Vite port (5173 by default).
-3. **No set-password page:** invitation and reset emails link to `{FRONTEND_URL}/set-password?token=...`, but `webapp-frontend` has no `/set-password` route, so invited users cannot activate their account from the email yet. The backend endpoints exist (`GET /api/auth/set-password/verify`, `POST /api/auth/set-password`).
+3. ~~**No set-password page**~~ — done: `/set-password` and `/forgot-password` (see `2026-10-14-password-pages-design.md`).
 4. **Admin links visible to everyone:** the sidebar shows Administration entries to non-admin users; the pages then show a 403 message. Hiding them by role is a small follow-up.
 5. Search sends a request on every keystroke (no debounce).

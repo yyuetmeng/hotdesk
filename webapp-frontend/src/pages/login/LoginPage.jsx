@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { AuthLayout, SessionState, useAuth } from '../../auth.jsx';
 
 export function LoginPage() {
@@ -33,6 +33,6 @@ export function LoginPage() {
       <label htmlFor="login-password">Password</label><div className="auth-password"><input id="login-password" name="password" type={visible ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} disabled={pending} /><button type="button" aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? 'Hide' : 'Show'}</button></div>
       {error && <p className="auth-error" role="alert">{error}</p>}
       <button className="auth-submit" disabled={pending} type="submit">{pending ? 'Signing in...' : 'Sign in'}</button>
-    </form><p className="auth-help">Need access or help with your password? Contact your administrator.</p><p className="auth-help">Your session is stored for this tab only.</p>
+    </form><Link className="auth-secondary" to="/forgot-password">Forgot your password?</Link><p className="auth-help">Need access? Contact your administrator.</p><p className="auth-help">Your session is stored for this tab only.</p>
   </div></AuthLayout>;
 }

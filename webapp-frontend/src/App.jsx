@@ -8,6 +8,8 @@ import { SensorsPage } from './pages/sensors/SensorsPage.jsx';
 import { AccountPage } from './pages/account/AccountPage.jsx';
 import { LoginPage } from './pages/login/LoginPage.jsx';
 import { UsersPage } from './pages/users/UsersPage.jsx';
+import { SetPasswordPage } from './pages/set-password/SetPasswordPage.jsx';
+import { ForgotPasswordPage } from './pages/forgot-password/ForgotPasswordPage.jsx';
 import { AuthProvider, RequireAuth, useAuth } from './auth.jsx';
 import logo from './logo.png';
 import FloorPlansPage from './floorplan/FloorPlansPage.jsx';
@@ -49,6 +51,8 @@ function Sidebar() {
 export default function App() {
   return <AuthProvider><Routes>
     <Route path="/login" element={<LoginPage />} />
+    <Route path="/set-password" element={<SetPasswordPage />} />
+    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
     <Route path="/account" element={<AccountPage />} />
     <Route path="*" element={<RequireAuth><Workspace /></RequireAuth>} />
   </Routes></AuthProvider>;

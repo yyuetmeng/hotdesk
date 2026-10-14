@@ -63,7 +63,8 @@ Frontend: sidebar **Manage Users** (`webapp-frontend/src/pages/users/`) — user
 filters and paging, create/edit, set password, resend invitation, delete, and departments.
 Vite proxies `/api/admin/users` and `/api/admin/departments` to this API (restart Vite after
 changing proxy rules). Invitation and reset emails need `RESEND_API_KEY`, `EMAIL_FROM` and a
-`FRONTEND_URL` pointing at the React app; the `/set-password` page they link to is not built yet.
+`FRONTEND_URL` pointing at the React app, whose `/set-password` page handles both invitation and
+reset links (`/forgot-password` requests a reset link).
 
 ## Floor plans (`Authorization: Bearer <admin token>` required)
 
