@@ -110,3 +110,37 @@ def test_publish_rejections(client, db, admin_token, user_token):
     bad = _publish(client, admin_token, plan["id"])
     assert bad.status_code == 400 and any("overlaps" in m for m in bad.get_json()["fields"]["elements"])
     assert _publish(client, user_token, plan["id"]).status_code == 403
+
+
+def test_unpublish_and_republish(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    assert client.post(_url(plan["id"], "/unpublish"), headers=hdr(admin_token)).status_code == 409
+    _save(client, admin_token, plan["id"], _seats((0, 0)))
+    _publish(client, admin_token, plan["id"])
+    r = client.post(_url(plan["id"], "/unpublish"), headers=hdr(admin_token))
+    assert r.status_code == 200 and r.get_json()["status"] == "unpublished"
+    assert client.get(_url(plan["id"], "/published"), headers=hdr(admin_token)).status_code == 404
+    assert run_one("select action from audit_logs where action = 'floorplan.unpublish'")
+    assert client.post(_url(plan["id"], "/unpublish"), headers=hdr(admin_token)).status_code == 409
+    again = _publish(client, admin_token, plan["id"])  # no changes, but it was taken down
+    assert again.status_code == 200
+    assert again.get_json()["published_version"] == 2 and again.get_json()["status"] == "published"
+
+
+def test_discard_restores_published_draft(client, db, admin_token):
+    plan = _mk_plan(client, admin_token, name="A", cols=10, rows=10)
+    assert client.post(_url(plan["id"], "/discard"), headers=hdr(admin_token)).status_code == 409
+    els = _save(client, admin_token, plan["id"], _seats((0, 0), (2, 0), (4, 0))).get_json()["elements"]
+    published = {e["id"]: (e["x"], e["y"]) for e in els}
+    _publish(client, admin_token, plan["id"])
+    by_x = {e["x"]: e for e in els}
+    _save(client, admin_token, plan["id"], [by_x[0], {**by_x[2], "y": 6},
+                                             {"type": "wall", "x": 9, "y": 9, "rotation": 0}])
+    client.patch(_url(plan["id"]), headers=hdr(admin_token), json={"name": "B", "cols": 12})
+    r = client.post(_url(plan["id"], "/discard"), headers=hdr(admin_token))
+    assert r.status_code == 200
+    body = r.get_json()
+    assert (body["name"], body["cols"], body["rows"]) == ("A", 10, 10)
+    assert {e["id"]: (e["x"], e["y"]) for e in body["elements"]} == published
+    assert body["status"] == "published"
+    assert run_one("select action from audit_logs where action = 'floorplan.discard'")

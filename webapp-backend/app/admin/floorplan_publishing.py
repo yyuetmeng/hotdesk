@@ -8,7 +8,8 @@ from sqlalchemy import func, select
 
 from app.core.audit import write_audit
 from app.core.errors import error
-from app.core.floorplan_models import FloorPlan, FloorPlanVersion, FloorPlanVersionElement
+from app.core.floorplan_models import (FloorPlan, FloorPlanElement, FloorPlanVersion,
+                                       FloorPlanVersionElement)
 from app.core.orm import orm_session
 from app.core.security import admin_required
 
@@ -85,3 +86,53 @@ def get_published(plan_id):
     return jsonify(id=str(plan.id), version=live.version, name=live.name, cols=live.cols, rows=live.rows,
                    published_at=live.published_at.isoformat(),
                    elements=[_version_element_dto(el) for el in live.elements])
+
+
+@admin_bp.post("/floor-plans/<uuid:plan_id>/unpublish")
+@admin_required
+def unpublish_plan(plan_id):
+    plan_id = str(plan_id)
+    actor = get_jwt_identity()
+    g.jwt_uid = actor
+    plan = _get_plan(plan_id)
+    if plan is None:
+        return error("plan not found", 404)
+    if plan.published_version is None:
+        return error("plan is not published", 409)
+    version = plan.published_version.version
+    # Version rows are kept as history; a set published_version_id always means "live".
+    plan.published_version_id = None
+    plan.unpublished_at = func.now()
+    orm_session().commit()
+    write_audit(actor, "floorplan.unpublish", plan_id, {"version": version})
+    return _reloaded_payload(plan)
+
+
+@admin_bp.post("/floor-plans/<uuid:plan_id>/discard")
+@admin_required
+def discard_changes(plan_id):
+    plan_id = str(plan_id)
+    actor = get_jwt_identity()
+    g.jwt_uid = actor
+    plan = _get_plan(plan_id)
+    if plan is None:
+        return error("plan not found", 404)
+    live = plan.published_version
+    if live is None:
+        return error("plan is not published", 409)
+    plan.name, plan.cols, plan.rows = live.name, live.cols, live.rows
+    # Same ids as the published version: update matching draft rows in place, re-create the
+    # ones deleted since, and drop the ones added since (delete-orphan).
+    draft = {el.id: el for el in plan.elements}
+    restored = []
+    for ve in live.elements:
+        row = draft.get(ve.element_id) or FloorPlanElement(id=ve.element_id)
+        for f in _ELEMENT_FIELDS:
+            setattr(row, f, getattr(ve, f))
+        restored.append(row)
+    plan.elements = restored
+    plan.updated_at = func.now()
+    plan.draft_changed_at = live.published_at
+    orm_session().commit()
+    write_audit(actor, "floorplan.discard", plan_id, {"version": live.version})
+    return _reloaded_payload(plan)
