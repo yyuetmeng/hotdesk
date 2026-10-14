@@ -52,3 +52,31 @@ export function promptForToken() {
   if (token) storage.set('hotdesk.token', token);
   return token || '';
 }
+
+const FLASK_TOKEN_KEY = 'hotdesk.flask_token';
+
+export function readFlaskToken() {
+  const supplied = new URLSearchParams(window.location.search).get('flask_token');
+  if (supplied) storage.set(FLASK_TOKEN_KEY, supplied);
+  return storage.get(FLASK_TOKEN_KEY);
+}
+
+export async function flaskRequest(path, { method = 'GET', body } = {}) {
+  const headers = {};
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  const token = readFlaskToken();
+  if (token) headers.authorization = `Bearer ${token}`;
+  const response = await fetch(apiUrl(path), {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = response.status === 204 ? {} : await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(data.error || response.statusText || 'Request failed');
+    err.status = response.status;
+    err.fields = data.fields;
+    throw err;
+  }
+  return data;
+}
