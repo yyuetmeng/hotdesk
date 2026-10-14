@@ -48,3 +48,35 @@ def test_orm_insert_select(app, db):
     session.commit()
     loaded = session.get(FloorPlan, plan.id)
     assert loaded.name == "ORM check" and loaded.cols == 10 and loaded.rows == 8
+
+
+def test_version_tables_roundtrip(app, db):
+    from app.core.floorplan_models import (FloorPlan, FloorPlanElement, FloorPlanVersion,
+                                           FloorPlanVersionElement)
+    from app.core.orm import orm_session
+
+    session = orm_session()
+    plan = FloorPlan(name="Versioned", cols=10, rows=8)
+    draft_el = FloorPlanElement(type="seat", x=1, y=1, w=1, h=1, rotation=0)
+    plan.elements.append(draft_el)
+    session.add(plan)
+    session.commit()
+
+    version = FloorPlanVersion(plan_id=plan.id, version=1, name=plan.name, cols=10, rows=8)
+    version.elements.append(FloorPlanVersionElement(
+        element_id=draft_el.id, type="seat", x=1, y=1, w=1, h=1, rotation=0))
+    session.add(version)
+    session.flush()
+    plan.published_version_id = version.id
+    session.commit()
+
+    session.expire_all()
+    loaded = session.get(FloorPlan, plan.id)
+    assert loaded.published_version.version == 1
+    assert loaded.published_version.elements[0].element_id == draft_el.id
+
+    session.delete(loaded)
+    session.commit()
+    with db.connect() as conn:
+        assert conn.execute(text("select count(*) from floor_plan_versions")).scalar_one() == 0
+        assert conn.execute(text("select count(*) from floor_plan_version_elements")).scalar_one() == 0
