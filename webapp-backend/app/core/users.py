@@ -1,58 +1,45 @@
-import json
+from sqlalchemy import or_, select
 
-from .db import run_one
-
-DEPT_AGG = (
-    "(select coalesce(json_agg(json_build_object('id', d.id, 'name', d.name) order by d.name), '[]'::json) "
-    "from user_departments ud join departments d on d.id = ud.department_id "
-    "where ud.user_id = u.id) as departments"
-)
-
-SELECT_PUBLIC_USER = (
-    "select u.id::text as id, u.email, u.username, u.full_name, r.name as role, "
-    "u.is_active, u.start_date, u.end_date, u.password_hash, "
-    + DEPT_AGG + " "
-    "from users u join roles r on r.id = u.role_id where u.id = cast(:id as uuid)"
-)
+from .auth_models import User
+from .orm import orm_session
 
 
-def public_user(row: dict) -> dict:
-    data = dict(row)
-    depts = data.get("departments")
-    if isinstance(depts, str):
-        depts = json.loads(depts)
+def public_user(user: User) -> dict:
     return {
-        "id": data["id"],
-        "email": data["email"],
-        "username": data["username"],
-        "full_name": data["full_name"],
-        "role": data["role"],
-        "is_active": data["is_active"],
-        "start_date": data["start_date"].isoformat() if data.get("start_date") else None,
-        "end_date": data["end_date"].isoformat() if data.get("end_date") else None,
-        "departments": depts or [],
-        "status": "pending_activation" if data.get("password_hash") is None else "active",
+        "id": str(user.id),
+        "email": user.email,
+        "username": user.username,
+        "full_name": user.full_name,
+        "role": user.role.name,
+        "is_active": user.is_active,
+        "start_date": user.start_date.isoformat() if user.start_date else None,
+        "end_date": user.end_date.isoformat() if user.end_date else None,
+        "departments": [{"id": str(d.id), "name": d.name} for d in user.departments],
+        "status": "pending_activation" if user.password_hash is None else "active",
     }
 
 
 def fetch_user(user_id: str):
-    row = run_one(SELECT_PUBLIC_USER, {"id": user_id})
-    return public_user(row) if row else None
+    user = orm_session().get(User, user_id)
+    return public_user(user) if user else None
+
+
+def find_user_by_identity(identity: str):
+    return orm_session().scalars(
+        select(User).where(or_(User.email == identity, User.username == identity))
+    ).unique().first()
+
+
+def _exists(column, value: str, exclude_id: str | None) -> bool:
+    stmt = select(User.id).where(column == value)
+    if exclude_id is not None:
+        stmt = stmt.where(User.id != exclude_id)
+    return orm_session().scalar(stmt) is not None
 
 
 def email_exists(email: str, exclude_id: str | None = None) -> bool:
-    row = run_one(
-        "select 1 from users where email = :e "
-        "and (cast(:ex as uuid) is null or id != cast(:ex as uuid))",
-        {"e": email, "ex": exclude_id},
-    )
-    return row is not None
+    return _exists(User.email, email, exclude_id)
 
 
 def username_exists(username: str, exclude_id: str | None = None) -> bool:
-    row = run_one(
-        "select 1 from users where username = :u "
-        "and (cast(:ex as uuid) is null or id != cast(:ex as uuid))",
-        {"u": username, "ex": exclude_id},
-    )
-    return row is not None
+    return _exists(User.username, username, exclude_id)

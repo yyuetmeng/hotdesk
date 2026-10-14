@@ -4,15 +4,17 @@ import uuid
 
 from flask import current_app, g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.auth.tokens import invalidate_tokens, issue_token
 from app.core.audit import write_audit
-from app.core.db import run_one, run_query, run_write
+from app.core.auth_models import Department, Role, User, UserDepartment
 from app.core.email import invitation_email, send_email
 from app.core.errors import error
+from app.core.orm import orm_session
 from app.core.security import admin_required, hash_password
-from app.core.users import SELECT_PUBLIC_USER, email_exists, public_user, username_exists
+from app.core.users import email_exists, fetch_user, public_user, username_exists
 
 from . import admin_bp
 
@@ -55,25 +57,30 @@ def VALIDATION_ERRORS(body: dict) -> dict:
     return fields
 
 
-def _set_departments(user_id: str, department_ids: list[str]) -> None:
-    run_write("delete from user_departments where user_id = :u", {"u": user_id})
-    for d in department_ids:
-        run_write("insert into user_departments (user_id, department_id) values (:u, :d)",
-                  {"u": user_id, "d": d})
+def _parse_ids(department_ids) -> list[str] | None:
+    try:
+        return [str(uuid.UUID(d)) for d in department_ids]
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
-def _departments_exist(department_ids: list[str]) -> bool:
+def _departments_exist(department_ids) -> bool:
     if not department_ids:
         return True
-    try:
-        parsed = [str(uuid.UUID(d)) for d in department_ids]
-    except (ValueError, TypeError, AttributeError):
+    parsed = _parse_ids(department_ids)
+    if parsed is None or len(set(parsed)) != len(parsed):
         return False
-    rows = run_query(
-        "select id::text as id from departments where id = any(cast(:ids as uuid[]))",
-        {"ids": parsed},
-    )
-    return {r["id"] for r in rows} == set(parsed)
+    rows = orm_session().scalars(select(Department.id).where(Department.id.in_(parsed))).all()
+    return {str(r) for r in rows} == set(parsed)
+
+
+def _set_departments(user: User, department_ids: list[str]) -> None:
+    session = orm_session()
+    user.departments = [session.get(Department, d) for d in _parse_ids(department_ids)]
+
+
+def _role_id(name: str):
+    return orm_session().scalar(select(Role.id).where(Role.name == name))
 
 
 @admin_bp.post("/users")
@@ -90,27 +97,28 @@ def create_user():
         return error("email already exists", 409)
     if username_exists(body["username"]):
         return error("username already exists", 409)
+    session = orm_session()
+    user = User(
+        email=body["email"], username=body["username"], full_name=body["full_name"].strip(),
+        role_id=_role_id(body["role"]),
+        start_date=valid_date(body["start_date"]) if body.get("start_date") else None,
+        end_date=valid_date(body["end_date"]) if body.get("end_date") else None,
+    )
+    _set_departments(user, dept_ids)
+    session.add(user)
     try:
-        row = run_one(
-            "insert into users (email, username, full_name, role_id, start_date, end_date) "
-            "values (:email, :username, :full_name, "
-            "cast((select id from roles where name = :role) as smallint), "
-            ":start_date, :end_date) returning id::text as id",
-            {"email": body["email"], "username": body["username"],
-             "full_name": body["full_name"].strip(), "role": body["role"],
-             "start_date": valid_date(body["start_date"]) if body.get("start_date") else None,
-             "end_date": valid_date(body["end_date"]) if body.get("end_date") else None},
-        )
+        session.commit()
     except IntegrityError:
+        session.rollback()
         return error("email or username already exists", 409)
-    uid = row["id"]
-    _set_departments(uid, dept_ids)
+    uid = str(user.id)
     actor = get_jwt_identity()
     g.jwt_uid = actor
     write_audit(actor, "user.create", uid,
                 {"email": body["email"], "username": body["username"], "role": body["role"]})
     _send_invitation(uid, body["email"], body["full_name"], body["username"])
-    return jsonify(fetch_user(uid)), 201
+    session.refresh(user)  # reload server defaults and name-ordered departments
+    return jsonify(public_user(user)), 201
 
 
 def _send_invitation(user_id: str, email_addr: str, full_name: str, username: str) -> None:
@@ -125,11 +133,6 @@ def _send_invitation(user_id: str, email_addr: str, full_name: str, username: st
         raise
 
 
-def fetch_user(user_id: str):
-    row = run_one(SELECT_PUBLIC_USER, {"id": user_id})
-    return public_user(row) if row else None
-
-
 @admin_bp.get("/users")
 @admin_required
 def list_users():
@@ -142,44 +145,36 @@ def list_users():
         page_size = min(max(int(request.args.get("page_size", 20)), 1), MAX_PAGE_SIZE)
     except ValueError:
         return error("page and page_size must be integers", 400)
-    where, params = [], {}
+    conds = []
     if q:
-        where.append("(u.email ilike :q or u.username ilike :q or u.full_name ilike :q)")
-        params["q"] = f"%{q}%"
+        pattern = f"%{q}%"
+        conds.append(or_(User.email.ilike(pattern), User.username.ilike(pattern),
+                         User.full_name.ilike(pattern)))
     if role:
-        where.append("r.name = :role")
-        params["role"] = role
+        conds.append(Role.name == role)
     if status == "active":
-        where.append("u.is_active")
+        conds.append(User.is_active.is_(True))
     elif status == "inactive":
-        where.append("not u.is_active")
+        conds.append(User.is_active.is_(False))
     if department:
         try:
-            department = str(uuid.UUID(department))
-            dept_match = "d2.id = cast(:dept as uuid)"
+            dept_match = Department.id == str(uuid.UUID(department))
         except ValueError:
-            dept_match = "d2.name ilike :dept"
-        where.append(f"""exists (
-            select 1 from user_departments ud join departments d2 on d2.id = ud.department_id
-            where ud.user_id = u.id and {dept_match})""")
-        params["dept"] = department
-    where_sql = (" where " + " and ".join(where)) if where else ""
-    params["limit"], params["offset"] = page_size, (page - 1) * page_size
-    total = run_one(
-        "select count(*) as n from users u join roles r on r.id = u.role_id" + where_sql, params
-    )["n"]
-    rows = run_query(
-        "select u.id::text as id, u.email, u.username, u.full_name, r.name as role, "
-        "u.is_active, u.start_date, u.end_date, u.password_hash, "
-        "(select coalesce(json_agg(json_build_object('id', d.id, 'name', d.name) order by d.name), '[]'::json) "
-        " from user_departments ud join departments d on d.id = ud.department_id "
-        " where ud.user_id = u.id) as departments "
-        "from users u join roles r on r.id = u.role_id" + where_sql +
-        " order by u.created_at desc limit :limit offset :offset",
-        params,
-    )
+            dept_match = Department.name.ilike(department)
+        conds.append(
+            select(UserDepartment.user_id)
+            .join(Department, Department.id == UserDepartment.department_id)
+            .where(UserDepartment.user_id == User.id, dept_match)
+            .exists())
+    session = orm_session()
+    total = session.scalar(select(func.count()).select_from(User)
+                           .join(Role, Role.id == User.role_id).where(*conds))
+    users = session.scalars(
+        select(User).join(Role, Role.id == User.role_id).where(*conds)
+        .order_by(User.created_at.desc()).limit(page_size).offset((page - 1) * page_size)
+    ).unique().all()
     g.jwt_uid = get_jwt_identity()
-    return jsonify(items=[public_user(dict(r)) for r in rows], total=total,
+    return jsonify(items=[public_user(u) for u in users], total=total,
                    page=page, page_size=page_size)
 
 
@@ -193,17 +188,10 @@ def get_user(user_id):
 
 
 def is_last_active_admin(user_id: str) -> bool:
-    row = run_one(
-        "select count(*) as n from users u join roles r on r.id = u.role_id "
-        "where r.name = 'admin' and u.is_active and u.id != cast(:i as uuid)",
-        {"i": user_id},
-    )
-    return row["n"] == 0
-
-
-def _is_pending(user_id: str) -> bool:
-    row = run_one("select password_hash from users where id = :i", {"i": user_id})
-    return row is not None and row["password_hash"] is None
+    count = orm_session().scalar(
+        select(func.count()).select_from(User).join(Role, Role.id == User.role_id)
+        .where(Role.name == "admin", User.is_active.is_(True), User.id != user_id))
+    return count == 0
 
 
 PATCHABLE = ("full_name", "username", "email", "role", "is_active",
@@ -223,6 +211,8 @@ def patch_user(user_id):
         return error("no fields provided", 400)
     actor = get_jwt_identity()
     g.jwt_uid = actor
+    session = orm_session()
+    user = session.get(User, user_id)
 
     fields = {}
     if "email" in body and not _valid_email((body["email"] or "").strip()):
@@ -241,10 +231,9 @@ def patch_user(user_id):
         fields["start_date"] = "invalid date (use YYYY-MM-DD)"
     if body.get("end_date") and end is None:
         fields["end_date"] = "invalid date (use YYYY-MM-DD)"
-    if start or end:
-        cur = run_one("select start_date, end_date from users where id = :i", {"i": user_id})
-        s = start if "start_date" in body else cur["start_date"]
-        e = end if "end_date" in body else cur["end_date"]
+    if (start or end) and user is not None:
+        s = start if "start_date" in body else user.start_date
+        e = end if "end_date" in body else user.end_date
         if s and e and s > e:
             fields["end_date"] = "end_date must be on or after start_date"
     dept_ids = body.get("department_ids")
@@ -253,16 +242,14 @@ def patch_user(user_id):
     if fields:
         return error("validation failed", 400, fields=fields)
 
-    target = run_one("select r.name as role, u.is_active from users u "
-                     "join roles r on r.id = u.role_id where u.id = :i", {"i": user_id})
-    if target is None:
+    if user is None:
         return error("user not found", 404)
 
-    demoting = body.get("role") and body["role"] != target["role"]
+    demoting = body.get("role") and body["role"] != user.role.name
     disabling = body.get("is_active") is False
     if user_id == actor and (demoting or disabling):
         return error("you cannot demote or disable your own account", 409)
-    if (demoting or disabling) and target["role"] == "admin" and target["is_active"]:
+    if (demoting or disabling) and user.role.name == "admin" and user.is_active:
         if is_last_active_admin(user_id):
             return error("cannot remove or disable the last active admin", 409)
 
@@ -271,31 +258,29 @@ def patch_user(user_id):
     if "username" in body and username_exists(body["username"], exclude_id=user_id):
         return error("username already exists", 409)
 
-    pending_before = _is_pending(user_id)
-    sets, params = [], {"i": user_id}
+    pending_before = user.password_hash is None
     for col in ("full_name", "username", "email"):
         if col in body:
-            sets.append(f"{col} = :{col}")
-            params[col] = body[col].strip()
+            setattr(user, col, body[col].strip())
     if "role" in body:
-        sets.append("role_id = (select id from roles where name = :role)")
-        params["role"] = body["role"]
+        user.role_id = _role_id(body["role"])
     if "is_active" in body:
-        sets.append("is_active = :is_active")
-        params["is_active"] = body["is_active"]
+        user.is_active = body["is_active"]
         if body["is_active"]:
-            sets.append("failed_attempts = 0")
+            user.failed_attempts = 0
     if "start_date" in body:
-        sets.append("start_date = :start_date")
-        params["start_date"] = start
+        user.start_date = start
     if "end_date" in body:
-        sets.append("end_date = :end_date")
-        params["end_date"] = end
-    if sets:
-        run_write("update users set " + ", ".join(sets) + ", updated_at = now() "
-                  "where id = :i", params)
+        user.end_date = end
+    if set(body) - {"department_ids"}:
+        user.updated_at = func.now()
     if dept_ids is not None:
-        _set_departments(user_id, dept_ids)
+        _set_departments(user, dept_ids)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        return error("email or username already exists", 409)
 
     if "department_ids" in body:
         write_audit(actor, "user.departments_updated", user_id, {"department_ids": dept_ids})
@@ -306,10 +291,10 @@ def patch_user(user_id):
         write_audit(actor, "user.enable" if body["is_active"] else "user.disable",
                     user_id, {})
     if "email" in body and pending_before:
-        user = fetch_user(user_id)
         invalidate_tokens(user_id, "activate")
-        _send_invitation(user_id, user["email"], user["full_name"], user["username"])
-    return jsonify(fetch_user(user_id))
+        _send_invitation(user_id, user.email, user.full_name, user.username)
+    session.refresh(user)
+    return jsonify(public_user(user))
 
 
 @admin_bp.delete("/users/<uuid:user_id>")
@@ -318,15 +303,16 @@ def delete_user(user_id):
     user_id = str(user_id)
     actor = get_jwt_identity()
     g.jwt_uid = actor
-    target = run_one("select r.name as role, u.is_active from users u "
-                     "join roles r on r.id = u.role_id where u.id = :i", {"i": user_id})
-    if target is None:
+    session = orm_session()
+    user = session.get(User, user_id)
+    if user is None:
         return error("user not found", 404)
     if user_id == actor:
         return error("you cannot delete your own account", 409)
-    if target["role"] == "admin" and target["is_active"] and is_last_active_admin(user_id):
+    if user.role.name == "admin" and user.is_active and is_last_active_admin(user_id):
         return error("cannot remove the last active admin", 409)
-    run_write("delete from users where id = :i", {"i": user_id})
+    session.delete(user)
+    session.commit()
     write_audit(actor, "user.delete", user_id, {})
     return ("", 204)
 
@@ -340,11 +326,15 @@ def admin_set_password(user_id):
     if len(password) < 8:
         return error("validation failed", 400,
                      fields={"password": "password must be at least 8 characters"})
-    if run_one("select 1 from users where id = :i", {"i": user_id}) is None:
+    session = orm_session()
+    user = session.get(User, user_id)
+    if user is None:
         return error("user not found", 404)
-    run_write("update users set password_hash = :h, failed_attempts = 0, "
-              "is_active = true, updated_at = now() where id = :i",
-              {"h": hash_password(password), "i": user_id})
+    user.password_hash = hash_password(password)
+    user.failed_attempts = 0
+    user.is_active = True
+    user.updated_at = func.now()
+    session.commit()
     invalidate_tokens(user_id)
     actor = get_jwt_identity()
     g.jwt_uid = actor
@@ -356,13 +346,12 @@ def admin_set_password(user_id):
 @admin_required
 def resend_invitation(user_id):
     user_id = str(user_id)
-    target = run_one("select email, full_name, username, password_hash from users "
-                     "where id = :i", {"i": user_id})
-    if target is None:
+    user = orm_session().get(User, user_id)
+    if user is None:
         return error("user not found", 404)
-    if target["password_hash"] is not None:
+    if user.password_hash is not None:
         return error("user already activated", 409)
     actor = get_jwt_identity()
     g.jwt_uid = actor
-    _send_invitation(user_id, target["email"], target["full_name"], target["username"])
+    _send_invitation(user_id, user.email, user.full_name, user.username)
     return ("", 204)

@@ -1,7 +1,11 @@
 import hashlib
 import secrets
+from datetime import timedelta
 
-from app.core.db import run_one, run_write
+from sqlalchemy import func, select, update
+
+from app.core.auth_models import UserToken
+from app.core.orm import orm_session
 
 
 def _hash(raw: str) -> str:
@@ -11,36 +15,36 @@ def _hash(raw: str) -> str:
 def issue_token(user_id: str, purpose: str, hours: int) -> str:
     raw = secrets.token_urlsafe(32)
     invalidate_tokens(user_id, purpose)
-    run_write(
-        "insert into user_tokens (user_id, token_hash, purpose, expires_at) "
-        "values (:u, :h, :p, now() + make_interval(hours => :hrs))",
-        {"u": user_id, "h": _hash(raw), "p": purpose, "hrs": hours},
-    )
+    session = orm_session()
+    session.add(UserToken(user_id=user_id, token_hash=_hash(raw), purpose=purpose,
+                          expires_at=func.now() + timedelta(hours=hours)))
+    session.commit()
     return raw
 
 
 def validate_token(raw: str, purpose: str):
-    return run_one(
-        "select user_id::text as user_id, token_hash, purpose from user_tokens "
-        "where token_hash = :h and purpose = :p and used_at is null and expires_at > now()",
-        {"h": _hash(raw), "p": purpose},
-    )
+    row = orm_session().execute(
+        select(UserToken.user_id, UserToken.token_hash, UserToken.purpose)
+        .where(UserToken.token_hash == _hash(raw), UserToken.purpose == purpose,
+               UserToken.used_at.is_(None), UserToken.expires_at > func.now())
+    ).mappings().first()
+    if row is None:
+        return None
+    return {"user_id": str(row["user_id"]), "token_hash": row["token_hash"],
+            "purpose": row["purpose"]}
 
 
 def consume_token(token_hash: str) -> None:
-    run_write("update user_tokens set used_at = now() where token_hash = :h", {"h": token_hash})
+    session = orm_session()
+    session.execute(update(UserToken).where(UserToken.token_hash == token_hash)
+                    .values(used_at=func.now()))
+    session.commit()
 
 
 def invalidate_tokens(user_id: str, purpose: str | None = None) -> None:
+    stmt = update(UserToken).where(UserToken.user_id == user_id, UserToken.used_at.is_(None))
     if purpose:
-        run_write(
-            "update user_tokens set used_at = now() "
-            "where user_id = :u and purpose = :p and used_at is null",
-            {"u": user_id, "p": purpose},
-        )
-    else:
-        run_write(
-            "update user_tokens set used_at = now() "
-            "where user_id = :u and used_at is null",
-            {"u": user_id},
-        )
+        stmt = stmt.where(UserToken.purpose == purpose)
+    session = orm_session()
+    session.execute(stmt.values(used_at=func.now()))
+    session.commit()

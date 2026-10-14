@@ -4,19 +4,22 @@ from functools import wraps
 
 from flask import current_app, g, jsonify, request
 from flask_jwt_extended import create_access_token, get_jwt_identity, verify_jwt_in_request
+from sqlalchemy import func
 
 from app.core.audit import write_audit
-from app.core.db import run_one, run_write
+from app.core.auth_models import User
 from app.core.email import send_email
 from app.core.errors import error
+from app.core.orm import orm_session
 from app.core.security import hash_password, verify_password
-from app.core.users import fetch_user
+from app.core.users import fetch_user, find_user_by_identity, public_user
 
 from . import auth_bp
 from .tokens import consume_token, issue_token, validate_token
 
 log = logging.getLogger("app.auth")
 MAX_FAILED_ATTEMPTS = 5
+RESET_HOURS = 1
 
 
 def auth_required(fn):
@@ -43,48 +46,47 @@ def _identity(body: dict) -> str:
 def login():
     body = request.get_json(silent=True) or request.form.to_dict() or {}
     identity, password = _identity(body), body.get("password") or ""
-    row = run_one(
-        "select u.id::text as id, u.password_hash, u.is_active, u.start_date, u.end_date, "
-        "u.failed_attempts, r.name as role, u.email "
-        "from users u join roles r on r.id = u.role_id "
-        "where u.email = :i or u.username = :i",
-        {"i": identity},
-    )
-    if not row:
+    user = find_user_by_identity(identity)
+    if user is None:
         write_audit(None, "auth.login_failed", None, {"identifier": identity})
         return error("invalid credentials", 401)
-    if not row["password_hash"]:
-        write_audit(None, "auth.login_failed", row["id"], {"identifier": identity})
+    uid = str(user.id)
+    if not user.password_hash:
+        write_audit(None, "auth.login_failed", uid, {"identifier": identity})
         log.warning("login attempt for user with no password set: %s", identity)
         return error("password not set, check your email to activate your account", 403)
-    if not verify_password(password, row["password_hash"]):
-        attempts = min(row["failed_attempts"] + 1, MAX_FAILED_ATTEMPTS)
-        run_write("update users set failed_attempts = :n, updated_at = now() where id = :id",
-                  {"n": attempts, "id": row["id"]})
-        if attempts >= MAX_FAILED_ATTEMPTS and row["is_active"]:
-            run_write("update users set is_active = false, updated_at = now() where id = :id",
-                      {"id": row["id"]})
-            write_audit(row["id"], "account.locked", row["id"], {"failed_attempts": attempts})
+    session = orm_session()
+    if not verify_password(password, user.password_hash):
+        attempts = min(user.failed_attempts + 1, MAX_FAILED_ATTEMPTS)
+        locked = attempts >= MAX_FAILED_ATTEMPTS and user.is_active
+        user.failed_attempts = attempts
+        if locked:
+            user.is_active = False
+        user.updated_at = func.now()
+        session.commit()
+        if locked:
+            write_audit(uid, "account.locked", uid, {"failed_attempts": attempts})
             log.warning("account locked after %d failed attempts: %s", attempts, identity)
-        write_audit(None, "auth.login_failed", row["id"], {"identifier": identity})
+        write_audit(None, "auth.login_failed", uid, {"identifier": identity})
         log.warning("failed login for %s", identity)
         return error("invalid credentials", 401)
 
-    if not row["is_active"]:
+    if not user.is_active:
         return error("account disabled", 403)
     today = dt.date.today()
-    if row["start_date"] and today < row["start_date"]:
+    if user.start_date and today < user.start_date:
         return error("account not yet active", 403)
-    if row["end_date"] and today > row["end_date"]:
+    if user.end_date and today > user.end_date:
         return error("account expired", 403)
-    if row["failed_attempts"]:
-        run_write("update users set failed_attempts = 0, updated_at = now() where id = :id",
-                  {"id": row["id"]})
-    write_audit(row["id"], "auth.login_success", row["id"], {})
-    token = create_access_token(identity=row["id"],
-                                additional_claims={"role": row["role"], "email": row["email"]})
-    g.jwt_uid = row["id"]
-    return jsonify(token=token, user=fetch_user(row["id"]))
+    if user.failed_attempts:
+        user.failed_attempts = 0
+        user.updated_at = func.now()
+        session.commit()
+    write_audit(uid, "auth.login_success", uid, {})
+    token = create_access_token(identity=uid,
+                                additional_claims={"role": user.role.name, "email": user.email})
+    g.jwt_uid = uid
+    return jsonify(token=token, user=public_user(user))
 
 
 @auth_bp.get("/me")
@@ -96,29 +98,21 @@ def me():
     return jsonify(user)
 
 
-RESET_HOURS = 1
-
-
-def _find_identifier(identity: str):
-    return run_one(
-        "select id::text as id, email, is_active, password_hash from users "
-        "where email = :i or username = :i", {"i": identity})
-
-
 @auth_bp.post("/forgot-password")
 def forgot_password():
     body = request.get_json(silent=True) or {}
-    row = _find_identifier((body.get("email") or "").strip())
-    if row and row["is_active"]:
-        raw = issue_token(row["id"], "reset", RESET_HOURS)
+    user = find_user_by_identity((body.get("email") or "").strip())
+    if user and user.is_active:
+        uid = str(user.id)
+        raw = issue_token(uid, "reset", RESET_HOURS)
         link = f"{current_app.config['FRONTEND_URL']}/set-password?token={raw}"
         try:
-            send_email(row["email"], "Reset your password",
+            send_email(user.email, "Reset your password",
                        f'<p>Use the link within 1 hour to set a new password:</p>'
                        f'<p><a href="{link}">{link}</a></p>')
         except Exception as exc:
             log.error("forgot-password email failed: %s", exc)
-        write_audit(row["id"], "password_reset.requested", row["id"], {})
+        write_audit(uid, "password_reset.requested", uid, {})
     return ("", 204)
 
 
@@ -131,8 +125,8 @@ def verify_set_password():
     rec = validate_token(raw, purpose)
     valid = rec is not None
     if valid and purpose == "reset":
-        user = run_one("select is_active from users where id = :i", {"i": rec["user_id"]})
-        valid = bool(user and user["is_active"])
+        user = orm_session().get(User, rec["user_id"])
+        valid = bool(user and user.is_active)
     return jsonify(valid=valid)
 
 
@@ -140,18 +134,21 @@ def verify_set_password():
 def set_password():
     body = request.get_json(silent=True) or {}
     raw, password = body.get("token", ""), body.get("password") or ""
-    fields = {}
     if len(password) < 8:
-        fields["password"] = "password must be at least 8 characters"
-    if fields:
-        return error("validation failed", 400, fields=fields)
+        return error("validation failed", 400,
+                     fields={"password": "password must be at least 8 characters"})
     rec = validate_token(raw, "activate") or validate_token(raw, "reset")
     if rec is None:
         log.warning("invalid or expired set-password token used")
         return error("invalid or expired token", 400)
-    run_write("update users set password_hash = :h, failed_attempts = 0, "
-              "is_active = true, updated_at = now() where id = :i",
-              {"h": hash_password(password), "i": rec["user_id"]})
+    session = orm_session()
+    user = session.get(User, rec["user_id"])
+    if user is not None:
+        user.password_hash = hash_password(password)
+        user.failed_attempts = 0
+        user.is_active = True
+        user.updated_at = func.now()
+        session.commit()
     consume_token(rec["token_hash"])
     write_audit(rec["user_id"], "account.activated" if rec["purpose"] == "activate"
                 else "password_reset.completed", rec["user_id"], {})

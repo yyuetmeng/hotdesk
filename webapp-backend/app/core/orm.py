@@ -16,9 +16,18 @@ class Base(DeclarativeBase):
 
 
 def orm_session() -> Session:
+    _commit_legacy_work()
     if "orm_session" not in g:
         g.orm_session = Session(_get_engine(), expire_on_commit=False)
     return g.orm_session
+
+
+def _commit_legacy_work() -> None:
+    # Legacy run_one/run_query never commit, and the ORM uses its own connection,
+    # so commit pending raw-SQL work first or the ORM cannot see it.
+    conn = g.get("db_session")
+    if conn is not None and conn.in_transaction():
+        conn.commit()
 
 
 def _get_engine():
@@ -27,11 +36,16 @@ def _get_engine():
     return get_engine()
 
 
-def init_orm(app):
-    from . import floorplan_models  # noqa: F401  (registers all mappers on Base)
+def _close_orm_session(exc=None):
+    session = g.pop("orm_session", None)
+    if session is not None:
+        session.close()
 
-    @app.teardown_appcontext
-    def _close_orm_session(exc):
-        session = g.pop("orm_session", None)
-        if session is not None:
-            session.close()
+
+def init_orm(app):
+    from . import auth_models, floorplan_models  # noqa: F401  (registers all mappers on Base)
+
+    # Per request (no stale identity map when an app context spans several requests)
+    # and per app context (scripts / code outside requests).
+    app.teardown_request(_close_orm_session)
+    app.teardown_appcontext(_close_orm_session)
