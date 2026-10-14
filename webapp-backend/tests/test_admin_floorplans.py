@@ -242,3 +242,46 @@ def test_save_requires_elements_list(client, db, admin_token):
     r = client.put(f"/api/admin/floor-plans/{plan['id']}/elements",
                    headers=hdr(admin_token), json={"elements": "nope"})
     assert r.status_code == 400 and "elements" in r.get_json()["fields"]
+
+
+def test_save_keeps_element_ids(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    first = _save(client, admin_token, plan["id"], [
+        {"type": "seat", "x": 0, "y": 0, "rotation": 0},
+        {"type": "seat", "x": 2, "y": 0, "rotation": 0}]).get_json()["elements"]
+    by_x = {e["x"]: e for e in first}
+    a, b = by_x[0], by_x[2]
+    moved = {**a, "x": 5, "y": 5}
+    second = _save(client, admin_token, plan["id"], [
+        moved, b, {"id": "local-1", "type": "wall", "x": 9, "y": 9, "rotation": 0}]).get_json()["elements"]
+    ids = {e["type"] + str(e["x"]): e["id"] for e in second}
+    assert ids["seat5"] == a["id"] and ids["seat2"] == b["id"]
+    assert ids["wall9"] not in (a["id"], b["id"]) and len(ids["wall9"]) == 36
+    third = _save(client, admin_token, plan["id"], [{**moved}]).get_json()["elements"]
+    assert [e["id"] for e in third] == [a["id"]]
+
+
+def test_save_rejects_foreign_and_duplicate_ids(client, db, admin_token):
+    plan_a, plan_b = _mk_plan(client, admin_token), _mk_plan(client, admin_token)
+    a_el = _save(client, admin_token, plan_a["id"],
+                 [{"type": "seat", "x": 0, "y": 0, "rotation": 0}]).get_json()["elements"][0]
+    b_el = _save(client, admin_token, plan_b["id"],
+                 [{"type": "seat", "x": 0, "y": 0, "rotation": 0}]).get_json()["elements"][0]
+    r = _save(client, admin_token, plan_b["id"], [{**a_el, "x": 3}])
+    assert r.status_code == 400
+    assert any("unknown element id" in m for m in r.get_json()["fields"]["elements"])
+    r = _save(client, admin_token, plan_b["id"], [b_el, {**b_el, "x": 4}])
+    assert r.status_code == 400
+    assert any("duplicate element id" in m for m in r.get_json()["fields"]["elements"])
+    a_now = client.get(f"/api/admin/floor-plans/{plan_a['id']}", headers=hdr(admin_token)).get_json()
+    assert [(e["id"], e["x"]) for e in a_now["elements"]] == [(a_el["id"], 0)]
+
+
+def test_save_and_patch_set_draft_changed_at(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    q = "select draft_changed_at from floor_plans where id = cast(:p as uuid)"
+    _save(client, admin_token, plan["id"], [{"type": "seat", "x": 0, "y": 0, "rotation": 0}])
+    after_save = run_one(q, {"p": plan["id"]})["draft_changed_at"]
+    assert after_save is not None
+    client.patch(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token), json={"name": "Renamed"})
+    assert run_one(q, {"p": plan["id"]})["draft_changed_at"] > after_save

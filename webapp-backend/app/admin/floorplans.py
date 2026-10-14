@@ -195,6 +195,7 @@ def update_plan(plan_id):
     # session is expire_on_commit=False, so expire() is required below to force
     # a reload before _plan_payload() reads it as a real datetime.
     plan.updated_at = func.now()
+    _mark_draft_changed(plan)
     session = orm_session()
     session.commit()
     actor = get_jwt_identity()
@@ -233,14 +234,34 @@ def _base_size(entry: FloorElement, el: dict):
     return (w, h), None
 
 
-def _validate_elements(raw, cols, rows):
+def _element_uuid(el: dict) -> str | None:
+    """The element's id if it is a UUID (an existing element); None for new ones (no id, or an
+    editor-side temporary id such as "local-...")."""
+    try:
+        return str(uuid.UUID(str(el.get("id"))))
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def _mark_draft_changed(plan: FloorPlan) -> None:
+    plan.draft_changed_at = func.now()
+
+
+def _validate_elements(raw, cols, rows, existing_ids: set[str]):
     catalog = _catalog()
-    problems, seen = [], {}
+    problems, seen, seen_ids = [], {}, set()
     for i, el in enumerate(raw):
         etype = el.get("type") if isinstance(el, dict) else None
         if etype not in catalog:
             problems.append(f"element {i}: unknown type '{etype}'")
             continue
+        el_id = _element_uuid(el)
+        if el_id is not None:
+            if el_id not in existing_ids:
+                problems.append(f"element {i}: unknown element id")
+            elif el_id in seen_ids:
+                problems.append(f"element {i}: duplicate element id")
+            seen_ids.add(el_id)
         entry = catalog[etype]
         try:
             x, y, rotation = int(el.get("x")), int(el.get("y")), int(el.get("rotation", 0))
@@ -300,13 +321,25 @@ def save_elements(plan_id):
     raw = body.get("elements")
     if not isinstance(raw, list):
         return error("validation failed", 400, fields={"elements": ["elements must be a list"]})
-    problems = _validate_elements(raw, plan.cols, plan.rows)
+    existing = {str(el.id): el for el in plan.elements}
+    problems = _validate_elements(raw, plan.cols, plan.rows, set(existing))
     if problems:
         return error("validation failed", 400, fields={"elements": problems})
-    plan.elements.clear()  # cascade delete-orphan: removes old rows on flush
-    for item in _normalized(raw):
-        plan.elements.append(FloorPlanElement(**item))
+    # Element ids are permanent: update existing rows in place, insert new ones, and drop the
+    # rows missing from the payload (delete-orphan).
+    kept = []
+    for item, values in zip(raw, _normalized(raw)):
+        el_id = _element_uuid(item)
+        if el_id is None:
+            kept.append(FloorPlanElement(**values))
+        else:
+            row = existing[el_id]
+            for key, value in values.items():
+                setattr(row, key, value)
+            kept.append(row)
+    plan.elements = kept
     plan.updated_at = func.now()
+    _mark_draft_changed(plan)
     session.commit()
     write_audit(get_jwt_identity(), "floorplan.elements_saved", plan_id, {"count": len(raw)})
     # expire_on_commit=False means plan.elements still holds the pre-commit Python
