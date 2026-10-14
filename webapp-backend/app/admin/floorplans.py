@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from app.core.audit import write_audit
 from app.core.errors import error
+from app.core.auth_models import User
 from app.core.floorplan_models import FloorElement, FloorPlan, FloorPlanElement
 from app.core.orm import orm_session
 from app.core.security import admin_required
@@ -72,9 +73,29 @@ def _get_plan(plan_id: str) -> FloorPlan | None:
     return orm_session().get(FloorPlan, pid)
 
 
+def plan_status(plan: FloorPlan) -> str:
+    """draft | published | changed | unpublished (docs/superpowers/specs/2026-10-15-floorplan-publishing-design.md §3)."""
+    live = plan.published_version
+    if live is None:
+        return "unpublished" if plan.unpublished_at else "draft"
+    if plan.draft_changed_at and plan.draft_changed_at > live.published_at:
+        return "changed"
+    return "published"
+
+
+def _publish_fields(plan: FloorPlan) -> dict:
+    live = plan.published_version
+    return {"status": plan_status(plan),
+            "published_version": live.version if live else None,
+            "published_at": live.published_at.isoformat() if live else None}
+
+
 def _plan_payload(plan: FloorPlan) -> dict:
+    live = plan.published_version
+    publisher = orm_session().get(User, live.published_by) if live and live.published_by else None
     return {"id": str(plan.id), "name": plan.name, "cols": plan.cols, "rows": plan.rows,
-            "updated_at": plan.updated_at.isoformat(),
+            "updated_at": plan.updated_at.isoformat(), **_publish_fields(plan),
+            "published_by": publisher.full_name if publisher else None,
             "elements": [_element_dto(el) for el in plan.elements]}
 
 
@@ -96,7 +117,7 @@ def list_plans():
          "element_count": session.scalar(
              select(func.count()).select_from(FloorPlanElement)
              .where(FloorPlanElement.plan_id == p.id)),
-         "updated_at": p.updated_at.isoformat()}
+         "updated_at": p.updated_at.isoformat(), **_publish_fields(p)}
         for p in plans])
 
 
