@@ -1,7 +1,7 @@
 # Floor Plan Drafts and Publishing — Design
 
 **Date:** 2026-10-15
-**Status:** Draft for approval
+**Status:** For approval (product owner answers to §7 recorded)
 **Scope:** Piece 1 of the seat booking programme (below). Floor plans get a working **draft** and a **published** version; admins publish explicitly. Element IDs become permanent so seats keep their identity across saves and publishes.
 
 ## 0. The programme this belongs to
@@ -66,7 +66,7 @@ Separately, the save endpoint deletes all elements and inserts new ones with new
 **List page (Manage Floor Plan)**
 - New **Status** column with the state, and the last published time (`dd/MM/yyyy HH:mm:ss`).
 
-**Unpublish** (*builder's call to confirm with product owner, see §7*): takes the plan off staff-facing pages; the draft and history stay. Pieces 3–4 will treat an unpublished plan as not bookable.
+**Unpublish** (product owner: yes): takes the plan off staff-facing pages; the draft and history stay. Pieces 3–4 will treat an unpublished plan as not bookable and will not show it on the dashboard.
 
 **Plan name and grid size** (rename / resize in the editor toolbar) are part of the draft and take effect on publish.
 
@@ -136,10 +136,10 @@ alter table floor_plans add column if not exists unpublished_at timestamptz;    
 
 Audit actions: `floorplan.publish` (details: `version`, `element_count`), `floorplan.unpublish`, `floorplan.discard`.
 
-## 7. Open points for the product owner
+## 7. Product owner decisions (2026-10-15)
 
-1. **Unpublish:** keep it (assumed above), or should a published plan only ever be replaced by publishing a new version?
-2. **Who may publish:** any admin (assumed), or a separate approval step?
+1. **Unpublish:** yes, admins can take a published plan down.
+2. **Who may publish:** admins only (any admin, directly); no approval step.
 
 ## 8. Testing
 
