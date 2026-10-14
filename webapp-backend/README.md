@@ -46,18 +46,24 @@ If the database check fails it returns HTTP `503` with:
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/admin/users` | List (`q, role, status, department, page, page_size`) |
-| `POST /api/admin/users` | Create user (invitation email sent; no password) |
+| `POST /api/admin/users` | Create user (no password; sends an invitation email). Returns `invitation_sent: false` if the email fails — the user is still created |
 | `GET /api/admin/users/<id>` | Get user |
 | `PATCH /api/admin/users/<id>` | Update any field incl. email, role, active toggle (also unlocks: `{"is_active": true}`) |
 | `DELETE /api/admin/users/<id>` | Delete user |
 | `POST /api/admin/users/<id>/password` | Admin sets password for user |
-| `POST /api/admin/users/<id>/resend-invitation` | Resend activation email (pending users only) |
+| `POST /api/admin/users/<id>/resend-invitation` | Resend activation email (pending users only); `502` if the email cannot be sent |
 | `GET /api/admin/departments` | List departments with user counts |
 | `POST /api/admin/departments` | Create department |
 | `PATCH /api/admin/departments/<id>` | Rename/update |
 | `DELETE /api/admin/departments/<id>` | Delete (detaches members) |
 
 All protected calls pass `-H "Authorization: Bearer <token>"`.
+
+Frontend: sidebar **Manage Users** (`webapp-frontend/src/pages/users/`) — user list with
+filters and paging, create/edit, set password, resend invitation, delete, and departments.
+Vite proxies `/api/admin/users` and `/api/admin/departments` to this API (restart Vite after
+changing proxy rules). Invitation and reset emails need `RESEND_API_KEY`, `EMAIL_FROM` and a
+`FRONTEND_URL` pointing at the React app; the `/set-password` page they link to is not built yet.
 
 ## Floor plans (`Authorization: Bearer <admin token>` required)
 
