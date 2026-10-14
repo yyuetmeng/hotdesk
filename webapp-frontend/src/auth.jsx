@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { request } from './api.js';
+import { AUTH_TOKEN_KEY, request } from './api.js';
 import './auth.css';
 
 const AuthContext = createContext(null);
-const sessionKey = 'hotdesk.auth.token';
+const sessionKey = AUTH_TOKEN_KEY;
 
 function storedToken() {
   try { return sessionStorage.getItem(sessionKey) || ''; } catch { return ''; }

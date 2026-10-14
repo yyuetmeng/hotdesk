@@ -53,12 +53,11 @@ export function promptForToken() {
   return token || '';
 }
 
-const FLASK_TOKEN_KEY = 'hotdesk.flask_token';
+// Flask JWT saved by the sign-in flow (auth.jsx); per-tab, so it lives in sessionStorage.
+export const AUTH_TOKEN_KEY = 'hotdesk.auth.token';
 
 export function readFlaskToken() {
-  const supplied = new URLSearchParams(window.location.search).get('flask_token');
-  if (supplied) storage.set(FLASK_TOKEN_KEY, supplied);
-  return storage.get(FLASK_TOKEN_KEY);
+  try { return sessionStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch { return ''; }
 }
 
 export async function flaskRequest(path, { method = 'GET', body } = {}) {
