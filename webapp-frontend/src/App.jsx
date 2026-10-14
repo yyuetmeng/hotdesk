@@ -1,8 +1,9 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { DashboardPage, CheckInPage, BookingPage, DisplayPage, InsightsPage, SensorsPage } from './pages.jsx';
+import FloorPlansPage from './floorplan/FloorPlansPage.jsx';
 
 const workspaceLinks = [['/', 'Floor plan', 'floorplan'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin']];
-const adminLinks = [['/insights', 'Insights', 'insights'], ['/sensors', 'Sensors', 'sensors'], ['/display', 'Floor display', 'display']];
+const adminLinks = [['/insights', 'Insights', 'insights'], ['/sensors', 'Sensors', 'sensors'], ['/display', 'Floor display', 'display'], ['/floor-plans', 'Floor plans', 'planner']];
 
 function NavIcon({ name }) {
   const paths = {
@@ -12,6 +13,7 @@ function NavIcon({ name }) {
     insights: <><path d="M3 3v18h18"/><path d="m7 14 3-3 3 2 5-6"/><path d="M15 7h3v3"/></>,
     sensors: <><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/><path d="M1.5 9a15 15 0 0 1 21 0"/></>,
     display: <><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></>,
+    planner: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M3 9h5M16 13h5M16 13v8"/></>,
   };
   return <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>;
 }
@@ -37,6 +39,7 @@ export default function App() {
       <Route path="/display" element={<DisplayPage />} />
       <Route path="/insights" element={<InsightsPage />} />
       <Route path="/sensors" element={<SensorsPage />} />
+      <Route path="/floor-plans" element={<FloorPlansPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></div>
   </div>;
