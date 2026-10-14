@@ -9,6 +9,10 @@ def test_plan_bounds_checks(db):
             conn.execute(text("insert into floor_plans (name, cols, rows) values ('x', 2, 10)"))
         with pytest.raises(IntegrityError):
             conn.execute(text("insert into floor_plans (name, cols, rows) values ('x', 10, 2)"))
+        with pytest.raises(IntegrityError):
+            conn.execute(text("insert into floor_plans (name, cols, rows) values ('x', 81, 10)"))
+        with pytest.raises(IntegrityError):
+            conn.execute(text("insert into floor_plans (name, cols, rows) values ('x', 10, 81)"))
 
 
 def test_element_rotation_and_color_checks(db):

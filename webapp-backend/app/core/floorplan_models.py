@@ -1,7 +1,7 @@
 import datetime as dt
 import uuid
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, SmallInteger, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, SmallInteger, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,6 +43,6 @@ class FloorPlanElement(Base):
     h: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     rotation: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
     label: Mapped[str | None] = mapped_column(Text)
-    color: Mapped[str | None] = mapped_column(String(7))
+    color: Mapped[str | None] = mapped_column(Text)
 
     plan: Mapped[FloorPlan] = relationship(back_populates="elements")
