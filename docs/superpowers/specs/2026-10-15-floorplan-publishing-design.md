@@ -111,6 +111,7 @@ alter table floor_plans add column if not exists unpublished_at timestamptz;    
 - Versions are never edited after insert.
 - *Builder's calls from the review:*
   - Existing plans start as **Draft** (`published_version_id` null); no data migration needed.
+  - **Unpublish** sets `unpublished_at` and clears `published_version_id` (version rows are kept), so "`published_version_id` is set" always means "live". Pieces 3–4 read only plans with a `published_version_id`.
   - **Discard** sets `draft_changed_at` to the published version's `published_at`, so the state returns to **Published**.
   - The "nothing to publish" 409 applies only while the plan is currently published with no draft changes; publishing an **Unpublished** plan is always allowed (it creates a new version even if the layout is identical, so history shows when it went live again).
 
