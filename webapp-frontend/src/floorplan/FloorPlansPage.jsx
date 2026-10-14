@@ -5,6 +5,8 @@ import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatDateTime } from '../format.js';
 import './floorplan.css';
 
+const STATUS_LABEL = { draft: 'Draft', published: 'Published', changed: 'Unpublished changes', unpublished: 'Unpublished' };
+
 export default function FloorPlansPage() {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
@@ -60,9 +62,11 @@ export default function FloorPlansPage() {
         <button className="button primary" disabled={creating}>New plan</button>
       </form>
       <table className="fp-table">
-        <thead><tr><th>Name</th><th>Grid</th><th>Elements</th><th>Updated</th><th /></tr></thead>
+        <thead><tr><th>Name</th><th>Status</th><th>Grid</th><th>Elements</th><th>Updated</th><th /></tr></thead>
         <tbody>{items.map((item) => <tr key={item.id}>
           <td><Link to={`/floor-plans/${item.id}`}>{item.name}</Link></td>
+          <td><span className={`fp-pill fp-status-${item.status}`}>{STATUS_LABEL[item.status]}</span>
+            {item.published_version && <small>v{item.published_version} · {formatDateTime(item.published_at)}</small>}</td>
           <td>{item.cols}×{item.rows}</td>
           <td>{item.element_count}</td>
           <td>{formatDateTime(item.updated_at)}</td>

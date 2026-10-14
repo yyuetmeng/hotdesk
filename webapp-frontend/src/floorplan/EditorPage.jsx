@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
+import { formatDateTime } from '../format.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { CATALOG, MAX_ELEMENT_SIZE, baseSize, catalogByType, isResizable, setCatalog, sizeOf } from './palette.js';
 import { addElement, moveElement, placementError, removeElement, resizeElement, rotateElement, validateAll } from './logic.js';
@@ -8,6 +9,19 @@ import './floorplan.css';
 
 let localSeq = 0;
 const nextId = () => `local-${Date.now()}-${localSeq++}`;
+// Publishing state of the plan: what staff currently see, and whether the draft differs.
+function PublishBanner({ plan, dirty }) {
+  const published = plan.published_version
+    ? `Published v${plan.published_version} · ${formatDateTime(plan.published_at)}${plan.published_by ? ` by ${plan.published_by}` : ''}`
+    : null;
+  const pending = plan.status === 'changed' || (dirty && plan.status !== 'draft' && plan.status !== 'unpublished');
+  const text = {
+    draft: 'Draft · not visible to staff yet. Publish when it is ready.',
+    unpublished: 'Unpublished · not visible to staff. Publish to make it available again.',
+  }[plan.status] ?? `${published}${pending ? ' · you have unpublished changes' : ''}`;
+  return <p className={`fp-status fp-status-${pending ? 'changed' : plan.status}`} role="status">{text}</p>;
+}
+
 // Width/height inputs for the selected element. Keeps what the user typed and shows why a
 // size was rejected (overlap, outside the grid, out of range) instead of silently ignoring it.
 function SizeFields({ el, onResize }) {
@@ -147,17 +161,39 @@ export default function EditorPage() {
     commit(elements.map((el) => (el.id === selectedId ? { ...el, ...patch } : el)));
   };
 
+  // Returns true when the draft was saved, so Publish can save first and stop on failure.
   const save = async () => {
     const local = validateAll(elements, plan.cols, plan.rows);
-    if (local.length) { setProblems(local); return; }
+    if (local.length) { setProblems(local); return false; }
     setSaving(true); setProblems([]);
     try {
       const data = await flaskRequest(`/api/admin/floor-plans/${id}/elements`,
         { method: 'PUT', body: { elements } });
       setPlan(data); setElements(data.elements); setDirty(false); setSelectedId(null);
+      return true;
     } catch (err) {
       if (err.status === 400 && err.fields && err.fields.elements) setProblems([].concat(err.fields.elements));
       else setError(err.status === 401 ? 'Session expired — sign in again.' : err.message);
+      return false;
+    } finally { setSaving(false); }
+  };
+
+  // Publish / Unpublish / Discard (docs/superpowers/specs/2026-10-15-floorplan-publishing-design.md §3).
+  const lifecycle = async (action, { confirmText, resetDraft = false } = {}) => {
+    if (confirmText && !window.confirm(confirmText)) return;
+    if (action === 'publish' && dirty && !(await save())) return;
+    setSaving(true); setProblems([]);
+    try {
+      const data = await flaskRequest(`/api/admin/floor-plans/${id}/${action}`, { method: 'POST' });
+      setPlan(data);
+      if (resetDraft) {
+        setElements(data.elements); setMeta({ name: data.name, cols: data.cols, rows: data.rows });
+        setPast([]); setFuture([]); setDirty(false); setSelectedId(null);
+      }
+    } catch (err) {
+      if (err.status === 400 && err.fields && err.fields.elements) setProblems([].concat(err.fields.elements));
+      else if (err.status === 401) setError('Session expired — sign in again.');
+      else setProblems([err.message]);
     } finally { setSaving(false); }
   };
 
@@ -193,7 +229,19 @@ export default function EditorPage() {
       <button className="button subtle" onClick={undo} disabled={!past.length}>Undo</button>
       <button className="button subtle" onClick={redo} disabled={!future.length}>Redo</button>
       <button className="button primary" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save *' : 'Saved'}</button>
+      <button className="button primary" onClick={() => lifecycle('publish')}
+        disabled={saving || validateAll(elements, plan.cols, plan.rows).length > 0 || (plan.status === 'published' && !dirty)}>
+        {dirty ? 'Save & publish' : 'Publish'}</button>
+      {plan.status === 'changed' && <button className="button subtle" disabled={saving}
+        onClick={() => lifecycle('discard', { resetDraft: true,
+          confirmText: 'Discard all changes since the last publish? The draft goes back to the published version.' })}>
+        Discard changes</button>}
+      {(plan.status === 'published' || plan.status === 'changed') && <button className="button subtle" disabled={saving}
+        onClick={() => lifecycle('unpublish', {
+          confirmText: 'Unpublish this plan? Staff will no longer see it or be able to book it. The draft is kept.' })}>
+        Unpublish</button>}
     </header>
+    <PublishBanner plan={plan} dirty={dirty} />
     {problems.length > 0 && <Notice kind="error">{problems.join(' · ')}</Notice>}
     <div className="fp-panes">
       <aside className="fp-palette">
