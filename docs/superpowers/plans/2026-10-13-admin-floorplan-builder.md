@@ -787,7 +787,7 @@ export default defineConfig({
 - [ ] **Step 2: Append `flaskRequest` to `src/api.js`**
 
 ```js
-const FLASK_TOKEN_KEY = 'hotdes…oken';
+const FLASK_TOKEN_KEY = 'hotdesk.flask_token';
 
 export function readFlaskToken() {
   const supplied = new URLSearchParams(window.location.search).get('flask_token');

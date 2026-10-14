@@ -463,7 +463,7 @@ def forgot_password():
     user = find_user_by_identity((body.get("email") or "").strip())
     if user and user.is_active:
         raw = issue_token(str(user.id), "reset", RESET_HOURS)
-        link = f"{current_app.config['FRONTEND_URL']}/set-password?token={**}"
+        link = f"{current_app.config['FRONTEND_URL']}/set-password?token={raw}"
         try:
             send_email(user.email, "Reset your password",
                        f'<p>Use the link within 1 hour to set a new password:</p>'
@@ -642,7 +642,7 @@ def create_user():
 
 def _send_invitation(user_id: str, email_addr: str, full_name: str, username: str) -> None:
     raw = issue_token(user_id, "activate", 72)
-    link = f"{current_app.config['FRONTEND_URL']}/set-password?token={**}"
+    link = f"{current_app.config['FRONTEND_URL']}/set-password?token={raw}"
     subject, html = invitation_email(full_name, link)
     try:
         send_email(email_addr, subject, html)
