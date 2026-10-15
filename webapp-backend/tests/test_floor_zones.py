@@ -1,11 +1,12 @@
 """Floor zones: the zone element type, seat membership and utilisation by zone (spec 2026-10-15-floor-zones)."""
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
 
 from app.core.db import run_one
 from app.core.security import hash_password
-from desk_helpers import DAY, build_world, set_now, sg
+from desk_helpers import DAY, book, build_world, set_now, sg
 from desk_helpers import hdr as dhdr
 
 ADMIN_PW = "adminpw1"
@@ -173,3 +174,64 @@ def test_floor_payload_has_zones(client, world):
     assert [(z["name"], z["total"], z["free"], z["x"], z["w"]) for z in public] == [("Z", 2, 2, 0, 4)]
     desk = client.get(f"/api/desk/floors/{world['plan']}", headers=dhdr(world["tok"]["jane"])).get_json()["zones"]
     assert desk == public
+
+
+# --- Task 3: admin "Utilisation by zone" endpoint ----------------------------------------------
+
+INSIGHTS = "/api/admin/insights/zones"
+
+
+def _insights(client, world):
+    r = client.get(INSIGHTS, headers=dhdr(world["tok"]["root"]))
+    assert r.status_code == 200, r.get_json()
+    return r.get_json()
+
+
+def _brief(rows):
+    return [(r["name"], r["level"], r["total"], r["free"], r["occupied"], r["booked"], r["pct"]) for r in rows]
+
+
+def test_insights_zones_rows(client, world, monkeypatch):
+    _republish_with_zone(client, world, _zone(0, 0, 4, 1, "Z"))
+    assert book(client, world, "jane", "F1", "am").status_code == 201
+    set_now(monkeypatch, sg(DAY, 8, 15))       # before the AM no-show release at 08:30
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=dhdr(world["tok"]["carl"])).status_code == 201
+    body = _insights(client, world)
+    assert body["has_zones"] is True and datetime.fromisoformat(body["now"]) == sg(DAY, 8, 15)
+    assert _brief(body["rows"]) == [("Z", "Level 1", 2, 1, 0, 1, 50), ("No zone", "Level 1", 1, 0, 1, 0, 100)]
+    assert body["rows"][0]["plan_id"] == world["plan"] and body["rows"][0]["zone_id"]
+    assert body["rows"][1]["zone_id"] is None
+
+
+def test_insights_requires_admin(client, world):
+    assert client.get(INSIGHTS, headers=dhdr(world["tok"]["jane"])).status_code == 403
+
+
+def test_insights_whole_floor_and_empty(client, world):
+    body = _insights(client, world)
+    assert body["has_zones"] is False
+    assert _brief(body["rows"]) == [("Whole floor", "Level 1", 3, 3, 0, 0, 0)]
+    assert client.post(f"/api/admin/floor-plans/{world['plan']}/unpublish", headers=dhdr(world["tok"]["root"])).status_code == 200
+    assert _insights(client, world) == {**_insights(client, world), "rows": [], "has_zones": False}
+
+
+def test_insights_untagged_occupied_seat_counts(client, world, monkeypatch):
+    set_now(monkeypatch, sg(DAY, 9))
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=dhdr(world["tok"]["carl"])).status_code == 201
+    untag = {"E1": lambda e: {**e, "department_id": None, "open_to_all": False}}
+    _republish_with_zone(client, world, _zone(4, 0, 2, 1, "E"), retag=untag)
+    open_checkin = run_one("select count(*) as n from seat_checkins where checked_out_at is null")["n"]
+    row = next(r for r in _insights(client, world)["rows"] if r["name"] == "E")
+    if open_checkin:   # check-in kept: the seat shows occupied on Book a desk, so it counts here too
+        assert (row["total"], row["occupied"]) == (1, 1)
+    else:              # check-in ended by the plan change: the seat is not bookable and left out
+        assert row["total"] == 0
+
+
+def test_insights_ignores_drafts_and_unpublished(client, world):
+    tok = world["tok"]["root"]
+    draft = client.get(f"/api/admin/floor-plans/{world['plan']}", headers=dhdr(tok)).get_json()["elements"]
+    assert client.put(f"/api/admin/floor-plans/{world['plan']}/elements", headers=dhdr(tok),
+                      json={"elements": draft + [_zone(0, 0, 4, 1, "Draft only")]}).status_code == 200
+    body = _insights(client, world)
+    assert body["has_zones"] is False and [r["name"] for r in body["rows"]] == ["Whole floor"]
