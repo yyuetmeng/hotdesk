@@ -55,3 +55,11 @@ export function departmentColor(id) {
   for (const ch of String(id)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return DEPARTMENT_COLORS[hash % DEPARTMENT_COLORS.length];
 }
+
+/** Ctrl/Shift-click on an element: non-seats leave the selection unchanged (spec §3); a seat is
+ * toggled within the seats already selected (a single selected non-seat gives way to it). */
+export function ctrlClickSelection(ids, elements, el) {
+  if (!isSeat(el)) return ids;
+  const seatIds = ids.filter((id) => elements.some((e) => e.id === id && isSeat(e)));
+  return toggleSelection(seatIds, el);
+}

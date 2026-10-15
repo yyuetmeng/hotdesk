@@ -5,7 +5,7 @@ import { formatDateTime } from '../format.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { CATALOG, MAX_ELEMENT_SIZE, baseSize, catalogByType, isResizable, setCatalog, sizeOf } from './palette.js';
 import { addElement, metaChanged, moveElement, placementError, removeElement, resizeElement, rotateElement, validateAll } from './logic.js';
-import { countUntagged, departmentColor, isSeat, seatsInBox, setTag, sharedTag, tagOf, toggleSelection } from './selection.js';
+import { countUntagged, ctrlClickSelection, departmentColor, isSeat, seatsInBox, setTag, sharedTag, tagOf } from './selection.js';
 import './floorplan.css';
 
 let localSeq = 0;
@@ -340,7 +340,7 @@ export default function EditorPage() {
               onDragEnd={() => { dragRef.current = null; setPreview(null); }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (e.ctrlKey || e.shiftKey) setSelectedIds(toggleSelection(selectedSeatIds, el));
+                if (e.ctrlKey || e.shiftKey) setSelectedIds(ctrlClickSelection(selectedIds, elements, el));
                 else setSelectedId(el.id);
               }}
               style={{ left: el.x * cell, top: el.y * cell, width: size.w * cell, height: size.h * cell,

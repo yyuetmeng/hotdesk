@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { addElement, cellsOf, metaChanged, moveElement, resizeElement, rotateElement, removeElement, placementError, validateAll } from '../src/floorplan/logic.js';
 import { setCatalog, sizeOf } from '../src/floorplan/palette.js';
-import { countUntagged, departmentColor, isSeat, seatsInBox, setTag, sharedTag, tagOf, toggleSelection } from '../src/floorplan/selection.js';
+import { countUntagged, ctrlClickSelection, departmentColor, isSeat, seatsInBox, setTag, sharedTag, tagOf, toggleSelection } from '../src/floorplan/selection.js';
 
 // Same shape as GET /api/admin/floor-plans/catalog (seeded by sql/0012_floor_elements.sql).
 setCatalog([
@@ -118,3 +118,19 @@ console.log('floorplan meta smoke OK');
   assert.match(departmentColor('d-eng'), /^#[0-9a-f]{6}$/);
 }
 console.log('floorplan selection smoke OK');
+
+// Ctrl/Shift-click: a non-seat never changes the selection; a seat toggles within the seat selection.
+{
+  const els = [
+    { id: 's1', type: 'seat', x: 1, y: 1, rotation: 0 },
+    { id: 's2', type: 'seat', x: 3, y: 1, rotation: 0 },
+    { id: 'w1', type: 'wall', x: 0, y: 0, rotation: 0 },
+    { id: 'w2', type: 'wall', x: 5, y: 0, rotation: 0 },
+  ];
+  assert.deepEqual(ctrlClickSelection(['w1'], els, els[3]), ['w1']);            // wall selected, ctrl-click wall
+  assert.deepEqual(ctrlClickSelection(['s1'], els, els[2]), ['s1']);            // seat selected, ctrl-click wall
+  assert.deepEqual(ctrlClickSelection(['s1'], els, els[1]), ['s1', 's2']);      // adds seat
+  assert.deepEqual(ctrlClickSelection(['s1', 's2'], els, els[0]), ['s2']);      // removes seat
+  assert.deepEqual(ctrlClickSelection(['w1'], els, els[0]), ['s1']);            // wall selection replaced by the seat
+}
+console.log('floorplan ctrl-click smoke OK');
