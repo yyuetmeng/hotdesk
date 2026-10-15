@@ -68,3 +68,16 @@ export function reduceRefresh(state, outcome) {
     updatedAt: outcome.at, loaded: true, offline: false, missing: false, unreachable: false,
   };
 }
+
+/** The unsaved Manage Floor Display form as the config the TV reads (GET /api/public/displays/<slug>),
+ *  so the preview shows exactly what will be saved. Deleted plans are dropped, drafts flagged. */
+export function previewConfig(form, plans) {
+  const byId = Object.fromEntries(plans.map((p) => [p.id, p]));
+  const seconds = Number.parseInt(form.rotate_seconds, 10);
+  return {
+    name: form.name.trim() || 'Display preview', slug: form.slug, show_overall: Boolean(form.show_overall),
+    layout: form.layout, rotate_seconds: Number.isFinite(seconds) ? Math.min(Math.max(seconds, 10), 120) : 20,
+    plan_ids: form.plan_ids,
+    floors: form.plan_ids.filter((id) => byId[id]).map((id) => ({ id, name: byId[id].name, published: byId[id].published_version != null })),
+  };
+}

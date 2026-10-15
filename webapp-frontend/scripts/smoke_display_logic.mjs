@@ -44,3 +44,19 @@ assert.equal(rotationKey(null), '');
   assert.equal(s.loaded, false); assert.equal(s.unreachable, true);
 }
 console.log('display refresh smoke OK');
+
+// Live preview in Manage Floor Display: the unsaved form becomes the same config the TV reads.
+{
+  const { previewConfig } = await import('../src/display/displayLogic.js');
+  const plans = [{ id: 'a', name: 'Level 1', published_version: 3 }, { id: 'b', name: 'Level 2', published_version: null }];
+  const form = { name: '  Lobby TV ', slug: 'lobby', plan_ids: ['b', 'a', 'gone'], show_overall: false, layout: 'rotate', rotate_seconds: '20' };
+  assert.deepEqual(previewConfig(form, plans), {
+    name: 'Lobby TV', slug: 'lobby', show_overall: false, layout: 'rotate', rotate_seconds: 20,
+    plan_ids: ['b', 'a', 'gone'],
+    floors: [{ id: 'b', name: 'Level 2', published: false }, { id: 'a', name: 'Level 1', published: true }],
+  });
+  assert.equal(previewConfig({ ...form, name: '' }, plans).name, 'Display preview');
+  assert.equal(previewConfig({ ...form, rotate_seconds: 'x' }, plans).rotate_seconds, 20);   // bad input: default
+  assert.equal(previewConfig({ ...form, rotate_seconds: '500' }, plans).rotate_seconds, 120); // clamped to 10-120
+}
+console.log('display preview smoke OK');

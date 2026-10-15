@@ -15,6 +15,13 @@ const REFRESH_MS = 30000;
 
 export function DisplayPage() {
   const { slug } = useParams();
+  const load = useCallback(() => flaskRequest(`/api/public/displays/${encodeURIComponent(slug)}`), [slug]);
+  return <DisplayView loadConfig={load} />;
+}
+
+// The display itself. `loadConfig` returns the display config: the saved one for a TV, or the unsaved
+// form for the live preview in Manage Floor Display. Seat data is always live.
+export function DisplayView({ loadConfig }) {
   const [view, setView] = useState(initialDisplayState);
   const [index, setIndex] = useState(0);
   const [seat, setSeat] = useState(null);
@@ -24,7 +31,7 @@ export function DisplayPage() {
   const refresh = useCallback(async () => {
     let d;
     try {
-      d = await flaskRequest(`/api/public/displays/${encodeURIComponent(slug)}`);
+      d = await loadConfig();
     } catch (err) {
       setView((state) => reduceRefresh(state, { type: 'error', status: err.status ?? 0 }));
       return;
@@ -33,7 +40,7 @@ export function DisplayPage() {
     const results = await Promise.allSettled(
       d.floors.filter((f) => f.published).map((f) => flaskRequest(`/api/public/floors/${f.id}`)));
     setView((state) => reduceRefresh(state, { type: 'ok', display: d, floors: results, at: new Date() }));
-  }, [slug]);
+  }, [loadConfig]);
 
   useEffect(() => {
     refresh();

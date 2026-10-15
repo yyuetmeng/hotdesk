@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { flaskRequest } from '../../api.js';
 import { Loading, Notice, PageTitle } from '../../components.jsx';
-import { slugify } from '../../display/displayLogic.js';
+import { previewConfig, slugify } from '../../display/displayLogic.js';
+import { DisplayView } from '../../display/DisplayPage.jsx';
 
 const EMPTY = { name: '', slug: '', plan_ids: [], show_overall: true, layout: 'rotate', rotate_seconds: 20 };
 const linkFor = (slug) => `${window.location.origin}/display/${slug}`;
@@ -106,8 +107,10 @@ function DisplayForm({ display, plans, onCancel, onSaved, onDelete }) {
     }
   };
   const err = (key) => fields[key] && <small className="users-field-error">{fields[key]}</small>;
+  const [preview, setPreview] = useState(null);
 
-  return <form className="display-form" onSubmit={save} style={{ display: 'grid', gap: 12 }}>
+  return <>{preview && <DisplayPreview config={preview} onClose={() => setPreview(null)} />}
+  <form className="display-form" onSubmit={save} style={{ display: 'grid', gap: 12 }}>
     <h2 style={{ margin: 0 }}>{isNew ? 'New display' : display.name}</h2>
     {message && <Notice kind="error">{message}</Notice>}
     <label>Name <input value={form.name} required onChange={(e) => {
@@ -139,9 +142,29 @@ function DisplayForm({ display, plans, onCancel, onSaved, onDelete }) {
       <input type="number" min="10" max="120" value={form.rotate_seconds} onChange={(e) => set('rotate_seconds', e.target.value)} />
       {err('rotate_seconds')}</label>}
     <div className="button-row">
-      <button className="button primary">{isNew ? 'Create display' : 'Save changes'}</button>
+      <button className="button primary">{isNew ? 'Create display' : 'Save'}</button>
+      <button type="button" className="button" onClick={() => setPreview(previewConfig(form, plans))}>Preview</button>
       <button type="button" className="button" onClick={onCancel}>Close</button>
       {!isNew && <button type="button" className="button" onClick={() => onDelete(display)}>Delete</button>}
     </div>
-  </form>;
+  </form></>;
+}
+
+// Live preview of the unsaved settings, in a pop-up over the page. Seat data refreshes like the TV.
+function DisplayPreview({ config, onClose }) {
+  const load = useCallback(async () => config, [config]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return <div className="display-preview" role="dialog" aria-modal="true" aria-label="Display preview" onClick={onClose}>
+    <div className="display-preview-frame" onClick={(e) => e.stopPropagation()}>
+      <div className="display-preview-bar">
+        <span><b>Preview</b> · live seat data with these settings (not saved yet)</span>
+        <button type="button" className="button" onClick={onClose} autoFocus>Close</button>
+      </div>
+      <div className="display-preview-body"><DisplayView loadConfig={load} /></div>
+    </div>
+  </div>;
 }
