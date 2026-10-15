@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation } from 'react-router-dom';
 import { request } from './api.js';
 import { browserStores, clearToken, readToken, writeToken } from './session.js';
 import PinLoader from './PinLoader.jsx';
+import logo from './logo.png';
 import './auth.css';
 
 const AuthContext = createContext(null);
@@ -84,7 +85,19 @@ export function RequireAuth({ children }) {
 }
 
 export function AuthLayout({ children }) {
-  return <main className="auth-page"><section className="auth-intro"><Link to="/" className="auth-brand">HOT DESK <span>/ WORKSPACE</span></Link><div><p className="auth-eyebrow">Your workplace, connected</p><h1>A place to do<br />your best work.</h1><p>One account. Your team. Your workspace.</p></div><p className="auth-footnote">Hot Desk account access</p></section><section className="auth-content">{children}</section></main>;
+  return <main className="auth-page"><section className="auth-intro">
+    <Link to="/" className="auth-brand"><img src={logo} alt="" />Hot Desk</Link>
+    <div className="auth-hero">
+      <h1>Find a desk.<br />Check in with a scan.</h1>
+      <div className="auth-floor"><PinLoader decorative /></div>
+      <ol className="auth-steps">
+        <li>Book a seat for today or tomorrow</li>
+        <li>Scan the desk&apos;s QR code to check in</li>
+        <li>Give it up when you leave</li>
+      </ol>
+    </div>
+    <p className="auth-footnote">Hot Desk · workplace seating</p>
+  </section><section className="auth-content">{children}</section></main>;
 }
 
 export function SessionState() {
