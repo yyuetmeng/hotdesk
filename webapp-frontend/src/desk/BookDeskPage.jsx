@@ -6,7 +6,7 @@ import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatDate, formatTime } from '../format.js';
 import FloorView from './FloorView.jsx';
 import SeatPanel from './SeatPanel.jsx';
-import { PRESETS, presetLabel } from './deskLogic.js';
+import { PRESETS, floorLoading, presetLabel } from './deskLogic.js';
 
 const addDays = (isoDay, days) => {
   const [y, m, d] = isoDay.split('-').map(Number);
@@ -73,7 +73,8 @@ export function BookDeskPage() {
         {floors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
       </select></label>}
     </div>
-    {!floor ? <Loading label="Loading floor..." /> : <div className="desk-layout">
+    {floorLoading(floor, planId) && !error && <Loading label={`Loading ${floors.find((f) => f.id === planId)?.name ?? 'floor'}...`} />}
+    {floor && <div className="desk-layout">
       <section className="card"><h2>{floor.name}</h2>
         <FloorView floor={floor} selectedId={selected?.id} onSelect={setSelected} /></section>
       {selected

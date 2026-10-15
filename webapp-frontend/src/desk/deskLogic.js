@@ -22,3 +22,6 @@ export function footprint(el) {
 
 /** "N of M free" under a zone's name; empty when the zone has no usable seats (spec 2026-10-15-floor-zones §5). */
 export const zoneCaption = (zone) => (zone.total ? `${zone.free} of ${zone.total} free` : '');
+
+/** Book a desk: true until the chosen floor's data has arrived (first load, or after changing floor). */
+export const floorLoading = (floor, planId) => Boolean(planId) && floor?.id !== planId;

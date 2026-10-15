@@ -23,9 +23,9 @@
 @media (prefers-reduced-motion: reduce) {
   .pin-loader__pin, .pin-loader__ripple, .pin-loader__desk { animation: none !important; transition: none !important; }
 }
-/* Alone on a page: fill the page and sit in the middle (page padding 28px + 54px; mobile top bar ~52px). */
-.page > .pin-loader:only-child { min-height: calc(100vh - 82px); min-height: calc(100dvh - 82px); justify-content: center; padding: 0; }
-@media (max-width: 850px) { .page > .pin-loader:only-child { min-height: calc(100dvh - 126px); } }
-/* Below a page's title: centred in the rest of the page (title block is about 120px). */
-.page > .page-title + .pin-loader { min-height: calc(100dvh - 210px); justify-content: center; padding: 0; }
-@media (max-width: 850px) { .page > .page-title + .pin-loader { min-height: calc(100dvh - 260px); } }
+/* Page loading: a thin see-through layer over the whole screen, loader centred on a soft card. */
+.pin-loader-overlay { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(1.5px); animation: pin-loader-fade .15s ease-out; }
+.pin-loader-overlay .pin-loader { padding: 22px 28px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border);
+  box-shadow: 0 16px 40px rgb(15 23 42/.18); }
+@keyframes pin-loader-fade { from { opacity: 0; } to { opacity: 1; } }

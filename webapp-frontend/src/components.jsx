@@ -2,7 +2,8 @@ import PinLoader from './PinLoader.jsx';
 
 export const STATUS_LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away', reserved: 'Reserved', offline: 'Sensor offline' };
 
-export function Loading({ label = 'Loading...' }) { return <PinLoader label={label} />; }
+// Loading state: a thin layer over the whole page with the pin loader in the middle.
+export function Loading({ label = 'Loading...' }) { return <div className="pin-loader-overlay"><PinLoader label={label} /></div>; }
 export function Notice({ children, kind = 'info' }) { return <p className={`notice ${kind}`}>{children}</p>; }
 export function Status({ value }) { return <span className={`status status-${value}`}>{STATUS_LABEL[value] ?? value}</span>; }
 
