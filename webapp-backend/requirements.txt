@@ -9,3 +9,4 @@ passlib>=1.7.4
 bcrypt<4.1
 resend>=2.0
 pytest>=8.0
+tzdata>=2024.1

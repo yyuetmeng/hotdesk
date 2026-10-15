@@ -21,4 +21,6 @@ class Config:
     EMAIL_FROM = os.getenv("EMAIL_FROM", "")
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    # Seat booking: "today", "tomorrow" and slot times are in this zone.
+    BOOKING_TIMEZONE = os.getenv("BOOKING_TIMEZONE", "Asia/Singapore")
     LOG_FILE = os.getenv("LOG_FILE", "")
