@@ -2,6 +2,7 @@ import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { FloorPlanPage } from './pages/floor-plan/FloorPlanPage.jsx';
 import { CheckInPage } from './desk/CheckInPage.jsx';
 import { QrSheetPage } from './desk/QrSheetPage.jsx';
+import { DisplayPage } from './display/DisplayPage.jsx';
 import { BookDeskPage } from './desk/BookDeskPage.jsx';
 import { FloorDisplayPage } from './pages/floor-display/FloorDisplayPage.jsx';
 import { InsightsPage } from './pages/insights/InsightsPage.jsx';
@@ -53,6 +54,7 @@ export default function App() {
   return <AuthProvider><Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route path="/set-password" element={<SetPasswordPage />} />
+    <Route path="/display/:slug" element={<DisplayPage />} />
     <Route path="/forgot-password" element={<ForgotPasswordPage />} />
     <Route path="/account" element={<AccountPage />} />
     <Route path="*" element={<RequireAuth><Workspace /></RequireAuth>} />

@@ -1,0 +1,45 @@
+/* Public floor display for TVs (spec 2026-10-15-floor-dashboard). Light, high-contrast, large type. */
+.disp { min-height: 100vh; box-sizing: border-box; padding: 2vh 2.5vw; background: #f1f5f9; color: #0f172a;
+  display: flex; flex-direction: column; gap: 1.6vh; font-size: clamp(14px, 1.15vw, 22px); }
+.disp-message { display: flex; align-items: center; justify-content: center; font-size: 1.6em; color: #475569; }
+.disp-head { display: flex; justify-content: space-between; align-items: center; gap: 2vw;
+  background: #0f1d3a; color: #fff; border-radius: 12px; padding: 1.4vh 1.6vw; }
+.disp-head h1 { margin: 0; font-size: 1.9em; letter-spacing: -.02em; }
+.disp-clock { text-align: right; display: grid; }
+.disp-clock b { font-size: 1.4em; font-variant-numeric: tabular-nums; }
+.disp-clock small { opacity: .8; }
+
+.disp-capacity { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.2vh 1.2vw; }
+.disp-capacity.large { font-size: 1.15em; }
+.disp-capacity-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .6vh; }
+.disp-pct { font-weight: 700; }
+.disp-bar { display: flex; height: 1.2em; border-radius: 999px; overflow: hidden; background: #e2e8f0; }
+.disp-bar span { display: block; height: 100%; }
+.disp-counts { display: flex; flex-wrap: wrap; gap: .4vh 1.4vw; margin-top: .6vh; color: #475569; }
+.disp-counts i, .disp-legend i { display: inline-block; width: .8em; height: .8em; border-radius: 50%; margin-right: .4em; vertical-align: -.05em; }
+.available { background: #16a34a; }
+.booked { background: #f59e0b; }
+.occupied { background: #dc2626; }
+.not_bookable { background: #94a3b8; }
+
+.disp-floors { flex: 1; display: grid; gap: 1.6vh 1.6vw; min-height: 0; }
+.disp-floors.layout-grid { grid-template-columns: repeat(auto-fit, minmax(min(560px, 100%), 1fr)); }
+.disp-floor-card { display: flex; flex-direction: column; gap: 1vh; min-height: 0; }
+.disp-floor { width: 100%; flex: 1; min-height: 40vh; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; }
+.disp-seat { cursor: pointer; }
+.disp-seat:focus-visible circle { stroke: #2563eb; stroke-width: 4; }
+.disp-dots { display: flex; justify-content: center; gap: .8vw; }
+.disp-dots button { width: .9em; height: .9em; border-radius: 50%; border: 0; background: #cbd5e1; cursor: pointer; padding: 0; }
+.disp-dots button.active { background: #0f1d3a; }
+.disp-legend { display: flex; flex-wrap: wrap; gap: .6vh 1.6vw; color: #475569; justify-content: center; }
+
+.disp-pop-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.disp-pop { width: min(520px, 92vw); max-height: 80vh; overflow: auto; background: #fff; border-radius: 14px; padding: 2.4vh 1.8vw; font-size: clamp(14px, 1.1vw, 20px); }
+.disp-pop h2 { margin: 0; font-size: 1.6em; }
+.disp-pop h3 { margin: 1.4vh 0 .4vh; font-size: 1em; color: #475569; }
+.disp-muted { color: #64748b; margin: .4vh 0; }
+.disp-who { font-weight: 600; margin: .8vh 0; }
+.disp-activity { list-style: none; padding: 0; margin: 0; }
+.disp-activity li { padding: .6vh 0; border-bottom: 1px solid #e2e8f0; }
+.disp-activity time { color: #64748b; margin-right: .6em; font-variant-numeric: tabular-nums; }
+.disp-close { margin-top: 1.4vh; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 8px; padding: .6em 1.2em; cursor: pointer; font: inherit; }
