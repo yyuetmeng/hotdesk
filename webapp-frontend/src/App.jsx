@@ -18,7 +18,8 @@ import EditorPage from './floorplan/EditorPage.jsx';
 import ThemeSettings from './ThemeSettings.jsx';
 
 const workspaceLinks = [['/', 'Floor plan', 'floorplan'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin']];
-const adminLinks = [['/insights', 'Insights', 'insights'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users']];
+const analyticsLinks = [['/insights', 'Insights', 'insights']];
+const adminLinks = [['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users']];
 
 function NavIcon({ name }) {
   const paths = {
@@ -42,6 +43,7 @@ function Sidebar() {
     <NavLink className="brand" to="/"><img className="brand-mark" src={logo} alt=""/><span><b>Hot Desk Dashboard</b></span></NavLink>
     <nav aria-label="Application navigation">
       <p className="nav-label">Workspace</p>{nav(workspaceLinks)}
+      <p className="nav-label">Analytics</p>{nav(analyticsLinks)}
       <p className="nav-label">Administration</p>{nav(adminLinks)}
       <p className="nav-label">Account</p><NavLink to={user ? '/account' : '/login'}><NavIcon name="account"/>{user ? 'My account' : 'Sign in'}</NavLink>
       {user && <button type="button" className="sidebar-signout" onClick={() => logout()}><NavIcon name="signout"/>Sign out</button>}
