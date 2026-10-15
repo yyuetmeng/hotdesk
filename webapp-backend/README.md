@@ -99,7 +99,8 @@ with SQL; the API and editor pick it up without a code change.
 2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0016_...`) in the Supabase SQL editor, in order.
 3. `pip install -r requirements.txt`
 4. `python scripts/create_admin.py` to create the first admin.
-5. `python run.py` to start the API; `python -m pytest` to run tests.
+5. `python run.py` to start the API; `python -m pytest` to run tests. Tests need a **local**
+   PostgreSQL (with `citext` and `pg_trgm`) set as `TEST_DATABASE_URI` in `.env`; they never use Supabase.
 
 Security notes: accounts lock after 5 failed logins (admin re-enable via PATCH);
 login is rejected outside the account start/end date window; all admin actions,

@@ -97,8 +97,11 @@ with `formatDate` wherever it is shown as text.
 
 ### 2.6 Tests
 - Every endpoint change comes with a pytest test in `webapp-backend/tests/`.
-- Tests run against the `hotdesk_test` schema, which is rebuilt from `sql/*.sql`.
-- Run from `webapp-backend/`: `python -m pytest -q` (the full suite takes about 10 minutes).
+- Tests run against a **local PostgreSQL only**, never the Supabase app database: set
+  `TEST_DATABASE_URI` in `webapp-backend/.env` (see `.env.example`); `tests/conftest.py` refuses
+  non-local hosts. The `hotdesk_test` schema is rebuilt from `sql/*.sql` at the start of each run.
+- Run from `webapp-backend/`: `python -m pytest -q` (the full suite takes about 2 minutes). Do not run
+  two sessions at once: they share the `hotdesk_test` schema.
 
 ---
 

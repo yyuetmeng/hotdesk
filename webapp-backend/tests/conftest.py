@@ -2,14 +2,23 @@ import os
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, text
+from sqlalchemy.engine import make_url
 
 from app import create_app
-from app.core.config import Config
 
 SQL_DIR = Path(__file__).resolve().parents[1] / "sql"
 TEST_SCHEMA = "hotdesk_test"
-BASE_URI = os.getenv("TEST_DATABASE_URI", Config.SQLALCHEMY_DATABASE_URI)
+# Tests run only against a local PostgreSQL, never the Supabase app database. The connection
+# string comes from TEST_DATABASE_URI in webapp-backend/.env (see .env.example).
+load_dotenv()
+BASE_URI = os.getenv("TEST_DATABASE_URI")
+if not BASE_URI:
+    raise RuntimeError("Set TEST_DATABASE_URI in webapp-backend/.env to a local PostgreSQL "
+                       "(e.g. postgresql://postgres:<password>@localhost:5432/postgres)")
+if make_url(BASE_URI).host not in ("localhost", "127.0.0.1", "::1"):
+    raise RuntimeError(f"TEST_DATABASE_URI must point at a local PostgreSQL, got host {make_url(BASE_URI).host!r}")
 
 
 @pytest.fixture(scope="session")
@@ -37,6 +46,7 @@ def app(admin_conn):
     application = create_app()
     application.config.update(
         TESTING=True,
+        SQLALCHEMY_DATABASE_URI=BASE_URI,
         SQL_SEARCH_PATH=TEST_SCHEMA,
         JWT_SECRET_KEY="**",
         JWT_ACCESS_TOKEN_EXPIRES=3600,
