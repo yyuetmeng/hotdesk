@@ -295,10 +295,10 @@ function DepartmentsSection({ departments, onChanged }) {
       ? <table><thead><tr><th>Project team</th><th>Users</th><th /></tr></thead>
         <tbody>{departments.map((d) => <tr key={d.id}>
           <td>{d.name}</td><td>{d.user_count}</td>
-          <td className="users-dept-actions">
+          <td><div className="row-actions">
             <button className="button" onClick={() => rename(d)}>Rename</button>
             <button className="button users-danger" onClick={() => remove(d)}>Delete</button>
-          </td>
+          </div></td>
         </tr>)}</tbody></table>
       : <p className="state">No project teams yet.</p>}
   </section>;

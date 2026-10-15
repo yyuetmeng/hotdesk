@@ -62,3 +62,5 @@
   .drawer-backdrop { display:block; position:fixed; inset:0; z-index:40; background:rgb(0 0 0/.45); opacity:0; pointer-events:none; transition:opacity .2s ease; }
   .drawer-open .drawer-backdrop { opacity:1; pointer-events:auto; }
 }
+/* Buttons in a table row: the cell stays a table cell so its divider lines up with the row. */
+.row-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }

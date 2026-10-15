@@ -49,11 +49,11 @@ export function DisplaysPage() {
             <td><code>/display/{d.slug}</code></td>
             <td>{d.floors.map((f) => f.published ? f.name : `${f.name} (not published)`).join(', ') || '—'}</td>
             <td>{d.layout === 'rotate' ? `Rotate every ${d.rotate_seconds}s` : 'All floors'}</td>
-            <td className="button-row">
+            <td><div className="row-actions">
               <a className="button" href={`/display/${d.slug}`} target="_blank" rel="noreferrer">Open</a>
               <button className="button" onClick={() => copy(d.slug)}>Copy link</button>
               <button className="button" onClick={() => { setNotice(null); setEditing(d); }}>Edit</button>
-            </td></tr>)}</tbody></table>
+            </div>            </td></tr>)}</tbody></table>
           : <p className="state">No displays yet. Create one per location.</p>}
       </section>
       <aside className="card detail">
