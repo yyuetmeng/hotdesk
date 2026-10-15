@@ -291,11 +291,6 @@ export default function EditorPage() {
     <PageTitle title={plan.name} />
     <header className="fp-toolbar">
       <input aria-label="Plan label" value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} />
-      <label>Cols <input type="number" min="5" max="80" value={meta.cols} aria-label="Columns"
-        onChange={(e) => setMeta({ ...meta, cols: e.target.value })} /></label>
-      <label>Rows <input type="number" min="5" max="80" value={meta.rows} aria-label="Rows"
-        onChange={(e) => setMeta({ ...meta, rows: e.target.value })} /></label>
-      <button className="button subtle" onClick={applyMeta}>Apply</button>
       <span className="fp-spacer" />
       <button className="button" onClick={() => setShowPreview(true)}>Preview</button>
       <button className="button primary" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save *' : 'Saved'}</button>
@@ -330,6 +325,14 @@ export default function EditorPage() {
       </aside>
       <div className="fp-grid-wrap">
         <div className="fp-grid-tools">
+          <div className="fp-grid-size">
+            <label>Cols <input type="number" min="5" max="80" value={meta.cols} aria-label="Columns"
+              onChange={(e) => setMeta({ ...meta, cols: e.target.value })} /></label>
+            <label>Rows <input type="number" min="5" max="80" value={meta.rows} aria-label="Rows"
+              onChange={(e) => setMeta({ ...meta, rows: e.target.value })} /></label>
+            <button className="button subtle" onClick={applyMeta}>Apply</button>
+          </div>
+          <span className="fp-spacer" />
           <label>Zoom <input type="range" min="16" max="48" value={cell} aria-label="Zoom"
             onChange={(e) => setCell(Number(e.target.value))} /></label>
           <button className="button subtle" onClick={undo} disabled={!past.length}>Undo</button>
