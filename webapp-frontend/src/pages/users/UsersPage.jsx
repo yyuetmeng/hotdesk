@@ -288,7 +288,7 @@ function DepartmentsSection({ departments, onChanged }) {
     <h2>Project teams</h2>
     {message && <Notice kind="error">{message}</Notice>}
     <form className="inline-form" onSubmit={add}>
-      <label>Name <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Engineering or Project Alpha" required /></label>
+      <label>Name <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. eWorkplace or SAP" required /></label>
       <button className="button primary">Add</button>
     </form>
     {departments.length
