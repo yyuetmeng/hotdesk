@@ -182,7 +182,7 @@ def dashboard(viewer: User, at: datetime) -> dict:
     tomorrow = today + timedelta(days=1)
     places = seat_places()
     teams = _teams(viewer)
-    return {"now": at.isoformat(),
+    return {"now": at.isoformat(), "today": today.isoformat(),
             "me": {"name": viewer.full_name, "teams": [{"id": str(t_id), "name": name} for t_id, name in teams]},
             "current": _current(viewer, places),
             "upcoming": _upcoming(viewer, places, today, tomorrow, at),

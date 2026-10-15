@@ -108,3 +108,53 @@ def test_favourites(client, world, monkeypatch):
     fav = _dash(client, world, "jane")["favourites"]
     assert [(f["seat_label"], f["count"], f["plan_name"]) for f in fav] == [("F1", 1, "Level 1")]   # cancelled F2 not counted
     assert fav[0]["seat_id"] == world["seats"]["F1"] and fav[0]["plan_id"] == world["plan"]
+
+
+# --- review fixes -------------------------------------------------------------------------------
+
+def test_today_is_the_calendar_day_even_at_weekends(client, world, monkeypatch):
+    saturday = DAY + timedelta(days=1)
+    set_now(monkeypatch, sg(saturday, 9))
+    body = _dash(client, world, "jane")
+    assert body["today"] == saturday.isoformat()
+    assert body["trend"]["days"][-1]["date"] == DAY.isoformat()     # trend still ends on the last working day
+
+
+def _republish_with_zone(client, world, zone):
+    tok = world["tok"]["root"]
+    draft = client.get(f"/api/admin/floor-plans/{world['plan']}", headers=hdr(tok)).get_json()["elements"]
+    assert client.put(f"/api/admin/floor-plans/{world['plan']}/elements", headers=hdr(tok),
+                      json={"elements": draft + [zone]}).status_code == 200
+    assert client.post(f"/api/admin/floor-plans/{world['plan']}/publish", headers=hdr(tok)).status_code == 200
+
+
+def test_zone_of_a_seat_is_shown(client, world):
+    _republish_with_zone(client, world, {"type": "zone", "x": 0, "y": 0, "w": 2, "h": 1, "rotation": 0, "label": "Quiet Zone"})
+    assert book(client, world, "jane", "F1", "am").status_code == 201
+    assert book(client, world, "ali", "F2", "am").status_code == 201
+    body = _dash(client, world, "jane")
+    assert [(u["seat_label"], u["zone"]) for u in body["upcoming"]] == [("F1", "Quiet Zone")]   # F1 at x0: inside
+    assert [(f["seat_label"], f["zone"]) for f in body["favourites"]] == [("F1", "Quiet Zone")]
+    assert _dash(client, world, "ali")["upcoming"][0]["zone"] is None                            # F2 at x2: outside
+
+
+def test_seats_no_longer_published_leave_favourites(client, world, monkeypatch):
+    assert book(client, world, "jane", "F1", "am").status_code == 201
+    set_now(monkeypatch, sg(DAY, 8, 10))
+    _check_in(client, world, "jane", "F1")
+    assert [f["seat_label"] for f in _dash(client, world, "jane")["favourites"]] == ["F1"]
+    assert client.post(f"/api/admin/floor-plans/{world['plan']}/unpublish", headers=hdr(world["tok"]["root"])).status_code == 200
+    assert _dash(client, world, "jane")["favourites"] == []
+
+
+def test_team_only_shows_people_sharing_a_team(client, world):
+    from app.core.db import run_write
+    run_write("insert into user_departments (user_id, department_id) values (cast(:u as uuid), cast(:d as uuid))",
+              {"u": world["users"]["ali"], "d": world["ops"]})                     # ali: Engineering and Ops
+    assert book(client, world, "ali", "F2", "pm").status_code == 201
+    assert book(client, world, "jane", "F1", "pm").status_code == 201              # jane: Engineering only
+    [ops] = _dash(client, world, "bob")["team"]                                    # bob: Ops only
+    assert ops["team_name"] == "Ops" and [m["name"] for m in ops["members"]] == ["Ali Rahman"]
+    teams = _dash(client, world, "ali")["team"]
+    assert [t["team_name"] for t in teams] == ["Engineering", "Ops"]
+    assert [m["name"] for m in teams[0]["members"]] == ["Jane Tan"] and teams[1]["members"] == []

@@ -18,8 +18,7 @@ const PILL = { checked_in: 'in', booked: 'bk', active: 'bk', released: 'rel', ca
 
 function RightNow({ data }) {
   const { current } = data;
-  const today = data.trend.days[data.trend.days.length - 1]?.date;
-  const next = data.upcoming.find((b) => b.date === today);
+  const next = data.upcoming.find((b) => b.date === data.today);
   if (current) return <section className="card dash-now">
     <div><small>You&apos;re checked in at</small><div className="dash-seat">{current.seat_label}</div>
       <small>{where(current)} · since {sgTime(current.checked_in_at)}, until {sgTime(current.ends_at)}</small></div>
@@ -128,7 +127,7 @@ export function DashboardPage() {
     ? `${sgDate(data.now, { weekday: 'long', day: 'numeric', month: 'long' })}${data.me.teams.length ? ` · ${data.me.teams.map((t) => t.name).join(', ')}` : ''}`
     : 'Your seat, your bookings and your team at a glance.'}</p></PageTitle>;
   if (!data) return <main className="page">{title}{error ? <Notice kind="error">{error}</Notice> : <Loading label="Loading your dashboard..." />}</main>;
-  const today = data.trend.days[data.trend.days.length - 1]?.date;
+  const { today } = data;   // Singapore calendar date from the server (also at weekends)
   return <main className="page dash">
     {title}
     {error && <Notice kind="error">{error}</Notice>}

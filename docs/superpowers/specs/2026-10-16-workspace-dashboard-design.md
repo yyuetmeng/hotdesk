@@ -26,7 +26,7 @@ Replace the legacy "Floor plan" page under Workspace with a **Dashboard**, the h
 All times are in Singapore time. "Today" means `rules.local_today(at)`. "Working days" are Monday to Friday.
 
 ```
-{ now, me: {name, teams: [{id, name}]},
+{ now, today (Singapore date), me: {name, teams: [{id, name}]},
   current:   null | {seat_id, seat_label, plan_id, plan_name, zone, checked_in_at, ends_at},
   upcoming:  [ {id, seat_id, seat_label, plan_id, plan_name, zone, date, preset, starts_at, ends_at, booked_by_name|null} ],
   team:      [ {team_id, team_name, size, members: [ {name, initials, today: null|{state: checked_in|booked, seat_label, plan_name, zone, since|preset}, tomorrow: null|{seat_label, plan_name, preset}} ]} ],
