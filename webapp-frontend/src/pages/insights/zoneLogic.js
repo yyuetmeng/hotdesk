@@ -7,3 +7,6 @@ export const barWidths = (row) => ({ occupied: share(row.occupied, row.total), b
 
 /** The in-use percentage, or a dash for a zone without usable seats. */
 export const pctText = (row) => (row.pct === null || row.pct === undefined ? '—' : `${row.pct}%`);
+
+/** True when no published floor has a zone yet: show the "No zones yet" hint instead of rows (spec §6). */
+export const showNoZones = (data) => !data.has_zones;

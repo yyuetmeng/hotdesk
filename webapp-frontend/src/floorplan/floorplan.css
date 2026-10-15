@@ -68,12 +68,12 @@
 .fp-zone { position: absolute; box-sizing: border-box; border: 1.5px solid var(--zone); border-radius: 4px;
   background: color-mix(in srgb, var(--zone) 8%, transparent); pointer-events: none; }
 .fp-zone.selected { outline: 3px solid var(--accent); outline-offset: 1px; }
-.fp-zone-edge { position: absolute; pointer-events: auto; cursor: grab; }
+.fp-zone-edge { position: absolute; z-index: 1; pointer-events: auto; cursor: grab; }
 .fp-zone-edge.top, .fp-zone-edge.bottom { left: -3px; right: -3px; height: 6px; }
 .fp-zone-edge.left, .fp-zone-edge.right { top: -3px; bottom: -3px; width: 6px; }
 .fp-zone-edge.top { top: -3px; } .fp-zone-edge.bottom { bottom: -3px; }
 .fp-zone-edge.left { left: -3px; } .fp-zone-edge.right { right: -3px; }
-.fp-zone-label { position: absolute; top: 3px; left: 4px; max-width: calc(100% - 8px); padding: 2px 6px; border-radius: 4px;
+.fp-zone-label { position: absolute; z-index: 2; top: 3px; left: 4px; max-width: calc(100% - 8px); padding: 2px 6px; border-radius: 4px;
   background: var(--zone); color: #fff; font-size: 11px; font-weight: 650; line-height: 1.25; pointer-events: auto; cursor: grab;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; }
 .fp-zone-label small { margin-left: 6px; font-weight: 500; opacity: .85; }

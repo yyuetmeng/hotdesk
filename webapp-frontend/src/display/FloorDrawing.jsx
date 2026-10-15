@@ -68,14 +68,21 @@ function Seat({ el, seat, onClick }) {
 }
 
 // Zone outline with its name and "N of M free" (spec 2026-10-15-floor-zones §5); drawn under everything else.
-function Zone({ zone }) {
+function ZoneOutline({ zone }) {
+  const color = zone.color || '#3b82f6';
+  return <rect x={zone.x * C + 2} y={zone.y * C + 2} width={zone.w * C - 4} height={zone.h * C - 4} rx="6"
+    fill={color} fillOpacity="0.06" stroke={color} strokeWidth="2" pointerEvents="none" />;
+}
+
+// Drawn after the seats so a seat in the zone's corner cannot hide the name; taps pass through.
+function ZoneLabel({ zone }) {
   const x = zone.x * C, y = zone.y * C, color = zone.color || '#3b82f6';
   const caption = zoneCaption(zone);
+  const width = Math.min(zone.w * C - 8, Math.max(zone.name.length * 8.2, caption.length * 6.2) + 14);
   return <g pointerEvents="none">
-    <rect x={x + 2} y={y + 2} width={zone.w * C - 4} height={zone.h * C - 4} rx="6"
-      fill={color} fillOpacity="0.06" stroke={color} strokeWidth="2" />
-    <text x={x + 10} y={y + 20} fontSize="14" fontWeight="700" fill="#0f172a">{zone.name}</text>
-    {caption && <text x={x + 10} y={y + 36} fontSize="11" fontWeight="600" fill={color}>{caption}</text>}
+    <rect x={x + 4} y={y + 4} width={width} height={caption ? 36 : 22} rx="4" fill="#f8fafc" fillOpacity="0.9" />
+    <text x={x + 10} y={y + 19} fontSize="14" fontWeight="700" fill="#0f172a">{zone.name}</text>
+    {caption && <text x={x + 10} y={y + 34} fontSize="11" fontWeight="600" fill={color}>{caption}</text>}
   </g>;
 }
 
@@ -86,9 +93,10 @@ export default function FloorDrawing({ floor, onSeatClick }) {
   const elements = floor.elements.filter((el) => el.type !== 'zone').sort((a, b) => order(a) - order(b));
   return <svg className="disp-floor" viewBox={`0 0 ${floor.cols * C} ${floor.rows * C}`} preserveAspectRatio="xMidYMid meet">
     <rect width={floor.cols * C} height={floor.rows * C} fill="#f8fafc" />
-    {(floor.zones ?? []).map((z) => <Zone key={z.id} zone={z} />)}
+    {(floor.zones ?? []).map((z) => <ZoneOutline key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
       ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} />
       : <Element key={el.id} el={el} catalog={catalog} />))}
+    {(floor.zones ?? []).map((z) => <ZoneLabel key={`${z.id}-label`} zone={z} />)}
   </svg>;
 }

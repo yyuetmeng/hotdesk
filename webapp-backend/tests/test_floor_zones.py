@@ -235,3 +235,12 @@ def test_insights_ignores_drafts_and_unpublished(client, world):
                       json={"elements": draft + [_zone(0, 0, 4, 1, "Draft only")]}).status_code == 200
     body = _insights(client, world)
     assert body["has_zones"] is False and [r["name"] for r in body["rows"]] == ["Whole floor"]
+
+
+def test_insights_settles_released_bookings(client, world, monkeypatch):
+    """A no-show booking released at 08:30 must not still show as booked when only Insights is polled."""
+    _republish_with_zone(client, world, _zone(0, 0, 4, 1, "Z"))
+    assert book(client, world, "jane", "F1", "am").status_code == 201
+    set_now(monkeypatch, sg(DAY, 9))                 # past the release; no desk or public request since
+    row = next(r for r in _insights(client, world)["rows"] if r["name"] == "Z")
+    assert (row["free"], row["booked"], row["pct"]) == (2, 0, 0)

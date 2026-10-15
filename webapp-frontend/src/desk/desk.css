@@ -51,6 +51,8 @@
 }
 /* Zones (spec 2026-10-15-floor-zones §5): outline behind the floor, name and "N of M free" top-left. */
 .desk-zone { position: absolute; box-sizing: border-box; border: 1.5px solid var(--zone); border-radius: 6px;
-  background: color-mix(in srgb, var(--zone) 6%, transparent); pointer-events: none; padding: 3px 6px; }
+  background: color-mix(in srgb, var(--zone) 6%, transparent); pointer-events: none; }
+.desk-zone-label { position: absolute; z-index: 2; top: 2px; left: 3px; max-width: calc(100% - 6px); padding: 1px 5px; border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent); overflow: hidden; }
 .desk-zone b { display: block; font-size: 12px; line-height: 1.2; color: var(--text); white-space: nowrap; }
 .desk-zone small { display: block; font-size: 10px; font-weight: 600; color: var(--zone); white-space: nowrap; }

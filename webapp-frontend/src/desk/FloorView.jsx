@@ -10,7 +10,7 @@ export default function FloorView({ floor, selectedId, onSelect, cell = 30 }) {
     <div className="desk-floor" style={{ width: floor.cols * cell, height: floor.rows * cell, '--cell': `${cell}px` }}>
       {(floor.zones ?? []).map((z) => <div key={z.id} className="desk-zone"
         style={{ left: z.x * cell, top: z.y * cell, width: z.w * cell, height: z.h * cell, '--zone': z.color || '#3b82f6' }}>
-        <b>{z.name}</b>{zoneCaption(z) && <small>{zoneCaption(z)}</small>}
+        <span className="desk-zone-label"><b>{z.name}</b>{zoneCaption(z) && <small>{zoneCaption(z)}</small>}</span>
       </div>)}
       {floor.elements.filter((el) => el.type !== 'zone').map((el) => {
         const size = footprint(el);

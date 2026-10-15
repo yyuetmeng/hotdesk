@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { flaskRequest } from '../../api.js';
 import { Loading, Notice } from '../../components.jsx';
 import { sgTime } from '../../display/displayLogic.js';
-import { barWidths, pctText } from './zoneLogic.js';
+import { barWidths, pctText, showNoZones } from './zoneLogic.js';
 import './insights.css';
 
 const REFRESH_MS = 30000;
@@ -29,7 +29,7 @@ export default function ZoneUtilisationCard() {
     <p className="zone-util-sub">Free seats and how the rest are used, per zone.</p>
     {error && <Notice kind="error">{error}</Notice>}
     {!data ? (!error && <Loading label="Loading zones..." />)
-      : !data.has_zones && !data.rows.length
+      : showNoZones(data)
         ? <p className="state">No zones yet. Draw zones in <Link to="/floor-plans">Manage Floor Plan</Link> and publish.</p>
         : <>
           <table>

@@ -17,6 +17,7 @@ from . import admin_bp
 def zone_utilisation():
     g.jwt_uid = get_jwt_identity()
     at = rules.now()
+    service.settle(at)  # release no-shows first, as every desk entry point does
     today = rules.local_today(at)
     floors = sorted(service.published_floors(), key=lambda p: p.published_version.name.casefold())
     rows, has_zones = [], False
