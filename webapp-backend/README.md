@@ -66,6 +66,33 @@ changing proxy rules). Invitation and reset emails need `RESEND_API_KEY`, `EMAIL
 `FRONTEND_URL` pointing at the React app, whose `/set-password` page handles both invitation and
 reset links (`/forgot-password` requests a reset link).
 
+## Seat booking and check-in (`Authorization: Bearer <token>`, any signed-in user)
+
+Free-for-all seats on **published** floor plans can be booked for today or tomorrow in AM
+(08:00–13:00), PM (13:00–18:00) or Full day (08:00–18:00), stored as 30-minute blocks. Times are
+Asia/Singapore (`BOOKING_TIMEZONE`). Spec: `docs/superpowers/specs/2026-10-15-seat-booking-and-checkin-design.md`.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/desk/floors` | Published floors |
+| `GET /api/desk/floors/<plan_id>?date=&preset=` | Layout, catalog and per-seat state (`available` / `booked` / `occupied` / `not_bookable`), names/initials, `can_book`, `can_check_in`, `can_give_up` |
+| `POST /api/desk/bookings` | Book `{plan_id, seat_id, date, preset, user_id?}` (for yourself, or a colleague within your `booking_allowance`) |
+| `GET /api/desk/bookings/mine` | My bookings and those I made for others |
+| `DELETE /api/desk/bookings/<id>` | Cancel (booker, booked person, admin; before check-in) |
+| `GET /api/desk/colleagues?q=&date=` | People I may book for, with allowance used/left |
+| `GET /api/desk/seats/<seat_id>` | Seat info for the check-in page |
+| `POST /api/desk/seats/<seat_id>/check-in` / `give-up` | Check in / give the seat up |
+| `GET /api/desk/seats/<seat_id>/activity` | Today's activity on the seat |
+| `GET /api/desk/me` | My active check-in |
+
+Public, no sign-in (for the floor dashboard; today only, names and initials only):
+`GET /api/public/floors`, `GET /api/public/floors/<plan_id>`, `GET /api/public/seats/<seat_id>/activity`.
+
+Unclaimed bookings are released 30 minutes after their slot starts (Full day at 10:00), or 30
+minutes after a same-day booking was made; check-ins end automatically. Both are applied on every
+desk/public request (no background job). Frontend: **Book a desk** (`/book`), **Desk check-in**
+(`/checkin/<seat_id>`, opened by a seat's QR code) and **Print QR codes** in the floor plan editor.
+
 ## Floor plans (`Authorization: Bearer <admin token>` required)
 
 | Endpoint | Purpose |
@@ -96,7 +123,7 @@ with SQL; the API and editor pick it up without a code change.
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in Supabase, JWT and Resend values.
-2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0016_...`) in the Supabase SQL editor, in order.
+2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0017_...`) in the Supabase SQL editor, in order.
 3. `pip install -r requirements.txt`
 4. `python scripts/create_admin.py` to create the first admin.
 5. `python run.py` to start the API; `python -m pytest` to run tests. Tests need a **local**

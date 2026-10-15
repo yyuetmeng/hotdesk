@@ -1,7 +1,7 @@
 # Seat Booking and Check-in — Design
 
 **Date:** 2026-10-15 (revised with product owner's slot, release, visibility and activity decisions)
-**Status:** Approved 2026-10-15
+**Status:** Implemented 2026-10-15 (plan `docs/superpowers/plans/2026-10-15-seat-booking-and-checkin.md`)
 **Scope:** Piece 3 of the seat booking programme (`2026-10-15-floorplan-publishing-design.md` §0). People book free-for-all seats for today or tomorrow in **AM / PM / Full day** slots built from **30-minute blocks**, for themselves or for named colleagues up to a per-user limit, and check in or give a seat up by scanning the seat's QR code. Every booking and check-in is stored. Seats show who booked or occupies them, and clicking a seat shows today's activity. New **Book a desk** and **Desk check-in** pages replace the legacy Node-backed ones. This piece also provides the public data endpoint the dashboard (piece 4) will use. Builds on published plans (piece 1) and seat department tags (piece 2).
 
 ## 1. Why and what success looks like

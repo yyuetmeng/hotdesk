@@ -50,7 +50,7 @@ The display format is **only** for what a person reads. Everything machine-facin
 | API responses | Instants: `value.isoformat()` (includes the offset). Dates: `YYYY-MM-DD`. |
 | API requests | Accept `YYYY-MM-DD` for dates (`dt.date.fromisoformat`), ISO 8601 for instants. |
 | Logs and audit `details` | ISO 8601. |
-| Server-side "now" | Prefer the database clock (`func.now()`) for anything compared in SQL (token expiry, `updated_at`). |
+| Server-side "now" | Prefer the database clock (`func.now()`) for anything compared in SQL (token expiry, `updated_at`). Seat booking code uses only `app.desk.rules.now()` (tests replace it) and `BOOKING_TIMEZONE` for "today" and slot times. |
 
 Never send `dd/MM/yyyy` to or from the API: `04/09/2026` is 4 September here and 9 April in a
 US locale.
