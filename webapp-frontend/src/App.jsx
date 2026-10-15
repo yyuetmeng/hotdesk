@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { FloorPlanPage } from './pages/floor-plan/FloorPlanPage.jsx';
 import { CheckInPage } from './desk/CheckInPage.jsx';
-import { QrSheetPage } from './desk/QrSheetPage.jsx';
+import { DeskLabelsPage } from './qr/DeskLabelsPage.jsx';
 import { DisplayPage } from './display/DisplayPage.jsx';
 import { BookDeskPage } from './desk/BookDeskPage.jsx';
 import { DisplaysPage } from './pages/displays/DisplaysPage.jsx';
@@ -22,7 +22,7 @@ import { readCollapsed, saveCollapsed, shellClass } from './layout.js';
 
 const workspaceLinks = [['/', 'Floor plan', 'floorplan'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin']];
 const analyticsLinks = [['/insights', 'Insights', 'insights']];
-const adminLinks = [['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users']];
+const adminLinks = [['/desk-labels', 'Print Desk Labels', 'labels'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users']];
 
 function NavIcon({ name }) {
   const paths = {
@@ -36,6 +36,7 @@ function NavIcon({ name }) {
     account: <><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></>,
     signout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M9 12h12m-4-4 4 4-4 4"/></>,
     menu: <path d="M4 6h16M4 12h16M4 18h16"/>,
+    labels: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></>,
     close: <path d="M6 6l12 12M18 6 6 18"/>,
     collapse: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M16 10l-2 2 2 2"/></>,
     expand: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M14 10l2 2-2 2"/></>,
@@ -91,6 +92,12 @@ function AdminOnly({ children }) {
   return isAdmin(user) ? children : <Navigate to="/" replace />;
 }
 
+// The old per-plan QR sheet now lives in Print Desk Labels, filtered to that floor.
+function OldQrLink() {
+  const { id } = useParams();
+  return <Navigate to={`/desk-labels?floor=${id}`} replace />;
+}
+
 function Workspace() {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -120,7 +127,8 @@ function Workspace() {
       <Route path="/insights" element={<AdminOnly><InsightsPage /></AdminOnly>} />
       <Route path="/floor-plans" element={<AdminOnly><FloorPlansPage /></AdminOnly>} />
       <Route path="/floor-plans/:id" element={<AdminOnly><EditorPage /></AdminOnly>} />
-      <Route path="/floor-plans/:id/qr" element={<AdminOnly><QrSheetPage /></AdminOnly>} />
+      <Route path="/floor-plans/:id/qr" element={<AdminOnly><OldQrLink /></AdminOnly>} />
+      <Route path="/desk-labels" element={<AdminOnly><DeskLabelsPage /></AdminOnly>} />
       <Route path="/users" element={<AdminOnly><UsersPage /></AdminOnly>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></div>

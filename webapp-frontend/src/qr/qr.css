@@ -1,0 +1,32 @@
+/* Print Desk Labels: filters, selection bar and the label grid (A4 when printed). */
+.labels-filters { align-items: end; }
+.labels-filters label { min-width: 160px; }
+.labels-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+.labels-actions .muted { color: var(--muted); }
+.labels-select-all { display: flex; align-items: center; gap: 8px; margin-right: auto; font-weight: 600; }
+.desk-labels .button.subtle { background: none; color: var(--muted); }
+
+.qr-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+.qr-label { position: relative; display: grid; justify-items: center; gap: 4px; padding: 14px 10px 10px; text-align: center;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; break-inside: avoid; }
+.qr-label.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.qr-label img, .qr-placeholder { width: 140px; height: 140px; background: #fff; border-radius: 4px; padding: 4px; box-sizing: content-box; }
+.qr-label b { font-size: 16px; }
+.qr-label small { color: var(--muted); }
+.qr-check { position: absolute; top: 8px; left: 8px; }
+.qr-check input { width: 18px; height: 18px; cursor: pointer; }
+.qr-download { margin-top: 6px; font-size: 13px; padding: 6px 10px; }
+
+@media print {
+  .sidebar, .mobile-bar, .drawer-backdrop, .page-title, .labels-filters, .labels-actions, .notice,
+  .qr-check, .qr-download, .qr-label:not(.selected) { display: none !important; }
+  .app-shell { display: block; }
+  .page { padding: 0; max-width: none; }
+  body { background: #fff; color: #0f172a; }
+  .qr-sheet { grid-template-columns: repeat(3, 1fr); gap: 8mm; }
+  .qr-label { border: 1px dashed #94a3b8; border-radius: 6px; padding: 4mm; box-shadow: none; background: #fff; }
+  .qr-label img { width: 40mm; height: 40mm; padding: 0; }
+  .qr-label b { font-size: 14pt; color: #0f172a; }
+  .qr-label small { color: #475569; }
+  @page { size: A4; margin: 10mm; }
+}

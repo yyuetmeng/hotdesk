@@ -37,18 +37,6 @@
 .desk-checkin .button { min-width: 200px; padding: 12px 18px; font-size: 16px; }
 @media (max-width: 1000px) { .desk-layout { grid-template-columns: 1fr; } }
 
-/* Printable QR labels (A4). */
-.qr-sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; }
-.qr-label { border: 1px dashed #94a3b8; border-radius: 6px; padding: 4mm; text-align: center; break-inside: avoid; }
-.qr-label img { width: 40mm; height: 40mm; }
-.qr-label b { display: block; font-size: 14pt; }
-.qr-label small { display: block; color: #475569; }
-@media print {
-  .sidebar, .page-title, .qr-toolbar { display: none !important; }
-  .app-shell { display: block; }
-  .page { padding: 0; }
-  @page { size: A4; margin: 10mm; }
-}
 /* Zones (spec 2026-10-15-floor-zones §5): outline behind the floor, name and "N of M free" top-left. */
 .desk-zone { position: absolute; box-sizing: border-box; border: 1.5px solid var(--zone); border-radius: 6px;
   background: color-mix(in srgb, var(--zone) 6%, transparent); pointer-events: none; }
