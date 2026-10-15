@@ -65,11 +65,11 @@ function Sidebar({ collapsed, onToggleCollapsed, onClose }) {
       </>}
     </nav>
     <div className="sidebar-footer">
+      <ThemeSettings />
       <nav aria-label="Account">
-        <p className="nav-label">Account</p><NavLink to={user ? '/account' : '/login'} title={tip(user ? 'My account' : 'Sign in')}><NavIcon name="account"/><span className="nav-text">{user ? 'My account' : 'Sign in'}</span></NavLink>
+        <NavLink to={user ? '/account' : '/login'} title={tip(user ? 'My account' : 'Sign in')}><NavIcon name="account"/><span className="nav-text">{user ? 'My account' : 'Sign in'}</span></NavLink>
         {user && <button type="button" className="sidebar-signout" title={tip('Sign out')} onClick={() => logout()}><NavIcon name="signout"/><span className="nav-text">Sign out</span></button>}
       </nav>
-      <ThemeSettings />
     </div>
   </aside>;
 }

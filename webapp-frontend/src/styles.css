@@ -6,7 +6,7 @@
 .sidebar-signout:hover { color:#fff; background:#233b69; }
 .sidebar-signout:focus-visible { outline:2px solid #fff; outline-offset:2px; }
 /* Settings cog at the bottom of the sidebar with the theme toggle (follow system / light / dark). */
-.sidebar-footer { margin-top:auto; padding-top:16px; }
+.sidebar-footer { margin-top:auto; padding-top:10px; border-top:1px solid #2a3a5c; }
 .theme-settings { position:relative; }
 .theme-cog { width:100%; }
 .theme-panel { position:absolute; bottom:calc(100% + 8px); left:0; z-index:20; min-width:180px; padding:12px; border-radius:10px; background:#16213b; border:1px solid #2a3a5c; box-shadow:0 12px 28px rgb(0 0 0/.35); color:#fff; }
@@ -24,9 +24,7 @@
 :root[data-theme="dark"] .notice.success,:root[data-theme="dark"] .fp-status-published { color:#bbf7d0; background:#0f2e1c; border-color:#1f5a36; }
 :root[data-theme="dark"] .fp-status-changed { color:#fde68a; background:#33240a; border-color:#6b4a12; }
 :root[data-theme="dark"] .users-row.selected { background:#1c2c4d; }
-.sidebar-footer nav { margin-bottom:6px; }
-.sidebar-footer .nav-label { margin-top:0; }
-.sidebar-footer .theme-settings { margin-top:6px; padding-top:10px; border-top:1px solid #2a3a5c; }
+.sidebar-footer .theme-settings { margin-bottom:3px; }
 /* Sidebar head: brand plus the collapse (desktop) or close (mobile) button. */
 .sidebar-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-bottom:24px; }
 .sidebar-head .brand { padding:0 0 0 8px; min-width:0; }
