@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import PinLoader from './PinLoader.jsx';
 
 export const STATUS_LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away', reserved: 'Reserved', offline: 'Sensor offline' };
@@ -31,4 +30,4 @@ export function SeatGrid({ seats, selected, onSelect, selectable = () => true, s
   </div>;
 }
 
-export function PageTitle({ title, children }) { return <div className="page-title"><div><h1>{title}</h1>{children}</div><Link className="quiet-link" to="/">Dashboard</Link></div>; }
+export function PageTitle({ title, children }) { return <div className="page-title"><div><h1>{title}</h1>{children}</div></div>; }
