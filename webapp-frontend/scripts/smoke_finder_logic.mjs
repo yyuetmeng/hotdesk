@@ -15,3 +15,14 @@ assert.equal(timeText({ status: 'booked', preset: 'pm' }), 'PM (13:00–18:00)')
 assert.equal(timeText({ status: 'tomorrow', preset: 'full' }), 'Tomorrow · Full day (08:00–18:00)');
 assert.equal(timeText({ status: 'away' }), '');
 console.log('finder logic smoke OK');
+
+// Dropdown keyboard: arrows move the highlight and wrap; nothing to move in an empty list.
+{
+  const { moveActive } = await import('../src/pages/finder/finderLogic.js');
+  assert.equal(moveActive(-1, 1, 3), 0);
+  assert.equal(moveActive(2, 1, 3), 0);
+  assert.equal(moveActive(0, -1, 3), 2);
+  assert.equal(moveActive(-1, -1, 3), 2);
+  assert.equal(moveActive(0, 1, 0), -1);
+}
+console.log('finder dropdown smoke OK');

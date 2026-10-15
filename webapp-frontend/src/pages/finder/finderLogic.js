@@ -15,3 +15,6 @@ export function timeText(p) {
   if (p.status === 'tomorrow') return `Tomorrow · ${presetLabel(p.preset)}`;
   return '';
 }
+
+/** Arrow-key highlight in the staff dropdown: moves by `delta` and wraps; -1 when the list is empty. */
+export const moveActive = (index, delta, length) => (length ? (((index < 0 && delta < 0 ? 0 : index) + delta) % length + length) % length : -1);
