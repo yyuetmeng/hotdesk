@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { request } from './api.js';
 import { browserStores, clearToken, readToken, writeToken } from './session.js';
+import PinLoader from './PinLoader.jsx';
 import './auth.css';
 
 const AuthContext = createContext(null);
@@ -88,5 +89,5 @@ export function AuthLayout({ children }) {
 
 export function SessionState() {
   const auth = useAuth();
-  return <AuthLayout><div className="auth-card">{auth.loading ? <p role="status">Verifying your session...</p> : <><h1>Connection unavailable</h1><p role="alert">{auth.error}</p><button className="auth-submit" onClick={auth.retry}>Try again</button><button className="auth-secondary" onClick={() => auth.logout()}>Return to sign in</button></>}</div></AuthLayout>;
+  return <AuthLayout><div className="auth-card">{auth.loading ? <PinLoader label="Verifying your session..." /> : <><h1>Connection unavailable</h1><p role="alert">{auth.error}</p><button className="auth-submit" onClick={auth.retry}>Try again</button><button className="auth-secondary" onClick={() => auth.logout()}>Return to sign in</button></>}</div></AuthLayout>;
 }

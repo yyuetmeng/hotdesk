@@ -1,0 +1,25 @@
+/* Pin drop loader (pin-drop-loader.html). Colours follow the app theme (html[data-theme]). */
+.pin-loader {
+  --pl-room: #f6f5f1; --pl-desk: #ffffff; --pl-desk-border: #d3d1c7; --pl-desk-on: #9fe1cb;
+  --pl-accent: #1d9e75; --pl-pin: #0f6e56; --pl-text: #5f5e5a;
+  display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px 0; font-family: inherit;
+}
+:root[data-theme="dark"] .pin-loader {
+  --pl-room: #1f1f1d; --pl-desk: #2c2c2a; --pl-desk-border: #5f5e5a; --pl-desk-on: #085041;
+  --pl-accent: #5dcaa5; --pl-pin: #9fe1cb; --pl-text: #b4b2a9;
+}
+.pin-loader__room { position: relative; width: 240px; height: 150px; background: var(--pl-room); border-radius: 12px; }
+.pin-loader__desk { position: absolute; width: 44px; height: 26px; border-radius: 6px; background: var(--pl-desk);
+  border: 1px solid var(--pl-desk-border); transition: background .3s, border-color .3s; }
+.pin-loader__desk.is-on { background: var(--pl-desk-on); border-color: var(--pl-accent); }
+.pin-loader__ripple { position: absolute; width: 44px; height: 44px; margin-top: -9px; border-radius: 50%;
+  border: 2px solid var(--pl-accent); opacity: 0; pointer-events: none; }
+.pin-loader__ripple.is-go { animation: pin-loader-ripple .9s ease-out; }
+@keyframes pin-loader-ripple { from { transform: scale(.3); opacity: .9; } to { transform: scale(1.8); opacity: 0; } }
+.pin-loader__pin { position: absolute; width: 26px; height: 26px; color: var(--pl-pin); }
+.pin-loader__pin.is-drop { animation: pin-loader-drop .55s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes pin-loader-drop { from { transform: translateY(-26px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.pin-loader__label { font-size: 14px; color: var(--pl-text); min-height: 20px; text-align: center; }
+@media (prefers-reduced-motion: reduce) {
+  .pin-loader__pin, .pin-loader__ripple, .pin-loader__desk { animation: none !important; transition: none !important; }
+}

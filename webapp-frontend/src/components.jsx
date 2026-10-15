@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
+import PinLoader from './PinLoader.jsx';
 
 export const STATUS_LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away', reserved: 'Reserved', offline: 'Sensor offline' };
 
-export function Loading({ label = 'Loading...' }) { return <p className="state loading">{label}</p>; }
+export function Loading({ label = 'Loading...' }) { return <PinLoader label={label} />; }
 export function Notice({ children, kind = 'info' }) { return <p className={`notice ${kind}`}>{children}</p>; }
 export function Status({ value }) { return <span className={`status status-${value}`}>{STATUS_LABEL[value] ?? value}</span>; }
 

@@ -9,6 +9,7 @@ import FloorDrawing from './FloorDrawing.jsx';
 import SeatPopover from './SeatPopover.jsx';
 import { initialDisplayState, nextFloorIndex, overall, reduceRefresh, rotationKey, sgDateTime, sgTime } from './displayLogic.js';
 import './display.css';
+import PinLoader from '../PinLoader.jsx';
 
 const REFRESH_MS = 30000;
 
@@ -57,7 +58,7 @@ export function DisplayPage() {
 
   if (view.missing) return <main className="disp disp-message"><p>Display not found</p></main>;
   if (!view.loaded) return <main className="disp disp-message">
-    <p>{view.unreachable ? 'Cannot reach the server. Retrying…' : 'Loading…'}</p></main>;
+    <PinLoader label={view.unreachable ? 'Cannot reach the server. Retrying…' : 'Loading the floor display…'} /></main>;
 
   const shown = display.layout === 'rotate' ? floors.slice(index % Math.max(floors.length, 1), (index % Math.max(floors.length, 1)) + 1) : floors;
   return <main className="disp">

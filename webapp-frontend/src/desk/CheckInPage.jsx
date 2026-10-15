@@ -71,7 +71,7 @@ function MySeat() {
     flaskRequest('/api/desk/me').then((d) => setMine(d.checkin)).catch((err) => setError(err.message));
   }, []);
   if (error) return <main className="page"><Notice kind="error">{error}</Notice></main>;
-  if (mine === undefined) return <main className="page"><Loading /></main>;
+  if (mine === undefined) return <main className="page"><Loading label="Finding your seat..." /></main>;
   return <main className="page desk-checkin">
     <PageTitle title="Desk check-in" />
     {mine
