@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { AUTH_TOKEN_KEY, request } from './api.js';
 import './auth.css';
 
@@ -76,8 +76,9 @@ export function useAuth() { return useContext(AuthContext); }
 
 export function RequireAuth({ children }) {
   const auth = useAuth();
+  const location = useLocation();
   if (auth.loading || auth.error) return <SessionState />;
-  if (!auth.user) return <Navigate to="/login" replace />;
+  if (!auth.user) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   return children;
 }
 

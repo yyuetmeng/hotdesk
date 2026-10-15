@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { formatDateTime } from '../format.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
@@ -305,6 +305,7 @@ export default function EditorPage() {
         onClick={() => lifecycle('discard', { resetDraft: true,
           confirmText: 'Discard all changes since the last publish? The draft goes back to the published version.' })}>
         Discard changes</button>}
+      {plan.published_version && <Link className="button subtle" to={`/floor-plans/${id}/qr`}>Print QR codes</Link>}
       {(plan.status === 'published' || plan.status === 'changed') && <button className="button subtle" disabled={saving}
         onClick={() => lifecycle('unpublish', {
           confirmText: 'Unpublish this plan? Staff will no longer see it or be able to book it. The draft is kept.' })}>

@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { FloorPlanPage } from './pages/floor-plan/FloorPlanPage.jsx';
-import { DeskCheckInPage } from './pages/desk-check-in/DeskCheckInPage.jsx';
+import { CheckInPage } from './desk/CheckInPage.jsx';
+import { QrSheetPage } from './desk/QrSheetPage.jsx';
 import { BookDeskPage } from './desk/BookDeskPage.jsx';
 import { FloorDisplayPage } from './pages/floor-display/FloorDisplayPage.jsx';
 import { InsightsPage } from './pages/insights/InsightsPage.jsx';
@@ -63,13 +64,15 @@ function Workspace() {
     <Sidebar />
     <div className="app-content"><Routes>
       <Route path="/" element={<FloorPlanPage />} />
-      <Route path="/checkin" element={<DeskCheckInPage />} />
+      <Route path="/checkin" element={<CheckInPage />} />
+      <Route path="/checkin/:seatId" element={<CheckInPage />} />
       <Route path="/book" element={<BookDeskPage />} />
       <Route path="/display" element={<FloorDisplayPage />} />
       <Route path="/insights" element={<InsightsPage />} />
       <Route path="/sensors" element={<SensorsPage />} />
       <Route path="/floor-plans" element={<FloorPlansPage />} />
       <Route path="/floor-plans/:id" element={<EditorPage />} />
+      <Route path="/floor-plans/:id/qr" element={<QrSheetPage />} />
       <Route path="/users" element={<UsersPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></div>

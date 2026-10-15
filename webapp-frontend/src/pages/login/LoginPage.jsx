@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { AuthLayout, SessionState, useAuth } from '../../auth.jsx';
 
 export function LoginPage() {
   const auth = useAuth();
+  const location = useLocation();
+  const returnTo = typeof location.state?.from === 'string' && location.state.from.startsWith('/') && !location.state.from.startsWith('//') ? location.state.from : '/';
   const [identity, setIdentity] = useState('');
   const [password, setPassword] = useState('');
   const [visible, setVisible] = useState(false);
@@ -11,7 +13,7 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const submitting = useRef(false);
   if (auth.loading || auth.error) return <SessionState />;
-  if (auth.user) return <Navigate to="/" replace />;
+  if (auth.user) return <Navigate to={returnTo} replace />;
 
   async function submit(event) {
     event.preventDefault();
