@@ -94,7 +94,7 @@ update floor_plan_elements set config = config - 'bookable' where config ? 'book
 
 | Endpoint | Change |
 |---|---|
-| `PUT /api/admin/floor-plans/<id>/elements` | Each element may send `department_id` (UUID string or null) and `open_to_all` (bool, default false). Errors: unknown department id; both set; tag on a non-seat. |
+| `PUT /api/admin/floor-plans/<id>/elements` | Each element may send `department_id` (UUID string or null) and `open_to_all` (bool, default false). Errors: malformed department id ("unknown department id"); both set; tag on a non-seat. A well-formed id of a department that no longer exists is saved **untagged** (deleted department, stale editor). |
 | `GET /api/admin/floor-plans/<id>`, `GET .../published` | Each element returns `department_id` and `open_to_all` (non-seats: `null` / `false`). |
 | `POST .../publish` | Unchanged API; copies the tag columns. (The untagged warning is client-side.) |
 | `GET /api/admin/departments` | Already exists; the editor uses it for the dropdown and key. |
