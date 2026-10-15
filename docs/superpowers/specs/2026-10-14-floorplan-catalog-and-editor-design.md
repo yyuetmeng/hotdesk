@@ -61,7 +61,7 @@ Seeded catalog (palette order):
 | type | label | default size | colour | resizable | default config |
 |---|---|---|---|---|---|
 | wall | Wall | 1×1 | `#64748b` | yes | `{}` |
-| seat | Seat | 1×1 | `#16a34a` | **no** | `{"bookable": true}` |
+| seat | Seat | 1×1 | `#16a34a` | **no** | `{}` (was `{"bookable": true}`; replaced by department tags, `0016`) |
 | table | Table | 2×1 | `#ca8a04` | yes | `{}` |
 | sofa | Sofa | 2×1 | `#4f46e5` | yes | `{}` | (added 2026-10-15 by `0013_add_sofa.sql`)
 | locker | Locker | 1×1 | `#0e7490` | yes | `{}` | (added 2026-10-15 by `0015_add_locker.sql`)
@@ -111,7 +111,7 @@ ORM: `FloorElement` model in `app/core/floorplan_models.py`; `FloorPlanElement.t
 
 ## 7. Known gaps / follow-ups
 
-1. **Booking ignores "Allow booking".** The Book a desk page still reads seats from the legacy Node API (`/api/availability` on `:3000`), not from floor plans. Connecting booking to floor plan seats is a separate piece of work.
+1. **"Allow booking" was replaced** by seat department tags (`2026-10-15-seat-department-tags-design.md`). **Booking ignores tags so far.** The Book a desk page still reads seats from the legacy Node API (`/api/availability` on `:3000`), not from floor plans. Connecting booking to floor plan seats is a separate piece of work.
 2. **No admin UI for the catalog.** Types are added or changed with SQL in `floor_elements`. A setting key also needs a label in `SETTING_LABELS` to read well.
 3. **Undo history noise.** Each keystroke in label/size fields and each move of the custom colour picker is a separate undo step (already noted as a Minor review item for the original editor).
 4. **Deferred review notes** from the original plan remain open: Task 3 (2 Minor), Task 5 (1 Important: secondary failures wipe the list page into an error), Task 6 (2 Minor).

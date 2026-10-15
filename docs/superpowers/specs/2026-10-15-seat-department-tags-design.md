@@ -1,7 +1,7 @@
 # Seat Department Tags — Design
 
 **Date:** 2026-10-15
-**Status:** For approval
+**Status:** Implemented 2026-10-15 (plan `docs/superpowers/plans/2026-10-15-seat-department-tags.md`)
 **Scope:** Piece 2 of the seat booking programme (see `2026-10-15-floorplan-publishing-design.md` §0). Every seat on a floor plan gets a **department tag**: one department/group, **free for all departments**, or **none**. Admins tag seats in the floor plan editor, one at a time or a whole block at once. This replaces the seat's "Allow booking" checkbox.
 
 ## 1. Why

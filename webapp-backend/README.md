@@ -75,7 +75,7 @@ reset links (`/forgot-password` requests a reset link).
 | `GET /api/admin/floor-plans/<id>` | Plan with its **draft** elements, plus `status` (`draft` / `published` / `changed` / `unpublished`), `published_version`, `published_at`, `published_by` |
 | `PATCH /api/admin/floor-plans/<id>` | Rename / resize grid (guards stranded elements) |
 | `DELETE /api/admin/floor-plans/<id>` | Delete plan + elements |
-| `PUT /api/admin/floor-plans/<id>/elements` | Bulk save the draft; element `id`s are kept (UUIDs must belong to this plan; new elements omit `id`). Placements `{elements:[{type,x,y,rotation,w?,h?,label?,color?,config?}]}` (`w`/`h` default to the catalog size; `config` keys come from the type's default config) |
+| `PUT /api/admin/floor-plans/<id>/elements` | Bulk save the draft; element `id`s are kept (UUIDs must belong to this plan; new elements omit `id`). Placements `{elements:[{type,x,y,rotation,w?,h?,label?,color?,config?,department_id?,open_to_all?}]}` (`w`/`h` default to the catalog size; `config` keys come from the type's default config) |
 | `GET /api/admin/floor-plans/catalog` | Element catalog from the `floor_elements` table (label, default size, colour, resizable, default config) |
 | `POST /api/admin/floor-plans/<id>/publish` | Publish the draft as the next numbered version (409 if nothing changed; 400 if the draft is invalid) |
 | `POST /api/admin/floor-plans/<id>/unpublish` | Take the plan down (versions kept) |
@@ -88,14 +88,15 @@ Frontend editor: `webapp-frontend` → sidebar "Manage Floor Plan" (Vite proxies
 Element types live in the `floor_elements` table (seeded by `sql/0012_floor_elements.sql`):
 wall, seat, table, sofa, locker, toilet, elevator, stairs, door, window, pantry, plant, corridor. Each row
 sets the default size and colour, whether the type can be resized (seats are fixed at 1x1),
-and its default `config` (seats: `{"bookable": true}`). Elements can be rotated
+and its default `config` (currently `{}` for every type). Seats carry a department tag
+(`department_id` or `open_to_all`; untagged seats cannot be booked). Elements can be rotated
 0/90/180/270 and, unless fixed, resized from 1 to 20 cells per side. Add or change a type
 with SQL; the API and editor pick it up without a code change.
 
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in Supabase, JWT and Resend values.
-2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0015_...`) in the Supabase SQL editor, in order.
+2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0016_...`) in the Supabase SQL editor, in order.
 3. `pip install -r requirements.txt`
 4. `python scripts/create_admin.py` to create the first admin.
 5. `python run.py` to start the API; `python -m pytest` to run tests.
