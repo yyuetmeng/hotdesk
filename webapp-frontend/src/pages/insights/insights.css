@@ -1,0 +1,15 @@
+/* Utilisation by zone card (spec 2026-10-15-floor-zones §6). */
+.zone-util { position: relative; margin-bottom: 16px; }
+.zone-util h2 { margin-bottom: 4px; }
+.zone-util-sub { margin: 0 0 14px; color: var(--muted); }
+.zone-util-updated { position: absolute; top: 18px; right: 18px; color: var(--muted); font-size: 12px; }
+.zone-util th { text-transform: uppercase; letter-spacing: .08em; }
+.zone-util-free { text-align: right; white-space: nowrap; }
+.zone-util-free b { color: var(--good); }
+.zone-util-bar-col { width: 45%; }
+.zone-util-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); }
+.zone-util-bar .occupied, .zone-util-legend .occupied { background: #3b82f6; }
+.zone-util-bar .booked, .zone-util-legend .booked { background: #f59e0b; }
+.zone-util-pct { text-align: right; width: 56px; font-weight: 650; }
+.zone-util-legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 13px; }
+.zone-util-legend span { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }

@@ -127,12 +127,20 @@ Frontend editor: `webapp-frontend` → sidebar "Manage Floor Plan" (Vite proxies
 `/api/auth` and `/api/admin/floor-plans` to the Flask API; set
 `VITE_FLASK_TARGET` if it is not on `http://localhost:5000`).
 Element types live in the `floor_elements` table (seeded by `sql/0012_floor_elements.sql`):
-wall, seat, table, sofa, locker, toilet, elevator, stairs, door, window, pantry, plant, corridor. Each row
+wall, seat, table, sofa, locker, toilet, elevator, stairs, door, window, pantry, plant, corridor, zone. Each row
 sets the default size and colour, whether the type can be resized (seats are fixed at 1x1),
 and its default `config` (currently `{}` for every type). Seats carry a department tag
 (`department_id` or `open_to_all`; untagged seats cannot be booked). Elements can be rotated
 0/90/180/270 and, unless fixed, resized from 1 to 20 cells per side. Add or change a type
 with SQL; the API and editor pick it up without a code change.
+
+**Zones** (`sql/0020_floor_zones.sql`, spec `docs/superpowers/specs/2026-10-15-floor-zones-design.md`) are
+named outlines: up to 80 cells per side, never rotated, never overlapping another zone, but drawn around
+seats and other elements. A seat belongs to the zone whose rectangle contains its cell (worked out from
+positions, never stored). `GET /api/desk/floors/<id>` and `GET /api/public/floors/<id>` return
+`zones [{id, name, x, y, w, h, color, total, free, occupied, booked, pct}]`; `GET /api/admin/insights/zones`
+(admins) returns live utilisation rows for every published floor (`No zone` / `Whole floor` rows included),
+shown on the Insights page.
 
 ## Setup
 
