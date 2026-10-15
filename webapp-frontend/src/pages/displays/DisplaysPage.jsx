@@ -53,7 +53,7 @@ export function DisplaysPage() {
               <a className="button" href={`/display/${d.slug}`} target="_blank" rel="noreferrer">Open</a>
               <button className="button" onClick={() => copy(d.slug)}>Copy link</button>
               <button className="button" onClick={() => { setNotice(null); setEditing(d); }}>Edit</button>
-            </div>            </td></tr>)}</tbody></table>
+            </div></td></tr>)}</tbody></table>
           : <p className="state">No displays yet. Create one per location.</p>}
       </section>
       <aside className="card detail">
