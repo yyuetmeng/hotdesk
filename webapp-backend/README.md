@@ -92,7 +92,7 @@ Unclaimed bookings are released 30 minutes after their slot starts (Full day at 
 minutes after a same-day booking was made; check-ins end automatically. Both are applied on every
 desk/public request (no background job). Frontend: **Book a desk** (`/book`), **Desk check-in**
 (`/checkin/<seat_id>`, opened by a seat's QR code) and **Print Desk Labels** (`/desk-labels`, admins: filter by floor, zone,
-project team or label; download one PNG, several as a ZIP, or print the selected labels).
+project team or label; download one PNG or several as a ZIP).
 
 ## Floor displays (public TVs)
 

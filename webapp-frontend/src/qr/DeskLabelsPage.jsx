@@ -1,5 +1,5 @@
 // Print Desk Labels (admins): QR labels for the seats of published floors, with filters, and
-// download one label as PNG or many as a ZIP, or print the selected labels on A4.
+// download one label as PNG or the selected labels as a ZIP.
 // Each QR encodes only the seat link; checking in still requires signing in.
 import QRCode from 'qrcode';
 import { useEffect, useMemo, useState } from 'react';
@@ -126,7 +126,6 @@ export function DeskLabelsPage() {
         <span className="muted">{chosen.length} selected</span>
         <button className="button primary" disabled={!chosen.length || Boolean(busy)} onClick={downloadZip}>
           {busy === 'zip' ? 'Making ZIP…' : `Download ${chosen.length || ''} as ZIP`}</button>
-        <button className="button" disabled={!chosen.length} onClick={() => window.print()}>Print selected</button>
         {selected.size > 0 && <button className="button subtle" onClick={() => setSelected(new Set())}>Clear selection</button>}
       </div>
       {!shown.length ? <p className="state">No seats match these filters.</p>
