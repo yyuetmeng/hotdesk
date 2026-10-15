@@ -466,3 +466,33 @@ def seat_activity(seat_id, at: datetime) -> list[dict]:
                            "text": f"{b.booked_for_name}'s {ended_texts[b.end_reason]}"})
     events.sort(key=lambda e: e["at"])
     return [{**e, "at": e["at"].isoformat()} for e in events]
+
+
+# --- plan changes (spec §2.7) -------------------------------------------------------------
+
+def cancel_for_plan_change(plan: FloorPlan, at: datetime) -> int:
+    """After publish/unpublish: cancel today/tomorrow bookings on seats that are gone or no longer
+    free for all, and end check-ins on seats that are gone. Returns how many rows changed."""
+    session = orm_session()
+    live = {}
+    if plan.published_version is not None:
+        live = {el.element_id: el for el in plan.published_version.elements if el.type == "seat"}
+    changed = 0
+    for b in session.scalars(select(SeatBooking).where(
+            SeatBooking.plan_id == plan.id, SeatBooking.booking_date.in_(rules.bookable_days(at)),
+            SeatBooking.end_reason.is_(None))).all():
+        el = live.get(b.seat_id)
+        if el is None or not el.open_to_all:
+            b.ended_at, b.end_reason = at, "plan_changed"
+            b.blocks = []
+            changed += 1
+        else:
+            b.version_id = plan.published_version_id
+    for c in session.scalars(select(SeatCheckin).where(
+            SeatCheckin.plan_id == plan.id, SeatCheckin.checked_out_at.is_(None))).all():
+        if c.seat_id not in live:
+            c.checked_out_at, c.end_reason = at, "plan_changed"
+            _free_booking_blocks(c.booking_id)
+            changed += 1
+    session.commit()
+    return changed

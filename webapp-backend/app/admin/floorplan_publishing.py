@@ -51,6 +51,13 @@ def _reloaded_payload(plan: FloorPlan):
     return jsonify(_plan_payload(plan))
 
 
+def _after_plan_change(plan: FloorPlan) -> None:
+    """Cancel bookings / end check-ins that the new state of the plan no longer allows (spec §2.7)."""
+    from app.desk import rules, service  # local import: app.desk imports this module
+
+    service.cancel_for_plan_change(plan, rules.now())
+
+
 @admin_bp.post("/floor-plans/<uuid:plan_id>/publish")
 @admin_required
 def publish_plan(plan_id):
@@ -81,7 +88,9 @@ def publish_plan(plan_id):
     session.commit()
     write_audit(actor, "floorplan.publish", plan_id,
                 {"version": number, "element_count": len(version.elements)})
-    return _reloaded_payload(plan)
+    payload = _reloaded_payload(plan)
+    _after_plan_change(plan)
+    return payload
 
 
 @admin_bp.get("/floor-plans/<uuid:plan_id>/published")
@@ -116,7 +125,9 @@ def unpublish_plan(plan_id):
     plan.unpublished_at = func.now()
     orm_session().commit()
     write_audit(actor, "floorplan.unpublish", plan_id, {"version": version})
-    return _reloaded_payload(plan)
+    payload = _reloaded_payload(plan)
+    _after_plan_change(plan)
+    return payload
 
 
 @admin_bp.post("/floor-plans/<uuid:plan_id>/discard")
