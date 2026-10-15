@@ -54,11 +54,12 @@ export function BookDeskPage() {
     catch (err) { setError(err.message); }
   };
 
-  if (!floors) return <main className="page">{error ? <Notice kind="error">{error}</Notice> : <Loading label="Loading floors..." />}</main>;
-  if (!floors.length) return <main className="page"><PageTitle title="Book a desk" /><Notice>No floor plan has been published yet.</Notice></main>;
+  const title = <PageTitle title="Book a desk"><p>Book a free-for-all seat for today or tomorrow, for yourself or a colleague.</p></PageTitle>;
+  if (!floors) return <main className="page">{title}{error ? <Notice kind="error">{error}</Notice> : <Loading label="Loading floors..." />}</main>;
+  if (!floors.length) return <main className="page">{title}<Notice>No floor plan has been published yet.</Notice></main>;
 
   return <main className="page">
-    <PageTitle title="Book a desk"><p>Book a free-for-all seat for today or tomorrow, for yourself or a colleague.</p></PageTitle>
+    {title}
     {error && <Notice kind="error">{error}</Notice>}
     <div className="desk-controls">
       <div className="desk-segment" role="group" aria-label="Day">

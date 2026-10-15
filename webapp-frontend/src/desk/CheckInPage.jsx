@@ -9,6 +9,8 @@ import { formatTime } from '../format.js';
 import { stateLabel } from './deskLogic.js';
 import './desk.css';
 
+const CheckInTitle = () => <PageTitle title="Desk check-in"><p>Scan the QR code on a desk to check in there, and give the seat up when you leave.</p></PageTitle>;
+
 export function CheckInPage() {
   const { seatId } = useParams();
   return seatId ? <SeatCheckIn seatId={seatId} /> : <MySeat />;
@@ -48,9 +50,9 @@ function SeatCheckIn({ seatId }) {
     finally { setBusy(false); }
   };
 
-  if (!seat && !result) return <main className="page"><Loading label="Checking the seat..." /></main>;
+  if (!seat && !result) return <main className="page"><CheckInTitle /><Loading label="Checking the seat..." /></main>;
   return <main className="page desk-checkin">
-    <PageTitle title="Desk check-in" />
+    <CheckInTitle />
     {seat && <>
       <p className="big"><b>{seat.label}</b> · {seat.plan.name}</p>
       <p className="muted">{seat.department} · {stateLabel(seat.state)}</p>
@@ -70,10 +72,10 @@ function MySeat() {
   useEffect(() => {
     flaskRequest('/api/desk/me').then((d) => setMine(d.checkin)).catch((err) => setError(err.message));
   }, []);
-  if (error) return <main className="page"><Notice kind="error">{error}</Notice></main>;
-  if (mine === undefined) return <main className="page"><Loading label="Finding your seat..." /></main>;
+  if (error) return <main className="page"><CheckInTitle /><Notice kind="error">{error}</Notice></main>;
+  if (mine === undefined) return <main className="page"><CheckInTitle /><Loading label="Finding your seat..." /></main>;
   return <main className="page desk-checkin">
-    <PageTitle title="Desk check-in" />
+    <CheckInTitle />
     {mine
       ? <><p className="big">You're checked in at <b>{mine.seat_label}</b></p>
         <p className="muted">Since {formatTime(mine.checked_in_at)}, until {formatTime(mine.ends_at).slice(0, 5)}.</p>

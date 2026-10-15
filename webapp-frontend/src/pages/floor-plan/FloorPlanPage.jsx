@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { appendToken, request, storage } from '../../api.js';
 import { useInterval, useStateEvents } from '../../hooks.js';
-import { AdminGate, Loading, PageTitle, SeatGrid, Status } from '../../components.jsx';
+import { Loading, Notice, PageTitle, SeatGrid, Status } from '../../components.jsx';
 import { Kpi, options, time, useAdminData } from '../shared.jsx';
 
 export function FloorPlanPage() {
@@ -17,13 +17,15 @@ export function FloorPlanPage() {
   const [floor, setFloor] = useState(storage.get('hotdesk.floor'));
   useStateEvents(token, refresh);
   useInterval(refresh, 30_000);
-  if (error) return <AdminGate error={error} onRetry={askForToken} />;
-  if (loading || !data) return <main className="page"><Loading label="Loading live desk availability..." /></main>;
+  const title = <PageTitle title="Office floor plan"><p>Live desk availability, project allocation, and workplace activity.</p></PageTitle>;
+  if (error) return <main className="page">{title}<Notice kind="error">{error.message}</Notice>
+    <button className="button primary" onClick={askForToken}>Enter administrator token</button></main>;
+  if (loading || !data) return <main className="page">{title}<Loading label="Loading live desk availability..." /></main>;
   const visible = data.seats.filter((seat) => !floor || seat.floor === floor);
   const counts = visible.reduce((all, seat) => ({ ...all, [seat.status]: (all[seat.status] ?? 0) + 1 }), { total: visible.length });
   const pick = data.seats.find((seat) => seat.id === selected);
   return <main className="page">
-    <PageTitle title="Office floor plan"><p>Live desk availability, project allocation, and workplace activity.</p></PageTitle>
+    {title}
     <div className="toolbar"><label>Floor <select value={floor} onChange={(e) => { setFloor(e.target.value); storage.set('hotdesk.floor', e.target.value); }}><option value="">All floors</option>{options(data.summary.floors)}</select></label>
       <a className="button" href={appendToken('/labels', token)} target="_blank" rel="noreferrer">Print labels</a>
       <a className="button" href={appendToken('/api/requesters.csv', token)}>Download requesters</a></div>
