@@ -4,12 +4,12 @@ Spec: docs/superpowers/specs/2026-10-15-seat-booking-and-checkin-design.md. Ever
 point calls settle(at) first, so releases and automatic ends are applied without a scheduler.
 """
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
-from app.core.auth_models import User, UserDepartment
+from app.core.auth_models import Department, User, UserDepartment
 from app.core.desk_models import SeatBooking, SeatBookingBlock, SeatCheckin
 from app.core.floorplan_models import FloorPlan, FloorPlanVersionElement
 from app.core.orm import orm_session
@@ -190,6 +190,9 @@ def seat_states(plan: FloorPlan, day: date, preset: str | None, at: datetime,
                 "booking": _booking_view(booking) if booking and not checkin else None}
         if viewer is not None:
             seat["can_book"] = {p: _can_book(el, day, p, at) for p in rules.PRESETS}
+            is_today = day == rules.local_today(at)
+            seat["can_check_in"] = is_today and checkin_decision(viewer, el, at)["ok"]
+            seat["can_give_up"] = bool(is_today and checkin is not None and checkin.user_id == viewer.id)
         out.append(seat)
     return out
 
@@ -300,3 +303,166 @@ def cancel_booking(viewer: User, booking_id, at: datetime) -> SeatBooking:
     booking.blocks = []
     session.commit()
     return booking
+
+
+# --- check-in -----------------------------------------------------------------------------
+
+def _hhmm(at: datetime) -> str:
+    return at.astimezone(rules.TZ).strftime("%H:%M")
+
+
+def open_checkin_of(user: User) -> SeatCheckin | None:
+    return orm_session().scalars(select(SeatCheckin).where(
+        SeatCheckin.user_id == user.id, SeatCheckin.checked_out_at.is_(None))).first()
+
+
+def _active_bookings_on(seat_id, day: date) -> list[SeatBooking]:
+    return orm_session().scalars(select(SeatBooking).where(
+        SeatBooking.seat_id == seat_id, SeatBooking.booking_date == day,
+        SeatBooking.end_reason.is_(None)).order_by(SeatBooking.starts_at)).all()
+
+
+def _refuse(reason: str, status: int) -> dict:
+    return {"ok": False, "reason": reason, "status": status, "booking": None, "ends_at": None, "warning": None}
+
+
+def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime) -> dict:
+    """Whether `viewer` may check in to seat `el` now, and on what terms.
+
+    Returns {"ok", "reason", "status", "booking", "ends_at", "warning"}; used by the check-in
+    itself and by the seat page so the two never disagree.
+    """
+    day = rules.local_today(at)
+    if not (el.open_to_all or el.department_id):
+        return _refuse("This seat cannot be used: it has no department.", 403)
+    if not is_usable(viewer, day):
+        return _refuse("Your account is not active today.", 403)
+    if not may_use_seat(viewer, el):
+        return _refuse("This seat is for another department.", 403)
+    mine = open_checkin_of(viewer)
+    if mine is not None:
+        if mine.seat_id == el.element_id:
+            return _refuse("You are already checked in here.", 409)
+        return _refuse(f"Give up your seat at {mine.seat_label} first.", 409)
+    taken = open_checkins([el.element_id]).get(el.element_id)
+    if taken is not None:
+        return _refuse(f"This seat is occupied until {_hhmm(taken.ends_at)}.", 409)
+
+    bookings = _active_bookings_on(el.element_id, day)
+    for b in bookings:
+        if b.booked_for == viewer.id and rules.checkin_window_opens(b.starts_at) <= at < b.ends_at:
+            return {"ok": True, "reason": None, "status": 201, "booking": b, "ends_at": b.ends_at, "warning": None}
+    # Once someone else's check-in window has opened (30 min before their booking), the seat is theirs.
+    current = next((b for b in bookings if rules.checkin_window_opens(b.starts_at) <= at < b.ends_at), None)
+    if current is not None:
+        return _refuse(f"Booked for someone else until {_hhmm(current.release_at)} unless they check in.", 403)
+    mine_later = next((b for b in bookings if b.booked_for == viewer.id and b.starts_at > at), None)
+    if mine_later is not None:
+        return _refuse(f"Your booking starts at {_hhmm(mine_later.starts_at)}; check in from "
+                       f"{_hhmm(rules.checkin_window_opens(mine_later.starts_at))}.", 403)
+    upcoming = next((b.starts_at for b in bookings if b.starts_at > at), None)
+    ends_at = rules.walk_in_ends_at(at, upcoming)
+    warning = f"Booked from {_hhmm(upcoming)}: your check-in ends then." if upcoming and ends_at == upcoming else None
+    return {"ok": True, "reason": None, "status": 201, "booking": None, "ends_at": ends_at, "warning": warning}
+
+
+def check_in(viewer: User, seat_id, at: datetime) -> tuple[SeatCheckin, str | None]:
+    plan, el = seat_element(seat_id)
+    decision = checkin_decision(viewer, el, at)
+    if not decision["ok"]:
+        raise DeskError(decision["reason"], decision["status"])
+    booking = decision["booking"]
+    checkin = SeatCheckin(plan_id=plan.id, version_id=plan.published_version_id, seat_id=el.element_id,
+                          seat_label=seat_label(el), user_id=viewer.id, user_name=viewer.full_name,
+                          checked_in_at=at, ends_at=decision["ends_at"],
+                          booking_id=booking.id if booking else None,
+                          method="booking" if booking else "walk_in",
+                          seat_department_id=el.department_id, seat_open_to_all=bool(el.open_to_all),
+                          user_department_ids=sorted(department_ids(viewer), key=str))
+    if booking is not None:
+        booking.ended_at, booking.end_reason = at, "checked_in"
+    session = orm_session()
+    session.add(checkin)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise DeskError("This seat was just taken, or you are checked in elsewhere.", 409)
+    return checkin, decision["warning"]
+
+
+def give_up(viewer: User, seat_id, at: datetime) -> SeatCheckin:
+    _, el = seat_element(seat_id)
+    mine = open_checkin_of(viewer)
+    if mine is None or mine.seat_id != el.element_id:
+        raise DeskError("You are not checked in to this seat.", 409)
+    mine.checked_out_at, mine.end_reason = at, "given_up"
+    _free_booking_blocks(mine.booking_id)
+    orm_session().commit()
+    return mine
+
+
+def checkin_dto(c: SeatCheckin) -> dict:
+    return {"id": str(c.id), "seat_id": str(c.seat_id), "seat_label": c.seat_label,
+            "plan_id": str(c.plan_id) if c.plan_id else None, "user": person(c.user_name),
+            "checked_in_at": c.checked_in_at.isoformat(), "ends_at": c.ends_at.isoformat(), "method": c.method}
+
+
+def seat_info(viewer: User | None, seat_id, at: datetime) -> dict:
+    plan, el = seat_element(seat_id)
+    day = rules.local_today(at)
+    state = next(s for s in seat_states(plan, day, None, at) if s["id"] == str(el.element_id))
+    upcoming = next((b for b in _active_bookings_on(el.element_id, day) if b.starts_at > at), None)
+    dept = orm_session().get(Department, el.department_id) if el.department_id else None
+    info = {**state, "plan": {"id": str(plan.id), "name": plan.published_version.name},
+            "department": "Free for all" if el.open_to_all else (dept.name if dept else None),
+            "next_booking_at": upcoming.starts_at.isoformat() if upcoming else None}
+    if viewer is not None:
+        decision = checkin_decision(viewer, el, at)
+        mine = open_checkin_of(viewer)
+        here = bool(mine and mine.seat_id == el.element_id)
+        info.update(can_check_in=decision["ok"], reason=decision["reason"], warning=decision["warning"],
+                    can_give_up=here, my_checkin=checkin_dto(mine) if here else None)
+    return info
+
+
+def _day_bounds(day: date) -> tuple[datetime, datetime]:
+    start = rules.at_local(day, time(0, 0))
+    return start, start + timedelta(days=1)
+
+
+def seat_activity(seat_id, at: datetime) -> list[dict]:
+    """Today's events on a seat, oldest first (spec §2.8): names and times only."""
+    _, el = seat_element(seat_id)
+    start, end = _day_bounds(rules.local_today(at))
+    session = orm_session()
+    events = []
+    checkins = session.scalars(select(SeatCheckin).where(
+        SeatCheckin.seat_id == el.element_id, SeatCheckin.checked_in_at < end,
+        or_(SeatCheckin.checked_out_at.is_(None), SeatCheckin.checked_out_at >= start))).all()
+    for c in checkins:
+        how = " (walk-in)"
+        if c.booking_id:
+            b = session.get(SeatBooking, c.booking_id)
+            how = f" (booked by {b.booked_by_name})" if b and b.booked_by and b.booked_by != b.booked_for else " (booked)"
+        if start <= c.checked_in_at < end:
+            events.append({"at": c.checked_in_at, "kind": "checked_in", "text": f"{c.user_name} checked in{how}"})
+        if c.checked_out_at and start <= c.checked_out_at < end:
+            gave_up = c.end_reason == "given_up"
+            events.append({"at": c.checked_out_at, "kind": "gave_up" if gave_up else "ended",
+                           "text": f"{c.user_name} {'gave up the seat' if gave_up else 'check-in ended'}"})
+    bookings = session.scalars(select(SeatBooking).where(
+        SeatBooking.seat_id == el.element_id,
+        or_(SeatBooking.created_at.between(start, end), SeatBooking.ended_at.between(start, end)))).all()
+    ended_texts = {"cancelled": "booking was cancelled", "released": "booking was released (no check-in)",
+                   "plan_changed": "booking was cancelled (floor plan changed)"}
+    for b in bookings:
+        by = f" by {b.booked_by_name}" if b.booked_by_name and b.booked_by != b.booked_for else ""
+        if start <= b.created_at < end:
+            slot = rules.PRESET_LABELS.get(b.preset, "custom time")
+            events.append({"at": b.created_at, "kind": "booked", "text": f"Booked for {b.booked_for_name}{by} ({slot})"})
+        if b.ended_at and start <= b.ended_at < end and b.end_reason in ended_texts:
+            events.append({"at": b.ended_at, "kind": b.end_reason,
+                           "text": f"{b.booked_for_name}'s {ended_texts[b.end_reason]}"})
+    events.sort(key=lambda e: e["at"])
+    return [{**e, "at": e["at"].isoformat()} for e in events]

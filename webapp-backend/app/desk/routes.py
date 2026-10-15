@@ -103,3 +103,39 @@ def colleagues(viewer, at):
                           for u in people],
                    allowance={"limit": viewer.booking_allowance, "used": used,
                               "left": max(viewer.booking_allowance - used, 0)})
+
+
+@desk_bp.get("/seats/<seat_id>")
+@desk_endpoint
+def seat(viewer, at, seat_id):
+    return jsonify(service.seat_info(viewer, seat_id, at))
+
+
+@desk_bp.post("/seats/<seat_id>/check-in")
+@desk_endpoint
+def check_in(viewer, at, seat_id):
+    checkin, warning = service.check_in(viewer, seat_id, at)
+    write_audit(str(viewer.id), "checkin.start", str(checkin.id),
+                {"seat_id": str(checkin.seat_id), "method": checkin.method})
+    return jsonify({**service.checkin_dto(checkin), "warning": warning}), 201
+
+
+@desk_bp.post("/seats/<seat_id>/give-up")
+@desk_endpoint
+def give_up(viewer, at, seat_id):
+    checkin = service.give_up(viewer, seat_id, at)
+    write_audit(str(viewer.id), "checkin.end", str(checkin.id), {"seat_id": str(checkin.seat_id), "reason": "given_up"})
+    return ("", 204)
+
+
+@desk_bp.get("/seats/<seat_id>/activity")
+@desk_endpoint
+def seat_activity(viewer, at, seat_id):
+    return jsonify(items=service.seat_activity(seat_id, at))
+
+
+@desk_bp.get("/me")
+@desk_endpoint
+def me(viewer, at):
+    mine = service.open_checkin_of(viewer)
+    return jsonify(checkin=service.checkin_dto(mine) if mine else None)
