@@ -52,7 +52,7 @@ function Sidebar({ collapsed, onToggleCollapsed, onClose }) {
     <NavIcon name={icon}/><span className="nav-text">{label}</span></NavLink>);
   return <aside className="sidebar" id="app-sidebar">
     <div className="sidebar-head">
-      <NavLink className="brand" to="/" title={tip('Hot Desk Dashboard')}><img className="brand-mark" src={logo} alt=""/><span><b>Hot Desk Dashboard</b></span></NavLink>
+      <NavLink className="brand" to="/" title={tip('Hot Desk')}><img className="brand-mark" src={logo} alt=""/><span><b>Hot Desk</b></span></NavLink>
       <button type="button" className="sidebar-icon-button sidebar-collapse" onClick={onToggleCollapsed}
         aria-label={collapsed ? 'Expand menu' : 'Collapse menu'} title={collapsed ? 'Expand menu' : 'Collapse menu'}>
         <NavIcon name={collapsed ? 'expand' : 'collapse'}/></button>
@@ -114,7 +114,7 @@ function Workspace() {
     <header className="mobile-bar">
       <button type="button" className="sidebar-icon-button hamburger" onClick={() => setDrawerOpen(true)}
         aria-label="Open menu" aria-expanded={drawerOpen} aria-controls="app-sidebar"><NavIcon name="menu"/></button>
-      <NavLink className="brand" to="/"><img className="brand-mark" src={logo} alt=""/><span><b>Hot Desk Dashboard</b></span></NavLink>
+      <NavLink className="brand" to="/"><img className="brand-mark" src={logo} alt=""/><span><b>Hot Desk</b></span></NavLink>
     </header>
     <Sidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} onClose={() => setDrawerOpen(false)} />
     <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
