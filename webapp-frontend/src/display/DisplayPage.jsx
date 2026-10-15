@@ -1,40 +1,37 @@
 // Public floor display for TVs (/display/:slug, no sign-in): chosen floors in style E, live seat
 // states, per-floor and overall capacity, today's seat activity. Refreshes every 30 seconds and
 // keeps the last data when offline. Spec: docs/superpowers/specs/2026-10-15-floor-dashboard-design.md.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import CapacityBar from './CapacityBar.jsx';
 import FloorDrawing from './FloorDrawing.jsx';
 import SeatPopover from './SeatPopover.jsx';
-import { nextFloorIndex, overall, sgDateTime, sgTime } from './displayLogic.js';
+import { initialDisplayState, nextFloorIndex, overall, reduceRefresh, rotationKey, sgDateTime, sgTime } from './displayLogic.js';
 import './display.css';
 
 const REFRESH_MS = 30000;
 
 export function DisplayPage() {
   const { slug } = useParams();
-  const [display, setDisplay] = useState(null);
-  const [floors, setFloors] = useState([]);
-  const [updatedAt, setUpdatedAt] = useState(null);
-  const [offline, setOffline] = useState(false);
-  const [fatal, setFatal] = useState(null);
+  const [view, setView] = useState(initialDisplayState);
   const [index, setIndex] = useState(0);
   const [seat, setSeat] = useState(null);
   const [now, setNow] = useState(() => new Date());
-  const loaded = useRef(false);
+  const { display, floors, updatedAt, offline } = view;
 
   const refresh = useCallback(async () => {
+    let d;
     try {
-      const d = await flaskRequest(`/api/public/displays/${encodeURIComponent(slug)}`);
-      const published = d.floors.filter((f) => f.published);
-      const data = await Promise.all(published.map((f) => flaskRequest(`/api/public/floors/${f.id}`)));
-      setDisplay(d); setFloors(data); setUpdatedAt(new Date()); setOffline(false); loaded.current = true;
+      d = await flaskRequest(`/api/public/displays/${encodeURIComponent(slug)}`);
     } catch (err) {
-      if (err.status === 404) setFatal('Display not found');
-      else if (loaded.current) setOffline(true);    // keep the last data, retry on the next tick
-      else setFatal('Cannot reach the server. Retrying…');
+      setView((state) => reduceRefresh(state, { type: 'error', status: err.status ?? 0 }));
+      return;
     }
+    // One floor unpublished since the display was read (404) is skipped, not fatal.
+    const results = await Promise.allSettled(
+      d.floors.filter((f) => f.published).map((f) => flaskRequest(`/api/public/floors/${f.id}`)));
+    setView((state) => reduceRefresh(state, { type: 'ok', display: d, floors: results, at: new Date() }));
   }, [slug]);
 
   useEffect(() => {
@@ -48,16 +45,19 @@ export function DisplayPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Keyed by layout settings only: the display object is replaced on every poll.
+  const rotation = rotationKey(display);
   useEffect(() => {
     if (!display || display.layout !== 'rotate' || floors.length < 2 || seat) return undefined;
     const timer = setInterval(() => setIndex((i) => nextFloorIndex(i, floors.length)), display.rotate_seconds * 1000);
     return () => clearInterval(timer);
-  }, [display, floors.length, seat]);
+  }, [rotation, floors.length, seat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const closeSeat = useCallback(() => setSeat(null), []);
 
-  if (fatal && !loaded.current) return <main className="disp disp-message"><p>{fatal}</p></main>;
-  if (!display) return <main className="disp disp-message"><p>Loading…</p></main>;
+  if (view.missing) return <main className="disp disp-message"><p>Display not found</p></main>;
+  if (!view.loaded) return <main className="disp disp-message">
+    <p>{view.unreachable ? 'Cannot reach the server. Retrying…' : 'Loading…'}</p></main>;
 
   const shown = display.layout === 'rotate' ? floors.slice(index % Math.max(floors.length, 1), (index % Math.max(floors.length, 1)) + 1) : floors;
   return <main className="disp">

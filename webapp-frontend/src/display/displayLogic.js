@@ -40,3 +40,31 @@ export function sgDateTime(value) {
   const p = parts(value);
   return p ? `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}:${p.second}` : EMPTY;
 }
+
+/** Only the settings the rotation timer depends on (a new display object on every poll must not reset it). */
+export const rotationKey = (display) => (display ? `${display.layout}:${display.rotate_seconds}` : '');
+
+export const initialDisplayState = {
+  display: null, floors: [], updatedAt: null, loaded: false, offline: false, missing: false, unreachable: false,
+};
+
+/**
+ * Next TV state after a refresh (spec §3 "Errors"):
+ * - {type: 'ok', display, floors: Promise.allSettled results, at}: floors that 404 (unpublished since)
+ *   are skipped; any other failed floor keeps the previous data and marks the TV offline.
+ * - {type: 'error', status}: 404 → the display was deleted or renamed ("Display not found", even
+ *   after a good load); anything else keeps the last data offline (or "unreachable" before any load).
+ */
+export function reduceRefresh(state, outcome) {
+  if (outcome.type === 'error') {
+    if (outcome.status === 404) return { ...state, missing: true };
+    return state.loaded ? { ...state, offline: true } : { ...state, unreachable: true };
+  }
+  const failed = outcome.floors.filter((r) => r.status === 'rejected' && r.reason?.status !== 404);
+  if (failed.length) return state.loaded ? { ...state, offline: true } : { ...state, unreachable: true };
+  return {
+    display: outcome.display,
+    floors: outcome.floors.filter((r) => r.status === 'fulfilled').map((r) => r.value),
+    updatedAt: outcome.at, loaded: true, offline: false, missing: false, unreachable: false,
+  };
+}
