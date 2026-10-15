@@ -164,7 +164,10 @@ export default function EditorPage() {
     const result = drag.kind === 'add'
       ? addElement(elements, drag.type, point.x, point.y, plan.cols, plan.rows, nextId)
       : moveElement(elements, drag.id, Math.max(point.x - (drag.dx ?? 0), 0), Math.max(point.y - (drag.dy ?? 0), 0), plan.cols, plan.rows);
-    if (!result.error) commit(result.elements);
+    if (result.error) return;
+    commit(result.elements);
+    // Select what was just dropped so its side panel opens (a new element is the last one added).
+    setSelectedId(drag.kind === 'add' ? result.elements[result.elements.length - 1].id : drag.id);
   };
 
   useEffect(() => {
