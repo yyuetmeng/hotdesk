@@ -28,3 +28,4 @@
 :root[data-theme="dark"] .users-row.selected { background:#1c2c4d; }
 .sidebar-footer nav { margin-bottom:6px; }
 .sidebar-footer .nav-label { margin-top:0; }
+.sidebar-footer .theme-settings { margin-top:6px; padding-top:10px; border-top:1px solid #2a3a5c; }
