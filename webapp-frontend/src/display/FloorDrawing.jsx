@@ -52,15 +52,18 @@ function Element({ el, catalog }) {
   }
 }
 
-function Seat({ el, seat, onClick, selected }) {
+function Seat({ el, seat, onClick, selected, highlight }) {
   const { w, h } = footprint(el);
   const cx = (el.x + w / 2) * C, cy = (el.y + h / 2) * C, r = Math.min(w, h) * C * 0.42;
   const who = seat.occupant?.name ?? seat.booking?.booked_for?.name;
   const label = [seat.label, seat.department, who].filter(Boolean).join(' · ');
-  return <g className="disp-seat" onClick={() => onClick?.(seat)} role="button" tabIndex={0} aria-label={label}
+  return <g className={`disp-seat${highlight ? ' is-found' : ''}`} onClick={() => onClick?.(seat)} role="button" tabIndex={0} aria-label={label}
     onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(seat); }}>
     <title>{label}</title>
     {selected && <circle cx={cx} cy={cy} r={r + 5} fill="none" stroke="#2563eb" strokeWidth="3" />}
+    {highlight && <>{/* Colleague Finder: pulsing rings so the seat stands out */}
+      <circle className="disp-found-ring" cx={cx} cy={cy} r={r + 4} fill="none" stroke="#2563eb" strokeWidth="4" />
+      <circle className="disp-found-ring late" cx={cx} cy={cy} r={r + 4} fill="none" stroke="#2563eb" strokeWidth="4" /></>}
     <circle cx={cx} cy={cy} r={r} fill={STATE_FILL[seat.state] ?? '#94a3b8'} stroke={seat.open_to_all ? '#0f172a' : '#fff'} strokeWidth="2" />
     {who
       ? <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={r * 0.85} fontWeight="700" fill="#fff">{initials(who)}</text>
@@ -87,7 +90,7 @@ function ZoneLabel({ zone }) {
   </g>;
 }
 
-export default function FloorDrawing({ floor, onSeatClick, selectedId = null }) {
+export default function FloorDrawing({ floor, onSeatClick, selectedId = null, highlightId = null }) {
   const catalog = Object.fromEntries((floor.catalog ?? []).map((c) => [c.type, c]));
   const seats = Object.fromEntries(floor.seats.map((s) => [s.id, s]));
   const order = (el) => (el.type === 'corridor' ? 0 : el.type === 'seat' ? 3 : ['wall', 'window', 'door'].includes(el.type) ? 2 : 1);
@@ -96,7 +99,7 @@ export default function FloorDrawing({ floor, onSeatClick, selectedId = null }) 
     <rect width={floor.cols * C} height={floor.rows * C} fill="#f8fafc" />
     {(floor.zones ?? []).map((z) => <ZoneOutline key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
-      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId} />
+      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId} highlight={el.id === highlightId} />
       : <Element key={el.id} el={el} catalog={catalog} />))}
     {(floor.zones ?? []).map((z) => <ZoneLabel key={`${z.id}-label`} zone={z} />)}
   </svg>;

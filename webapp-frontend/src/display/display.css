@@ -52,3 +52,14 @@
 .disp-activity li { padding: .6vh 0; border-bottom: 1px solid #e2e8f0; }
 .disp-activity time { color: #64748b; margin-right: .6em; font-variant-numeric: tabular-nums; }
 .disp-close { margin-top: 1.4vh; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 8px; padding: .6em 1.2em; cursor: pointer; font: inherit; }
+
+/* Colleague Finder: the found seat blinks, with two rings pulsing outwards. */
+.disp-seat.is-found > circle:not(.disp-found-ring) { animation: disp-found-blink 1s ease-in-out infinite; }
+.disp-found-ring { transform-box: fill-box; transform-origin: center; pointer-events: none; animation: disp-found-pulse 1.6s ease-out infinite; }
+.disp-found-ring.late { animation-delay: .8s; }
+@keyframes disp-found-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes disp-found-pulse { from { transform: scale(.85); opacity: .9; } to { transform: scale(2.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .disp-seat.is-found > circle:not(.disp-found-ring), .disp-found-ring { animation: none; }
+  .disp-found-ring.late { display: none; }
+}
