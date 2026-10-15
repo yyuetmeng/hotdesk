@@ -16,6 +16,7 @@ from . import admin_bp
 
 MIN_DIM, MAX_DIM = 5, 80
 MAX_ELEMENT_SIZE = 20
+ZONE_TYPE = "zone"  # outline grouping the seats inside it; own layer, up to the grid size
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 ROTATIONS = (0, 90, 180, 270)
 
@@ -291,8 +292,9 @@ def _base_size(entry: FloorElement, el: dict):
         return None, "w and h must be integers"
     if not entry.resizable and (w, h) != (entry.w, entry.h):
         return None, f"{entry.type} size is fixed at {entry.w}x{entry.h}"
-    if not (1 <= w <= MAX_ELEMENT_SIZE and 1 <= h <= MAX_ELEMENT_SIZE):
-        return None, f"w and h must be between 1 and {MAX_ELEMENT_SIZE}"
+    cap = MAX_DIM if entry.type == ZONE_TYPE else MAX_ELEMENT_SIZE
+    if not (1 <= w <= cap and 1 <= h <= cap):
+        return None, f"w and h must be between 1 and {cap}"
     return (w, h), None
 
 
@@ -312,7 +314,8 @@ def _mark_draft_changed(plan: FloorPlan) -> None:
 def _validate_elements(raw, cols, rows, existing_ids: set[str]):
     catalog = _catalog()
     known_departments = _known_departments(raw)
-    problems, seen, seen_ids = [], {}, set()
+    problems, seen_ids = [], set()
+    layers = {True: {}, False: {}}  # zones only clash with zones, other elements with each other
     for i, el in enumerate(raw):
         etype = el.get("type") if isinstance(el, dict) else None
         if etype not in catalog:
@@ -335,6 +338,9 @@ def _validate_elements(raw, cols, rows, existing_ids: set[str]):
         if rotation not in ROTATIONS:
             problems.append(f"element {i}: rotation must be one of 0, 90, 180, 270")
             continue
+        if etype == ZONE_TYPE and rotation != 0:
+            problems.append(f"element {i}: zones cannot be rotated")
+            continue
         color = el.get("color")
         if color and not COLOR_RE.match(str(color)):
             problems.append(f"element {i}: color must be #rrggbb")
@@ -351,6 +357,7 @@ def _validate_elements(raw, cols, rows, existing_ids: set[str]):
             problems.append(f"element {i} ({etype}): outside the {cols}x{rows} grid")
             continue
         cells = [(x + dx, y + dy) for dx in range(w) for dy in range(h)]
+        seen = layers[etype == ZONE_TYPE]
         clash = next((c for c in cells if c in seen), None)
         if clash is not None:
             problems.append(f"element {i} ({etype}) overlaps element {seen[clash]}")

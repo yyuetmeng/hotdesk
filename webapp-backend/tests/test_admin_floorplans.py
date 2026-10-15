@@ -106,7 +106,7 @@ def test_catalog(client, db, admin_token):
                                "resizable": False, "config": {}}
     assert by_type["wall"]["resizable"] is True and by_type["wall"]["config"] == {}
     assert [i["type"] for i in items] == ["wall", "seat", "table", "sofa", "locker", "toilet", "elevator", "stairs",
-                                          "door", "window", "pantry", "plant", "corridor"]
+                                          "door", "window", "pantry", "plant", "corridor", "zone"]
 
 
 def test_catalog_comes_from_floor_elements_table(client, db, admin_token):
