@@ -16,6 +16,7 @@ import { AuthProvider, RequireAuth, useAuth } from './auth.jsx';
 import logo from './logo.png';
 import FloorPlansPage from './floorplan/FloorPlansPage.jsx';
 import EditorPage from './floorplan/EditorPage.jsx';
+import ThemeSettings from './ThemeSettings.jsx';
 
 const workspaceLinks = [['/', 'Floor plan', 'floorplan'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin']];
 const adminLinks = [['/insights', 'Insights', 'insights'], ['/sensors', 'Sensors', 'sensors'], ['/displays', 'Floor display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users']];
@@ -47,6 +48,7 @@ function Sidebar() {
       <p className="nav-label">Account</p><NavLink to={user ? '/account' : '/login'}><NavIcon name="account"/>{user ? 'My account' : 'Sign in'}</NavLink>
       {user && <button type="button" className="sidebar-signout" onClick={() => logout()}><NavIcon name="signout"/>Sign out</button>}
     </nav>
+    <div className="sidebar-footer"><ThemeSettings /></div>
   </aside>;
 }
 

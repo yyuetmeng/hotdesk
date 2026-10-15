@@ -6,3 +6,23 @@
 .sidebar-signout:hover { color:#fff; background:#233b69; }
 .sidebar-signout:focus-visible { outline:2px solid #fff; outline-offset:2px; }
 @media (max-width:850px) { .sidebar-signout { padding:7px 9px; } }
+/* Settings cog at the bottom of the sidebar with the theme toggle (follow system / light / dark). */
+.sidebar-footer { margin-top:auto; padding-top:16px; }
+.theme-settings { position:relative; }
+.theme-cog { width:100%; }
+.theme-panel { position:absolute; bottom:calc(100% + 8px); left:0; z-index:20; min-width:180px; padding:12px; border-radius:10px; background:#16213b; border:1px solid #2a3a5c; box-shadow:0 12px 28px rgb(0 0 0/.35); color:#fff; }
+.theme-panel-label { margin:0 0 8px; color:#8292ae; font-size:10px; font-weight:750; letter-spacing:.12em; text-transform:uppercase; }
+.theme-panel-current { margin:8px 0 0; color:#c7d2e5; font-size:12px; }
+.theme-toggle { display:inline-flex; gap:2px; padding:3px; border-radius:9px; background:#0b1428; border:1px solid #2a3a5c; }
+.theme-toggle button { display:grid; place-items:center; width:38px; height:30px; border:0; border-radius:6px; background:transparent; color:#8292ae; cursor:pointer; }
+.theme-toggle button .nav-icon { width:18px; height:18px; }
+.theme-toggle button:hover { color:#fff; }
+.theme-toggle button.active { background:#233b69; color:#fff; }
+.theme-toggle button:focus-visible { outline:2px solid #fff; outline-offset:1px; }
+@media (max-width:850px) { .sidebar-footer { margin-top:8px; padding-top:0; } .theme-cog { width:auto; } .theme-panel { bottom:auto; top:calc(100% + 6px); } .theme-toggle .nav-icon { display:block; } }
+/* Dark theme: tinted surfaces that were written for light mode only. */
+:root[data-theme="dark"] .notice { color:#dbe7ff; background:#14254a; border-color:#284a8a; }
+:root[data-theme="dark"] .notice.error,:root[data-theme="dark"] .auth-error { color:#fecaca; background:#3a1518; border-color:#6b2328; }
+:root[data-theme="dark"] .notice.success,:root[data-theme="dark"] .fp-status-published { color:#bbf7d0; background:#0f2e1c; border-color:#1f5a36; }
+:root[data-theme="dark"] .fp-status-changed { color:#fde68a; background:#33240a; border-color:#6b4a12; }
+:root[data-theme="dark"] .users-row.selected { background:#1c2c4d; }
