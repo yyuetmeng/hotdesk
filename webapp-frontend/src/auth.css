@@ -30,3 +30,5 @@
 .auth-page :focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
 @media (max-width:760px) { .auth-page { grid-template-columns:1fr; } .auth-intro { padding:24px; gap:20px; } .auth-intro h1 { font-size:34px; } .auth-intro .auth-footnote,.auth-intro > div > p { display:none; } .auth-content { padding:32px 24px 48px; } }
 a.auth-submit { display:flex; align-items:center; justify-content:center; text-decoration:none; }
+.auth-keep { display:flex; align-items:center; gap:8px; margin:12px 0 4px; color:var(--text); font-size:14px; cursor:pointer; }
+.auth-keep input { width:16px; height:16px; margin:0; }

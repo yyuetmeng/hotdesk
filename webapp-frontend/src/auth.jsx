@@ -1,13 +1,13 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
-import { AUTH_TOKEN_KEY, request } from './api.js';
+import { request } from './api.js';
+import { browserStores, clearToken, readToken, writeToken } from './session.js';
 import './auth.css';
 
 const AuthContext = createContext(null);
-const sessionKey = AUTH_TOKEN_KEY;
 
 function storedToken() {
-  try { return sessionStorage.getItem(sessionKey) || ''; } catch { return ''; }
+  return readToken();
 }
 
 export function AuthProvider({ children }) {
@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
   const [attempt, setAttempt] = useState(0);
 
   function logout(reason = '') {
-    try { sessionStorage.removeItem(sessionKey); } catch {}
+    clearToken();
     setToken('');
     setUser(null);
     setError('');
@@ -58,10 +58,10 @@ export function AuthProvider({ children }) {
     return () => { clearTimeout(timer); window.removeEventListener('focus', check); };
   }, [token]);
 
-  async function login(identity, password) {
-    const result = await request('/api/auth/login', { method: 'POST', body: { email_or_username: identity.trim(), password } });
+  async function login(identity, password, keep = false) {
+    const result = await request('/api/auth/login', { method: 'POST', body: { email_or_username: identity.trim(), password, remember: keep } });
     if (!result.token || !result.user) throw new Error('The server returned an invalid login response.');
-    try { sessionStorage.setItem(sessionKey, result.token); } catch { /* Remain signed in in memory when storage is unavailable. */ }
+    writeToken(browserStores(), result.token, keep);  // memory only when storage is unavailable
     setMessage('');
     setError('');
     setUser(result.user);

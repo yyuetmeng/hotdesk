@@ -17,6 +17,8 @@ class Config:
     }
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
     JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES", "43200"))
+    # "Keep me signed in on this device": a longer token, kept in the browser beyond the tab (5 days).
+    JWT_REMEMBER_EXPIRES = int(os.getenv("JWT_REMEMBER_EXPIRES", "432000"))
     RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
     EMAIL_FROM = os.getenv("EMAIL_FROM", "")
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")

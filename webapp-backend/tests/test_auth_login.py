@@ -103,3 +103,18 @@ def test_me_returns_current_user(client, db):
 
 def test_me_requires_auth(client, db):
     assert client.get("/api/auth/me").status_code == 401
+
+
+def _lifetime(token):
+    import jwt
+    claims = jwt.decode(token, options={"verify_signature": False})
+    return claims["exp"] - claims["iat"]
+
+
+def test_keep_me_signed_in_gives_a_five_day_token(client, db):
+    mk_user(db)
+    normal = login(client, "ux").get_json()["token"]
+    kept = client.post("/api/auth/login", json={"email_or_username": "ux", "password": PW, "remember": True}).get_json()
+    assert _lifetime(normal) == client.application.config["JWT_ACCESS_TOKEN_EXPIRES"]
+    assert _lifetime(kept["token"]) == 5 * 24 * 3600
+    assert kept["remember"] is True

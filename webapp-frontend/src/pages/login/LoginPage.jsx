@@ -11,6 +11,7 @@ export function LoginPage() {
   const [identity, setIdentity] = useState('');
   const [password, setPassword] = useState('');
   const [visible, setVisible] = useState(false);
+  const [keep, setKeep] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const submitting = useRef(false);
@@ -24,7 +25,7 @@ export function LoginPage() {
     submitting.current = true;
     setPending(true);
     setError('');
-    try { await auth.login(identity, password); setPassword(''); }
+    try { await auth.login(identity, password, keep); setPassword(''); }
     catch (failure) {
       setError(failure.status === 401 ? 'Incorrect email, username, or password.' : failure.status === 403 ? failure.message : 'Unable to sign in. Please check your connection and try again.');
     } finally { submitting.current = false; setPending(false); }
@@ -36,7 +37,8 @@ export function LoginPage() {
       <label htmlFor="login-identity">Email or username</label><input id="login-identity" name="username" autoComplete="username" required value={identity} onChange={(event) => setIdentity(event.target.value)} disabled={pending} />
       <label htmlFor="login-password">Password</label><div className="auth-password"><input id="login-password" name="password" type={visible ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} disabled={pending} /><button type="button" aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? 'Hide' : 'Show'}</button></div>
       {error && <p className="auth-error" role="alert">{error}</p>}
+      <label className="auth-keep"><input type="checkbox" checked={keep} onChange={(event) => setKeep(event.target.checked)} disabled={pending} />Keep me signed in on this device</label>
       <button className="auth-submit" disabled={pending} type="submit">{pending ? 'Signing in...' : 'Sign in'}</button>
-    </form><Link className="auth-secondary" to="/forgot-password">Forgot your password?</Link><p className="auth-help">Need access? Contact your administrator.</p><p className="auth-help">Your session is stored for this tab only.</p>
+    </form><Link className="auth-secondary" to="/forgot-password">Forgot your password?</Link><p className="auth-help">Need access? Contact your administrator.</p><p className="auth-help">{keep ? 'You stay signed in on this device for 5 days. Do not use this on a shared computer.' : 'Your session is stored for this tab only.'}</p>
   </div></AuthLayout>;
 }

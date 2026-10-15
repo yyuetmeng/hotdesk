@@ -82,11 +82,13 @@ def login():
         user.failed_attempts = 0
         user.updated_at = func.now()
         session.commit()
-    write_audit(uid, "auth.login_success", uid, {})
-    token = create_access_token(identity=uid,
+    remember = body.get("remember") is True
+    write_audit(uid, "auth.login_success", uid, {"remember": remember})
+    lifetime = dt.timedelta(seconds=current_app.config["JWT_REMEMBER_EXPIRES"]) if remember else None
+    token = create_access_token(identity=uid, expires_delta=lifetime,
                                 additional_claims={"role": user.role.name, "email": user.email})
     g.jwt_uid = uid
-    return jsonify(token=token, user=public_user(user))
+    return jsonify(token=token, user=public_user(user), remember=remember)
 
 
 @auth_bp.get("/me")

@@ -1,3 +1,4 @@
+import { readToken } from './session.js';
 const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
 
 export const storage = {
@@ -53,11 +54,11 @@ export function promptForToken() {
   return token || '';
 }
 
-// Flask JWT saved by the sign-in flow (auth.jsx); per-tab, so it lives in sessionStorage.
-export const AUTH_TOKEN_KEY = 'hotdesk.auth.token';
+// Flask JWT saved by the sign-in flow (auth.jsx): this tab only, or kept on the device (session.js).
+export { AUTH_TOKEN_KEY } from './session.js';
 
 export function readFlaskToken() {
-  try { return sessionStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch { return ''; }
+  return readToken();
 }
 
 export async function flaskRequest(path, { method = 'GET', body } = {}) {
