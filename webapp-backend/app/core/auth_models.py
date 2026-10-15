@@ -58,6 +58,9 @@ class User(Base):
     end_date: Mapped[dt.date | None] = mapped_column(Date)
     failed_attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0,
                                                  server_default=text("0"))
+    # How many colleagues this user may book seats for per day (0-20; sql/0017).
+    booking_allowance: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0,
+                                                   server_default=text("0"))
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False,
                                                     server_default=func.now())
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False,

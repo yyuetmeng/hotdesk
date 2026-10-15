@@ -43,7 +43,7 @@ def _close_orm_session(exc=None):
 
 
 def init_orm(app):
-    from . import auth_models, floorplan_models  # noqa: F401  (registers all mappers on Base)
+    from . import auth_models, desk_models, floorplan_models  # noqa: F401  (registers all mappers on Base)
 
     # Per request (no stale identity map when an app context spans several requests)
     # and per app context (scripts / code outside requests).
