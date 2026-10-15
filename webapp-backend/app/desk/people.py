@@ -13,24 +13,25 @@ from app.core.orm import orm_session
 from . import rules, service
 from .dashboard import seat_places
 
-MIN_QUERY = 2
-MAX_RESULTS = 20
+MAX_RESULTS = 50
 
 
 def _hhmm(at: datetime | None) -> str | None:
     return at.astimezone(rules.TZ).strftime("%H:%M") if at else None
 
 
-def find_people(q: str, at: datetime) -> list[dict]:
+def find_people(q: str, at: datetime, team_id=None) -> list[dict]:
+    """Active colleagues matching `q` (name or username; empty = everyone), optionally in one project team.
+    At most MAX_RESULTS, by name."""
     q = (q or "").strip()
-    if len(q) < MIN_QUERY:
-        return []
     session = orm_session()
     today = rules.local_today(at)
     tomorrow = today + timedelta(days=1)
     like = f"%{q}%"
-    users = session.scalars(select(User).where(User.is_active.is_(True), or_(User.full_name.ilike(like), User.username.ilike(like)))
-                            .order_by(User.full_name).limit(MAX_RESULTS * 2)).unique().all()
+    query = select(User).where(User.is_active.is_(True), or_(User.full_name.ilike(like), User.username.ilike(like)))
+    if team_id is not None:
+        query = query.join(UserDepartment, UserDepartment.user_id == User.id).where(UserDepartment.department_id == team_id)
+    users = session.scalars(query.order_by(User.full_name).limit(MAX_RESULTS * 2)).unique().all()
     users = [u for u in users if service.is_usable(u, today)][:MAX_RESULTS]
     if not users:
         return []
@@ -71,3 +72,8 @@ def find_people(q: str, at: datetime) -> list[dict]:
         else:
             out.append({**base, "status": "away", "seat": None, "date": None, "since": None, "until": None, "preset": None})
     return out
+
+
+def project_teams() -> list[dict]:
+    """All project teams, A-Z (for the Colleague Finder filter; readable by any signed-in user)."""
+    return [{"id": str(i), "name": n} for i, n in orm_session().execute(select(Department.id, Department.name).order_by(Department.name))]

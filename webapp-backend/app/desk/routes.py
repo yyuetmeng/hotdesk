@@ -16,7 +16,7 @@ from app.core.orm import orm_session
 from . import desk_bp, rules, service
 from .zones import drawn_zones
 from .dashboard import dashboard as desk_dashboard
-from .people import find_people
+from .people import find_people, project_teams
 
 
 def desk_endpoint(fn):
@@ -143,7 +143,17 @@ def seat_activity(viewer, at, seat_id):
 @desk_bp.get("/people")
 @desk_endpoint
 def people(viewer, at):
-    return jsonify(items=find_people(request.args.get("q", ""), at))
+    team = request.args.get("team") or None
+    team_id = service._uuid(team) if team else None
+    if team and team_id is None:
+        raise service.DeskError("unknown project team")
+    return jsonify(items=find_people(request.args.get("q", ""), at, team_id))
+
+
+@desk_bp.get("/teams")
+@desk_endpoint
+def teams(viewer, at):
+    return jsonify(items=project_teams())
 
 
 @desk_bp.get("/dashboard")

@@ -13,8 +13,8 @@ def world(client, db, monkeypatch):
     return build_world(client, monkeypatch)
 
 
-def _find(client, world, q, who="jane"):
-    r = client.get(URL, query_string={"q": q}, headers=hdr(world["tok"][who]))
+def _find(client, world, q, who="jane", **extra):
+    r = client.get(URL, query_string={"q": q, **extra}, headers=hdr(world["tok"][who]))
     assert r.status_code == 200, r.get_json()
     return r.get_json()["items"]
 
@@ -23,9 +23,21 @@ def test_requires_sign_in(client, world):
     assert client.get(URL, query_string={"q": "carl"}).status_code == 401
 
 
-def test_short_query_returns_nothing(client, world):
-    assert _find(client, world, "c") == []
-    assert _find(client, world, "  ") == []
+def test_empty_query_lists_everyone_active(client, world):
+    names = [p["name"] for p in _find(client, world, "  ")]
+    assert names == ["Ali Rahman", "Bob Ong", "Carl Lim", "Jane Tan", "Root Admin"]       # dave is inactive
+
+
+def test_team_filter(client, world):
+    assert [p["name"] for p in _find(client, world, "", team=world["ops"])] == ["Bob Ong"]
+    assert [p["name"] for p in _find(client, world, "a", team=world["eng"])] == ["Ali Rahman", "Carl Lim", "Jane Tan", "Root Admin"]
+    assert client.get(URL, query_string={"team": "nope"}, headers=hdr(world["tok"]["jane"])).status_code == 400
+
+
+def test_teams_list_for_everyone(client, world):
+    r = client.get("/api/desk/teams", headers=hdr(world["tok"]["jane"]))
+    assert r.status_code == 200
+    assert [t["name"] for t in r.get_json()["items"]] == ["Engineering", "Ops"]
 
 
 def test_statuses(client, world, monkeypatch):
