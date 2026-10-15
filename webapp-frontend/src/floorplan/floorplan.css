@@ -33,7 +33,6 @@
 .fp-color-extra input[type="color"] { width: 32px; height: 24px; padding: 0; border: 1px solid var(--border, #cbd5e1); border-radius: 6px; cursor: pointer; }
 .fp-actions { display: flex; gap: 8px; margin-top: 12px; }
 @media (max-width: 1100px) { .fp-panes { grid-template-columns: 1fr; } }
-.fp-el.not-bookable { background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.6) 0 3px, transparent 3px 7px); }
 .fp-inspector label.fp-toggle { flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
 /* Label laid out in the element's unrotated footprint, then turned with it. */
 .fp-el-label { position: absolute; left: 50%; top: 50%; box-sizing: border-box; padding: 3px; overflow: hidden; overflow-wrap: anywhere; pointer-events: none;
@@ -54,3 +53,12 @@
 .fp-status-published { color: #146c36; background: #e5f8e9; border-color: #a8dfb4; }
 .fp-status-changed { color: #8a4b00; background: #fff4e0; border-color: #ffd28a; }
 .fp-status-draft, .fp-status-unpublished { color: var(--muted); }
+/* Seat department tags (spec 2026-10-15-seat-department-tags §3). */
+.fp-el.untagged { border: 2px dashed #0f172a; }
+.fp-tag { position: absolute; top: 2px; right: 2px; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); pointer-events: none; }
+.fp-tag-all { background: #fff; border-color: #0f172a; }
+.fp-box { position: absolute; border: 2px dashed var(--accent); background: rgba(37, 99, 235, .08); pointer-events: none; z-index: 4; }
+.fp-key { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+.fp-key li { display: flex; align-items: center; gap: 6px; }
+.fp-key .fp-tag { position: static; }
+.fp-key-untagged { display: inline-block; width: 12px; height: 12px; border: 2px dashed #0f172a; border-radius: 3px; }

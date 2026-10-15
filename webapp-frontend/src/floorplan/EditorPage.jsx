@@ -5,6 +5,7 @@ import { formatDateTime } from '../format.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { CATALOG, MAX_ELEMENT_SIZE, baseSize, catalogByType, isResizable, setCatalog, sizeOf } from './palette.js';
 import { addElement, metaChanged, moveElement, placementError, removeElement, resizeElement, rotateElement, validateAll } from './logic.js';
+import { countUntagged, departmentColor, isSeat, seatsInBox, setTag, sharedTag, tagOf, toggleSelection } from './selection.js';
 import './floorplan.css';
 
 let localSeq = 0;
@@ -51,8 +52,20 @@ function SizeFields({ el, onResize }) {
 
 // Per-type settings come from the catalog's default config (floor_elements.config).
 const settingValue = (el, key) => el.config?.[key] ?? catalogByType[el.type]?.config?.[key];
-const isUnbookable = (el) => 'bookable' in (catalogByType[el.type]?.config || {}) && settingValue(el, 'bookable') === false;
-const SETTING_LABELS = { bookable: 'Allow booking' };
+const SETTING_LABELS = {};
+
+// Seat department tag dropdown (spec 2026-10-15-seat-department-tags §3): None, Free for all, departments A–Z.
+function TagSelect({ value, departments, onChange }) {
+  return <label>Department / group <select value={value} aria-label="Department or group"
+    onChange={(e) => onChange(e.target.value)}>
+    {value === 'mixed' && <option value="mixed" disabled>Mixed</option>}
+    <option value="none">None (not bookable)</option>
+    <option value="all">Free for all departments</option>
+    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+  </select></label>;
+}
+
+const untaggedWarning = (n) => `${n} ${n === 1 ? 'seat has' : 'seats have'} no department and can't be booked. Publish anyway?`;
 
 const SWATCHES = [
   '#1e293b', '#475569', '#64748b', '#94a3b8', '#cbd5e1',
@@ -70,7 +83,13 @@ export default function EditorPage() {
   const [past, setPast] = useState([]);
   const [future, setFuture] = useState([]);
   const [dirty, setDirty] = useState(false);
-  const [selectedId, setSelectedId] = useState(null);
+  // Several seats can be selected (box drag, Ctrl/Shift-click); single-element tools need exactly one.
+  const [selectedIds, setSelectedIds] = useState([]);
+  const selectedId = selectedIds.length === 1 ? selectedIds[0] : null;
+  const setSelectedId = (one) => setSelectedIds(one ? [one] : []);
+  const [departments, setDepartments] = useState([]);
+  const [box, setBox] = useState(null);
+  const boxRef = useRef(null);
   const [preview, setPreview] = useState(null);
   const [tip, setTip] = useState(null);
   const [cell, setCell] = useState(28);
@@ -82,9 +101,11 @@ export default function EditorPage() {
   const dragRef = useRef(null);
 
   useEffect(() => {
-    Promise.all([flaskRequest('/api/admin/floor-plans/catalog'), flaskRequest(`/api/admin/floor-plans/${id}`)])
-      .then(([catalog, data]) => {
+    Promise.all([flaskRequest('/api/admin/floor-plans/catalog'), flaskRequest(`/api/admin/floor-plans/${id}`),
+                 flaskRequest('/api/admin/departments')])
+      .then(([catalog, data, depts]) => {
         setCatalog(catalog.items);
+        setDepartments([...depts.items].sort((a, b) => a.name.localeCompare(b.name)));
         setPlan(data); setElements(data.elements);
         setMeta({ name: data.name, cols: data.cols, rows: data.rows });
       })
@@ -144,18 +165,48 @@ export default function EditorPage() {
 
   useEffect(() => {
     const onKey = (event) => {
-      if (!plan || !selectedId || event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
-      if (event.key === 'r' || event.key === 'R') {
+      if (!plan || !selectedIds.length || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+      if (event.key === 'Escape') { setSelectedIds([]); return; }
+      if ((event.key === 'r' || event.key === 'R') && selectedId) {
         const result = rotateElement(elements, selectedId, plan.cols, plan.rows);
         if (!result.error) commit(result.elements);
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
-        commit(removeElement(elements, selectedId)); setSelectedId(null);
+        commit(elements.filter((el) => !selectedIds.includes(el.id))); setSelectedIds([]);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [plan, selectedId, elements, commit]);
+  }, [plan, selectedId, selectedIds, elements, commit]);
+
+  // Box selection: press on an empty cell and drag; seats fully inside are selected.
+  const onGridPointerDown = (event) => {
+    if (event.target !== gridRef.current || event.button !== 0) return;
+    const start = cellFromEvent(event);
+    boxRef.current = { start, end: start, moved: false, additive: event.ctrlKey || event.shiftKey };
+    const onMove = (e) => {
+      const b = boxRef.current;
+      if (!b) return;
+      const end = cellFromEvent(e);
+      b.end = end;
+      b.moved = b.moved || end.x !== b.start.x || end.y !== b.start.y;
+      if (b.moved) setBox({ x1: b.start.x, y1: b.start.y, x2: end.x, y2: end.y });
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      const b = boxRef.current;
+      boxRef.current = null;
+      setBox(null);
+      if (!b) return;
+      if (!b.moved) { if (!b.additive) setSelectedIds([]); return; }
+      const inside = seatsInBox(elements, { x1: b.start.x, y1: b.start.y, x2: b.end.x, y2: b.end.y });
+      const seatIds = (ids) => ids.filter((sid) => elements.some((el) => el.id === sid && isSeat(el)));
+      setSelectedIds((old) => (b.additive ? [...new Set([...seatIds(old), ...inside])] : inside));
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
 
   const updateSelected = (patch) => {
     commit(elements.map((el) => (el.id === selectedId ? { ...el, ...patch } : el)));
@@ -222,6 +273,15 @@ export default function EditorPage() {
   if (error) return <main className="page"><PageTitle title="Floor plan editor" /><Notice kind="error">{error}</Notice></main>;
   if (!plan) return <main className="page"><Loading label="Loading floor plan..." /></main>;
   const selected = elements.find((el) => el.id === selectedId);
+  const selectedSeatIds = selectedIds.filter((sid) => elements.some((el) => el.id === sid && isSeat(el)));
+  const deptName = Object.fromEntries(departments.map((d) => [d.id, d.name]));
+  const tagLabel = (el) => (tagOf(el) === 'all' ? 'Free for all' : tagOf(el) === 'none' ? 'No department'
+    : deptName[el.department_id] ?? 'Unknown department');
+  const applyTag = (ids, tag) => { if (tag !== 'mixed') commit(setTag(elements, ids, tag)); };
+  const untagged = countUntagged(elements);
+  const usedDepartments = [...new Set(elements.filter((el) => isSeat(el) && el.department_id).map((el) => el.department_id))]
+    .map((did) => ({ id: did, name: deptName[did] ?? 'Unknown department' }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return <main className="page fp-editor">
     <PageTitle title={plan.name} />
@@ -238,7 +298,7 @@ export default function EditorPage() {
       <button className="button subtle" onClick={undo} disabled={!past.length}>Undo</button>
       <button className="button subtle" onClick={redo} disabled={!future.length}>Redo</button>
       <button className="button primary" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save *' : 'Saved'}</button>
-      <button className="button primary" onClick={() => lifecycle('publish')}
+      <button className="button primary" onClick={() => lifecycle('publish', { confirmText: untagged ? untaggedWarning(untagged) : undefined })}
         disabled={saving || validateAll(elements, plan.cols, plan.rows).length > 0 || (plan.status === 'published' && !dirty && !metaChanged(meta, plan))}>
         {dirty || metaChanged(meta, plan) ? 'Save & publish' : 'Publish'}</button>
       {plan.status === 'changed' && <button className="button subtle" disabled={saving}
@@ -261,24 +321,28 @@ export default function EditorPage() {
           <span className="fp-swatch" style={{ background: entry.color }} />
           <b>{entry.label}</b><small>{entry.w}×{entry.h}</small>
         </div>)}
-        <p className="fp-hint">Drag onto the grid. Click an element to select; R rotates, Del removes.</p>
+        <p className="fp-hint">Drag onto the grid. Click an element to select; R rotates, Del removes. Drag on empty grid to select seats; Ctrl/Shift-click adds or removes a seat.</p>
       </aside>
       <div className="fp-grid-wrap">
         <div ref={gridRef} className="fp-grid" onDragOver={onDragOver} onDrop={onDrop}
           style={{ width: plan.cols * cell, height: plan.rows * cell, '--cell': `${cell}px` }}
-          onClick={(e) => { if (e.target === gridRef.current) setSelectedId(null); }}>
+          onPointerDown={onGridPointerDown}>
           {elements.map((el) => {
             const size = sizeOf(el);
             const base = baseSize(el);
             const entry = catalogByType[el.type];
             return <div key={el.id} draggable
-              className={`fp-el${selectedId === el.id ? ' selected' : ''}${isUnbookable(el) ? ' not-bookable' : ''}`}
-              onMouseEnter={(e) => setTip({ text: `${el.label ? `${el.label}\n` : ''}${entry.label} (${el.x},${el.y})`,
+              className={`fp-el${selectedIds.includes(el.id) ? ' selected' : ''}${isSeat(el) && tagOf(el) === 'none' ? ' untagged' : ''}`}
+              onMouseEnter={(e) => setTip({ text: `${el.label ? `${el.label}\n` : ''}${entry.label} (${el.x},${el.y})${isSeat(el) ? `\n${tagLabel(el)}` : ''}`,
                                             rect: e.currentTarget.getBoundingClientRect() })}
               onMouseLeave={() => setTip(null)}
               onDragStart={(e) => { setTip(null); dragRef.current = { kind: 'move', id: el.id }; e.dataTransfer.setData('text/plain', el.id); }}
               onDragEnd={() => { dragRef.current = null; setPreview(null); }}
-              onClick={(e) => { e.stopPropagation(); setSelectedId(el.id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (e.ctrlKey || e.shiftKey) setSelectedIds(toggleSelection(selectedSeatIds, el));
+                else setSelectedId(el.id);
+              }}
               style={{ left: el.x * cell, top: el.y * cell, width: size.w * cell, height: size.h * cell,
                        backgroundColor: el.color || entry.color }}>
               {el.label && <span className="fp-el-label"
@@ -286,17 +350,36 @@ export default function EditorPage() {
                          transform: `translate(-50%, -50%) rotate(${el.rotation || 0}deg)` }}>
                 {el.label}
               </span>}
+              {isSeat(el) && tagOf(el) !== 'none' && <span className={`fp-tag${tagOf(el) === 'all' ? ' fp-tag-all' : ''}`}
+                style={tagOf(el) === 'all' ? undefined : { background: departmentColor(el.department_id) }} />}
             </div>;
           })}
           {preview && <div className={`fp-preview ${preview.valid ? 'ok' : 'bad'}`}
             style={{ left: preview.x * cell, top: preview.y * cell,
                      width: sizeOf(preview).w * cell,
                      height: sizeOf(preview).h * cell }} />}
+          {box && <div className="fp-box" style={{
+            left: Math.min(box.x1, box.x2) * cell, top: Math.min(box.y1, box.y2) * cell,
+            width: (Math.abs(box.x2 - box.x1) + 1) * cell, height: (Math.abs(box.y2 - box.y1) + 1) * cell }} />}
         </div>
+        <ul className="fp-key" aria-label="Department key">
+          {usedDepartments.map((d) => <li key={d.id}><span className="fp-tag" style={{ background: departmentColor(d.id) }} />{d.name}</li>)}
+          <li><span className="fp-tag fp-tag-all" />Free for all</li>
+          <li><span className="fp-key-untagged" />Untagged ({untagged})</li>
+        </ul>
       </div>
       <aside className="fp-inspector">
-        <h2>{selected ? (catalogByType[selected.type].label) : 'Nothing selected'}</h2>
-        {selected && <>
+        {selectedSeatIds.length > 1 ? <>
+          <h2>{selectedSeatIds.length} seats selected</h2>
+          <TagSelect value={sharedTag(elements, selectedSeatIds)} departments={departments}
+            onChange={(tag) => applyTag(selectedSeatIds, tag)} />
+          <div className="fp-actions">
+            <button className="button subtle" onClick={() => {
+              commit(elements.filter((el) => !selectedSeatIds.includes(el.id))); setSelectedIds([]);
+            }}>Remove (Del)</button>
+          </div>
+        </> : <h2>{selected ? (catalogByType[selected.type].label) : 'Nothing selected'}</h2>}
+        {selected && selectedSeatIds.length <= 1 && <>
           <p>Type: {selected.type} · at {selected.x},{selected.y} · rotation {selected.rotation}°</p>
           <label>Label <input value={selected.label || ''} maxLength={60} aria-label="Element label"
             onChange={(e) => updateSelected({ label: e.target.value })} /></label>
@@ -311,6 +394,8 @@ export default function EditorPage() {
             <button className="button subtle" disabled={!selected.color}
               onClick={() => updateSelected({ color: null })}>Default</button>
           </div>
+          {isSeat(selected) && <TagSelect value={tagOf(selected)} departments={departments}
+            onChange={(tag) => applyTag([selected.id], tag)} />}
           <SizeFields el={selected} onResize={(w, h) => {
             const result = resizeElement(elements, selected.id, w, h, plan.cols, plan.rows);
             if (!result.error) commit(result.elements);
