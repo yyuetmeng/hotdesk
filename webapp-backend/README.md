@@ -95,7 +95,7 @@ desk/public request (no background job). Frontend: **Book a desk** (`/book`), **
 
 ## Floor displays (public TVs)
 
-Admins configure displays at sidebar **Floor display** (`/displays`); each display has a link
+Admins configure displays at sidebar **Manage Floor Display** (`/displays`); each display has a link
 `/display/<slug>` to open on a location's TV (no sign-in). Spec: `docs/superpowers/specs/2026-10-15-floor-dashboard-design.md`.
 
 | Endpoint | Purpose |
