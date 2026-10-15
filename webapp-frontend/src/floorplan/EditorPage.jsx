@@ -3,9 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { formatDateTime } from '../format.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
-import { CATALOG, MAX_ELEMENT_SIZE, baseSize, catalogByType, isResizable, setCatalog, sizeOf } from './palette.js';
-import { addElement, metaChanged, moveElement, placementError, removeElement, resizeElement, rotateElement, validateAll } from './logic.js';
-import { countUntagged, ctrlClickSelection, departmentColor, isSeat, seatsInBox, setTag, sharedTag, tagOf } from './selection.js';
+import { CATALOG, baseSize, catalogByType, isResizable, maxSizeFor, setCatalog, sizeOf } from './palette.js';
+import { addElement, metaChanged, moveElement, placementError, removeElement, resizeElement, rotateElement, seatsInZone, validateAll, zoneName } from './logic.js';
+import { countUntagged, ctrlClickSelection, departmentColor, isSeat, isZone, seatsInBox, setTag, sharedTag, tagOf } from './selection.js';
 import './floorplan.css';
 
 let localSeq = 0;
@@ -40,9 +40,9 @@ function SizeFields({ el, onResize }) {
   };
   const isDefault = base.w === entry.w && base.h === entry.h;
   return <div className="fp-size">
-    <label>Width <input type="number" min="1" max={MAX_ELEMENT_SIZE} value={draft.w} aria-label="Element width"
+    <label>Width <input type="number" min="1" max={maxSizeFor(el.type)} value={draft.w} aria-label="Element width"
       onChange={(e) => apply({ ...draft, w: e.target.value })} /></label>
-    <label>Height <input type="number" min="1" max={MAX_ELEMENT_SIZE} value={draft.h} aria-label="Element height"
+    <label>Height <input type="number" min="1" max={maxSizeFor(el.type)} value={draft.h} aria-label="Element height"
       onChange={(e) => apply({ ...draft, h: e.target.value })} /></label>
     <button className="button subtle" disabled={isDefault}
       onClick={() => apply({ w: String(entry.w), h: String(entry.h) })}>Reset size</button>
@@ -67,6 +67,7 @@ function TagSelect({ value, departments, onChange }) {
 
 const untaggedWarning = (n) => `${n} ${n === 1 ? 'seat has' : 'seats have'} no project team and can't be booked. Publish anyway?`;
 
+const ZONE_SWATCHES = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#64748b'];
 const SWATCHES = [
   '#1e293b', '#475569', '#64748b', '#94a3b8', '#cbd5e1',
   '#dc2626', '#e11d48', '#f87171', '#ea580c', '#fb923c',
@@ -140,7 +141,8 @@ export default function EditorPage() {
     if (!dragRef.current) return null;
     if (dragRef.current.kind === 'add') return { id: null, type: dragRef.current.type, ...point, rotation: 0 };
     const current = elements.find((el) => el.id === dragRef.current.id);
-    return current ? { ...current, ...point } : null;
+    const { dx = 0, dy = 0 } = dragRef.current;
+    return current ? { ...current, x: Math.max(point.x - dx, 0), y: Math.max(point.y - dy, 0) } : null;
   };
 
   const onDragOver = (event) => {
@@ -159,7 +161,7 @@ export default function EditorPage() {
     if (!drag) return;
     const result = drag.kind === 'add'
       ? addElement(elements, drag.type, point.x, point.y, plan.cols, plan.rows, nextId)
-      : moveElement(elements, drag.id, point.x, point.y, plan.cols, plan.rows);
+      : moveElement(elements, drag.id, Math.max(point.x - (drag.dx ?? 0), 0), Math.max(point.y - (drag.dy ?? 0), 0), plan.cols, plan.rows);
     if (!result.error) commit(result.elements);
   };
 
@@ -322,16 +324,38 @@ export default function EditorPage() {
           <span className="fp-swatch" style={{ background: entry.color }} />
           <b>{entry.label}</b><small>{entry.w}×{entry.h}</small>
         </div>)}
-        <p className="fp-hint">Drag onto the grid. Click an element to select; R rotates, Del removes. Drag on empty grid to select seats; Ctrl/Shift-click adds or removes a seat.</p>
+        <p className="fp-hint">Drag onto the grid. Click an element to select; R rotates, Del removes. Drag on empty grid to select seats; Ctrl/Shift-click adds or removes a seat. Zones: drag by the outline or name.</p>
       </aside>
       <div className="fp-grid-wrap">
         <div ref={gridRef} className="fp-grid" onDragOver={onDragOver} onDrop={onDrop}
           style={{ width: plan.cols * cell, height: plan.rows * cell, '--cell': `${cell}px` }}
           onPointerDown={onGridPointerDown}>
-          {elements.map((el) => {
+          {[...elements].sort((a, b) => isZone(b) - isZone(a)).map((el) => {
             const size = sizeOf(el);
             const base = baseSize(el);
             const entry = catalogByType[el.type];
+            if (isZone(el)) {
+              const handle = {
+                draggable: true,
+                onMouseEnter: (e) => setTip({ text: `${zoneName(el)}
+Zone (${el.x},${el.y})`, rect: e.currentTarget.getBoundingClientRect() }),
+                onMouseLeave: () => setTip(null),
+                onDragStart: (e) => {
+                  setTip(null);
+                  const at = cellFromEvent(e);
+                  dragRef.current = { kind: 'move', id: el.id, dx: at.x - el.x, dy: at.y - el.y };
+                  e.dataTransfer.setData('text/plain', el.id);
+                },
+                onDragEnd: () => { dragRef.current = null; setPreview(null); },
+                onClick: (e) => { e.stopPropagation(); setSelectedId(el.id); },
+              };
+              return <div key={el.id} className={`fp-zone${selectedIds.includes(el.id) ? ' selected' : ''}`}
+                style={{ left: el.x * cell, top: el.y * cell, width: size.w * cell, height: size.h * cell,
+                         '--zone': el.color || entry.color }}>
+                {['top', 'right', 'bottom', 'left'].map((side) => <span key={side} className={`fp-zone-edge ${side}`} {...handle} />)}
+                <span className="fp-zone-label" {...handle}>{zoneName(el)}<small>{seatsInZone(elements, el).length} seats</small></span>
+              </div>;
+            }
             return <div key={el.id} draggable
               className={`fp-el${selectedIds.includes(el.id) ? ' selected' : ''}${isSeat(el) && tagOf(el) === 'none' ? ' untagged' : ''}`}
               onMouseEnter={(e) => setTip({ text: `${el.label ? `${el.label}\n` : ''}${entry.label} (${el.x},${el.y})${isSeat(el) ? `\n${tagLabel(el)}` : ''}`,
@@ -381,11 +405,12 @@ export default function EditorPage() {
           </div>
         </> : <h2>{selected ? (catalogByType[selected.type].label) : 'Nothing selected'}</h2>}
         {selected && selectedSeatIds.length <= 1 && <>
-          <p>Type: {selected.type} · at {selected.x},{selected.y} · rotation {selected.rotation}°</p>
-          <label>Label <input value={selected.label || ''} maxLength={60} aria-label="Element label"
+          <p>Type: {selected.type} · at {selected.x},{selected.y}{isZone(selected) ? '' : ` · rotation ${selected.rotation}°`}</p>
+          <label>{isZone(selected) ? 'Name' : 'Label'} <input value={selected.label || ''} maxLength={60}
+            aria-label={isZone(selected) ? 'Zone name' : 'Element label'}
             onChange={(e) => updateSelected({ label: e.target.value })} /></label>
-          <p>Colour</p>
-          <div className="fp-swatches">{SWATCHES.map((hex) => <button key={hex} aria-label={hex}
+          <p>{isZone(selected) ? 'Outline colour' : 'Colour'}</p>
+          <div className="fp-swatches">{(isZone(selected) ? ZONE_SWATCHES : SWATCHES).map((hex) => <button key={hex} aria-label={hex}
             className={selected.color === hex ? 'active' : ''} style={{ background: hex }}
             onClick={() => updateSelected({ color: hex })} />)}</div>
           <div className="fp-color-extra">
@@ -395,6 +420,7 @@ export default function EditorPage() {
             <button className="button subtle" disabled={!selected.color}
               onClick={() => updateSelected({ color: null })}>Default</button>
           </div>
+          {isZone(selected) && <p>Seats inside: {seatsInZone(elements, selected).length} (automatic)</p>}
           {isSeat(selected) && <TagSelect value={tagOf(selected)} departments={departments}
             onChange={(tag) => applyTag([selected.id], tag)} />}
           <SizeFields el={selected} onResize={(w, h) => {
@@ -414,10 +440,10 @@ export default function EditorPage() {
             </>;
           })()}
           <div className="fp-actions">
-            <button className="button subtle" onClick={() => {
+            {!isZone(selected) && <button className="button subtle" onClick={() => {
               const result = rotateElement(elements, selected.id, plan.cols, plan.rows);
               if (!result.error) commit(result.elements);
-            }}>Rotate (R)</button>
+            }}>Rotate (R)</button>}
             <button className="button subtle" onClick={() => {
               commit(removeElement(elements, selected.id)); setSelectedId(null);
             }}>Remove (Del)</button>
