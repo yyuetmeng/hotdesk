@@ -26,3 +26,6 @@
 /* Alone on a page: fill the page and sit in the middle (page padding 28px + 54px; mobile top bar ~52px). */
 .page > .pin-loader:only-child { min-height: calc(100vh - 82px); min-height: calc(100dvh - 82px); justify-content: center; padding: 0; }
 @media (max-width: 850px) { .page > .pin-loader:only-child { min-height: calc(100dvh - 126px); } }
+/* Below a page's title: centred in the rest of the page (title block is about 120px). */
+.page > .page-title + .pin-loader { min-height: calc(100dvh - 210px); justify-content: center; padding: 0; }
+@media (max-width: 850px) { .page > .page-title + .pin-loader { min-height: calc(100dvh - 260px); } }

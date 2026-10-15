@@ -23,12 +23,13 @@ export default function ZoneUtilisationCard() {
     return () => { alive = false; clearInterval(timer); };
   }, []);
 
+  if (!data && !error) return <Loading label="Loading zones..." />;
   return <section className="card zone-util">
     {data && <span className="zone-util-updated">Live · updated {sgTime(data.now).slice(0, 5)}</span>}
     <h2>Utilisation by zone</h2>
     <p className="zone-util-sub">Free seats and how the rest are used, per zone.</p>
     {error && <Notice kind="error">{error}</Notice>}
-    {!data ? (!error && <Loading label="Loading zones..." />)
+    {!data ? null
       : showNoZones(data)
         ? <p className="state">No zones yet. Draw zones in <Link to="/floor-plans">Manage Floor Plan</Link> and publish.</p>
         : <>

@@ -96,10 +96,11 @@ export function DeskLabelsPage() {
     saveFile(makeZip(files), `desk-labels-${new Date().toISOString().slice(0, 10)}.zip`, 'application/zip');
   });
 
-  if (error && !rows) return <main className="page"><PageTitle title="Print Desk Labels" /><Notice kind="error">{error}</Notice></main>;
-  if (!rows) return <main className="page"><Loading label="Loading desk labels..." /></main>;
+  const title = <PageTitle title="Print Desk Labels"><p>QR labels for the seats of published floors. Stick each label on its desk; people scan it to check in.</p></PageTitle>;
+  if (error && !rows) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
+  if (!rows) return <main className="page">{title}<Loading label="Loading desk labels..." /></main>;
   return <main className="page desk-labels">
-    <PageTitle title="Print Desk Labels"><p>QR labels for the seats of published floors. Stick each label on its desk; people scan it to check in.</p></PageTitle>
+    {title}
     {error && <Notice kind="error">{error}</Notice>}
     {!floors.length ? <Notice>No published floors yet. Publish a floor plan to make its desk labels.</Notice> : <>
       <section className="card labels-filters toolbar">

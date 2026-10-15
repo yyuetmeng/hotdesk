@@ -57,12 +57,13 @@ export function UsersPage() {
     await Promise.all([loadUsers(), loadDepartments()]);
   };
 
-  if (error && !data) return <main className="page"><PageTitle title="Manage Users / Project Teams" /><Notice kind="error">{error}</Notice></main>;
-  if (!data) return <main className="page"><Loading label="Loading users..." /></main>;
+  const title = <PageTitle title="Manage Users / Project Teams"><p>Invite people, set their role and project teams, and control access.</p></PageTitle>;
+  if (error && !data) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
+  if (!data) return <main className="page">{title}<Loading label="Loading users..." /></main>;
 
   const pages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
   return <main className="page">
-    <PageTitle title="Manage Users / Project Teams"><p>Invite people, set their role and project teams, and control access.</p></PageTitle>
+    {title}
     {error && <Notice kind="error">{error}</Notice>}
     {notice && <Notice kind={notice.kind}>{notice.message}</Notice>}
 

@@ -34,10 +34,11 @@ export function DisplaysPage() {
     catch (err) { setError(err.message); }
   };
 
-  if (error && !items) return <main className="page"><PageTitle title="Manage Floor Display" /><Notice kind="error">{error}</Notice></main>;
-  if (!items) return <main className="page"><Loading label="Loading displays..." /></main>;
+  const title = <PageTitle title="Manage Floor Display"><p>Choose which floors each TV shows. Open a display's link on the TV at that location.</p></PageTitle>;
+  if (error && !items) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
+  if (!items) return <main className="page">{title}<Loading label="Loading displays..." /></main>;
   return <main className="page">
-    <PageTitle title="Manage Floor Display"><p>Choose which floors each TV shows. Open a display's link on the TV at that location.</p></PageTitle>
+    {title}
     {notice && <Notice kind={notice.kind}>{notice.text}</Notice>}
     {error && <Notice kind="error">{error}</Notice>}
     <div className="content-split">
