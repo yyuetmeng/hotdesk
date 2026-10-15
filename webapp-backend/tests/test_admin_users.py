@@ -259,3 +259,13 @@ def test_resend_invitation_only_pending(client, db, admin_token, stub_email):
               {"p": hash_password("activated1"), "i": uid})
     assert client.post(f"/api/admin/users/{uid}/resend-invitation",
                        headers=hdr(admin_token)).status_code == 409
+
+
+def test_booking_allowance_field(client, db, admin_token):
+    user = _mk_plain(client, admin_token, "al@x.com", "allow")
+    assert user["booking_allowance"] == 0
+    r = client.patch(f"/api/admin/users/{user['id']}", headers=hdr(admin_token), json={"booking_allowance": 5})
+    assert r.status_code == 200 and r.get_json()["booking_allowance"] == 5
+    for bad in (21, -1, "x", True):
+        r = client.patch(f"/api/admin/users/{user['id']}", headers=hdr(admin_token), json={"booking_allowance": bad})
+        assert r.status_code == 400 and "booking_allowance" in r.get_json()["fields"], bad

@@ -132,6 +132,7 @@ function UserForm({ user, departments, isSelf, onClose, onChanged, onSaved }) {
     email: user.email, username: user.username, full_name: user.full_name, role: user.role,
     start_date: user.start_date || '', end_date: user.end_date || '',
     department_ids: user.departments.map((d) => d.id), is_active: user.is_active,
+    booking_allowance: user.booking_allowance ?? 0,
   }));
   const [fields, setFields] = useState({});
   const [message, setMessage] = useState(null);
@@ -155,6 +156,7 @@ function UserForm({ user, departments, isSelf, onClose, onChanged, onSaved }) {
     event.preventDefault();
     run(async () => {
       const body = { ...form, start_date: form.start_date || null, end_date: form.end_date || null };
+      if (body.booking_allowance !== undefined) body.booking_allowance = Number(body.booking_allowance);
       if (isNew) {
         delete body.is_active;
         const created = await flaskRequest('/api/admin/users', { method: 'POST', body });
@@ -224,6 +226,9 @@ function UserForm({ user, departments, isSelf, onClose, onChanged, onSaved }) {
         : <small>No departments or groups yet — add one below the user list.</small>}
       {err('department_ids')}
     </fieldset>
+    {!isNew && <label>Can book seats for others (0–20 colleagues per day)
+      <input type="number" min="0" max="20" value={form.booking_allowance}
+        onChange={(e) => set('booking_allowance', e.target.value)} />{err('booking_allowance')}</label>}
     {!isNew && <label className="users-check">
       <input type="checkbox" checked={form.is_active} disabled={isSelf}
         onChange={(e) => set('is_active', e.target.checked)} />Account enabled{isSelf && ' (you cannot disable yourself)'}</label>}

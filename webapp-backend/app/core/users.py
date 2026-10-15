@@ -16,6 +16,7 @@ def public_user(user: User) -> dict:
         "end_date": user.end_date.isoformat() if user.end_date else None,
         "departments": [{"id": str(d.id), "name": d.name} for d in user.departments],
         "status": "pending_activation" if user.password_hash is None else "active",
+        "booking_allowance": user.booking_allowance,
     }
 
 

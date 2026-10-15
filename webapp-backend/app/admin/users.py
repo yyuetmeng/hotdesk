@@ -198,7 +198,7 @@ def is_last_active_admin(user_id: str) -> bool:
 
 
 PATCHABLE = ("full_name", "username", "email", "role", "is_active",
-             "start_date", "end_date", "department_ids")
+             "start_date", "end_date", "department_ids", "booking_allowance")
 
 
 @admin_bp.patch("/users/<uuid:user_id>")
@@ -234,6 +234,10 @@ def patch_user(user_id):
         fields["start_date"] = "invalid date (use YYYY-MM-DD)"
     if body.get("end_date") and end is None:
         fields["end_date"] = "invalid date (use YYYY-MM-DD)"
+    if "booking_allowance" in body:
+        allowance = body["booking_allowance"]
+        if type(allowance) is not int or not 0 <= allowance <= 20:
+            fields["booking_allowance"] = "booking_allowance must be a whole number from 0 to 20"
     if (start or end) and user is not None:
         s = start if "start_date" in body else user.start_date
         e = end if "end_date" in body else user.end_date
@@ -275,6 +279,8 @@ def patch_user(user_id):
         user.start_date = start
     if "end_date" in body:
         user.end_date = end
+    if "booking_allowance" in body:
+        user.booking_allowance = body["booking_allowance"]
     if set(body) - {"department_ids"}:
         user.updated_at = func.now()
     if dept_ids is not None:
