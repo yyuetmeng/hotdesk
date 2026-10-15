@@ -26,3 +26,5 @@
 :root[data-theme="dark"] .notice.success,:root[data-theme="dark"] .fp-status-published { color:#bbf7d0; background:#0f2e1c; border-color:#1f5a36; }
 :root[data-theme="dark"] .fp-status-changed { color:#fde68a; background:#33240a; border-color:#6b4a12; }
 :root[data-theme="dark"] .users-row.selected { background:#1c2c4d; }
+.sidebar-footer nav { margin-bottom:6px; }
+.sidebar-footer .nav-label { margin-top:0; }

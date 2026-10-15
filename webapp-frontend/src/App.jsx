@@ -16,6 +16,7 @@ import logo from './logo.png';
 import FloorPlansPage from './floorplan/FloorPlansPage.jsx';
 import EditorPage from './floorplan/EditorPage.jsx';
 import ThemeSettings from './ThemeSettings.jsx';
+import { isAdmin } from './roles.js';
 
 const workspaceLinks = [['/', 'Floor plan', 'floorplan'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin']];
 const analyticsLinks = [['/insights', 'Insights', 'insights']];
@@ -43,12 +44,18 @@ function Sidebar() {
     <NavLink className="brand" to="/"><img className="brand-mark" src={logo} alt=""/><span><b>Hot Desk Dashboard</b></span></NavLink>
     <nav aria-label="Application navigation">
       <p className="nav-label">Workspace</p>{nav(workspaceLinks)}
-      <p className="nav-label">Analytics</p>{nav(analyticsLinks)}
-      <p className="nav-label">Administration</p>{nav(adminLinks)}
-      <p className="nav-label">Account</p><NavLink to={user ? '/account' : '/login'}><NavIcon name="account"/>{user ? 'My account' : 'Sign in'}</NavLink>
-      {user && <button type="button" className="sidebar-signout" onClick={() => logout()}><NavIcon name="signout"/>Sign out</button>}
+      {isAdmin(user) && <>
+        <p className="nav-label">Analytics</p>{nav(analyticsLinks)}
+        <p className="nav-label">Administration</p>{nav(adminLinks)}
+      </>}
     </nav>
-    <div className="sidebar-footer"><ThemeSettings /></div>
+    <div className="sidebar-footer">
+      <nav aria-label="Account">
+        <p className="nav-label">Account</p><NavLink to={user ? '/account' : '/login'}><NavIcon name="account"/>{user ? 'My account' : 'Sign in'}</NavLink>
+        {user && <button type="button" className="sidebar-signout" onClick={() => logout()}><NavIcon name="signout"/>Sign out</button>}
+      </nav>
+      <ThemeSettings />
+    </div>
   </aside>;
 }
 
@@ -63,6 +70,12 @@ export default function App() {
   </Routes></AuthProvider>;
 }
 
+// Analytics and Administration pages are for admins only; anyone else is sent to the floor plan.
+function AdminOnly({ children }) {
+  const { user } = useAuth();
+  return isAdmin(user) ? children : <Navigate to="/" replace />;
+}
+
 function Workspace() {
   return <div className="app-shell">
     <Sidebar />
@@ -71,12 +84,12 @@ function Workspace() {
       <Route path="/checkin" element={<CheckInPage />} />
       <Route path="/checkin/:seatId" element={<CheckInPage />} />
       <Route path="/book" element={<BookDeskPage />} />
-      <Route path="/displays" element={<DisplaysPage />} />
-      <Route path="/insights" element={<InsightsPage />} />
-      <Route path="/floor-plans" element={<FloorPlansPage />} />
-      <Route path="/floor-plans/:id" element={<EditorPage />} />
-      <Route path="/floor-plans/:id/qr" element={<QrSheetPage />} />
-      <Route path="/users" element={<UsersPage />} />
+      <Route path="/displays" element={<AdminOnly><DisplaysPage /></AdminOnly>} />
+      <Route path="/insights" element={<AdminOnly><InsightsPage /></AdminOnly>} />
+      <Route path="/floor-plans" element={<AdminOnly><FloorPlansPage /></AdminOnly>} />
+      <Route path="/floor-plans/:id" element={<AdminOnly><EditorPage /></AdminOnly>} />
+      <Route path="/floor-plans/:id/qr" element={<AdminOnly><QrSheetPage /></AdminOnly>} />
+      <Route path="/users" element={<AdminOnly><UsersPage /></AdminOnly>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></div>
   </div>;
