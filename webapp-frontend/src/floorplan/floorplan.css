@@ -83,7 +83,10 @@
    the grid at any zoom. Sticky so it stays put while a wide grid scrolls sideways. */
 .fp-grid-tools { position: sticky; left: 0; box-sizing: border-box; max-width: 100%; min-width: 0;
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-.fp-grid-size, .fp-grid-view { display: flex; align-items: center; gap: 8px; flex: none; }
-.fp-grid-view { margin-left: auto; }   /* stays on the right, even when the strip wraps onto two lines */
+/* When it can't fit on one line: Cols, Rows, Apply keep the top line on the left (wrapping in that order if
+   still too narrow), and Zoom, Undo, Redo drop below, staying on the right. */
+.fp-grid-size, .fp-grid-view { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.fp-grid-size { flex: 0 1 auto; justify-content: flex-start; }
+.fp-grid-view { flex: 0 1 auto; justify-content: flex-end; margin-left: auto; }
 .fp-grid-tools input[type="number"] { width: 64px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
 .fp-grid-tools label { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
