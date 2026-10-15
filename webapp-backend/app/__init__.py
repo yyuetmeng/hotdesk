@@ -29,6 +29,10 @@ def create_app(config_class=Config) -> Flask:
 
     app.register_blueprint(admin_bp)
 
+    from .desk import desk_bp
+
+    app.register_blueprint(desk_bp)
+
     @app.errorhandler(404)
     def not_found(err):
         return jsonify(error="not found"), 404
