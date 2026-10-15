@@ -46,7 +46,7 @@ export function DeskLabelsPage() {
   const [images, setImages] = useState({});
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState('');
-  const [filters, setFilters] = useState({ floor: params.get('floor') || 'all', zone: 'all', team: 'all', q: '' });
+  const [filters, setFilters] = useState({ floor: params.get('floor') || 'all', zone: 'all', team: 'all', label: 'all', q: '' });
   const [selected, setSelected] = useState(() => new Set());
   const [downloaded, setDownloaded] = useState(null);   // seat ids whose label any admin has downloaded
 
@@ -75,7 +75,7 @@ export function DeskLabelsPage() {
   }, [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onFloor = rows ? rows.filter((r) => filters.floor === 'all' || r.floorId === filters.floor) : [];
-  const shown = useMemo(() => (rows ? filterRows(rows, filters) : []), [rows, filters]);
+  const shown = useMemo(() => (rows ? filterRows(rows, filters, downloaded) : []), [rows, filters, downloaded]);
   const chosen = shown.filter((r) => selected.has(r.id));
   const allShownSelected = shown.length > 0 && chosen.length === shown.length;
 
@@ -129,6 +129,11 @@ export function DeskLabelsPage() {
           <option value="open">Free for all</option>
           {teamOptions(rows).map((t) => <option key={t} value={t}>{t}</option>)}
           <option value="none">No project team</option>
+        </select></label>
+        <label>Labels <select value={filters.label} onChange={(e) => setFilter('label', e.target.value)}>
+          <option value="all">All labels</option>
+          <option value="new">New only (never downloaded)</option>
+          <option value="downloaded">Downloaded</option>
         </select></label>
         <label>Search <input type="search" placeholder="Seat label" value={filters.q} onChange={(e) => setFilter('q', e.target.value)} /></label>
       </section>

@@ -64,3 +64,17 @@ console.log('qr logic smoke OK');
   assert.deepEqual([...done], ['s1']);                    // original untouched (React state)
 }
 console.log('qr new-badge smoke OK');
+
+// Labels filter: all / new only / downloaded (needs the downloaded set; while loading, "new" shows nothing yet).
+{
+  const { filterRows } = await import('../src/qr/qrLogic.js');
+  const rows2 = [{ id: 'a', label: 'A1', floorId: 'p', zone: null, team: null }, { id: 'b', label: 'B1', floorId: 'p', zone: null, team: null }];
+  const base = { floor: 'all', zone: 'all', team: 'all', q: '' };
+  const done = new Set(['a']);
+  assert.deepEqual(filterRows(rows2, { ...base, label: 'all' }, done).map((r) => r.id), ['a', 'b']);
+  assert.deepEqual(filterRows(rows2, { ...base, label: 'new' }, done).map((r) => r.id), ['b']);
+  assert.deepEqual(filterRows(rows2, { ...base, label: 'downloaded' }, done).map((r) => r.id), ['a']);
+  assert.deepEqual(filterRows(rows2, base, done).map((r) => r.id), ['a', 'b']);               // no label filter = all
+  assert.deepEqual(filterRows(rows2, { ...base, label: 'new' }, null).map((r) => r.id), []);   // not loaded yet
+}
+console.log('qr labels filter smoke OK');

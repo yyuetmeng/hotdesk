@@ -19,9 +19,11 @@ const sorted = (values) => [...new Set(values)].sort((a, b) => a.localeCompare(b
 export const zoneOptions = (rows) => sorted(rows.map((r) => r.zone).filter(Boolean));
 export const teamOptions = (rows) => sorted(rows.map((r) => r.team).filter((t) => t && t !== FREE_FOR_ALL));
 
-export function filterRows(rows, { floor, zone, team, q }) {
+// label: 'all' | 'new' (never downloaded) | 'downloaded'; `downloaded` is the set of downloaded seat ids (null while loading).
+export function filterRows(rows, { floor, zone, team, q, label = 'all' }, downloaded = null) {
   const needle = (q ?? '').trim().toLowerCase();
-  return rows.filter((r) => (floor === 'all' || r.floorId === floor)
+  const labelOk = (r) => label === 'all' || (Boolean(downloaded) && (label === 'new') !== downloaded.has(r.id));
+  return rows.filter((r) => labelOk(r) && (floor === 'all' || r.floorId === floor)
     && (zone === 'all' || (zone === 'none' ? r.zone === null : r.zone === zone))
     && (team === 'all' || (team === 'none' ? r.team === null : team === 'open' ? r.team === FREE_FOR_ALL : r.team === team))
     && (!needle || r.label.toLowerCase().includes(needle)));
