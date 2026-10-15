@@ -172,9 +172,9 @@ def test_seat_tag_validation(client, db, admin_token):
     d = _dept("Ops")
     plan = _mk_plan(client, admin_token)
     cases = [
-        ({"type": "seat", "department_id": "not-a-uuid"}, "unknown department id"),
-        ({"type": "seat", "department_id": d, "open_to_all": True}, "choose a department or free for all, not both"),
-        ({"type": "wall", "department_id": d}, "only seats can have a department"),
+        ({"type": "seat", "department_id": "not-a-uuid"}, "unknown project team id"),
+        ({"type": "seat", "department_id": d, "open_to_all": True}, "choose a project team or free for all, not both"),
+        ({"type": "wall", "department_id": d}, "only seats can have a project team"),
     ]
     for extra, fragment in cases:
         r = _save(client, admin_token, plan["id"], [{"x": 0, "y": 0, "rotation": 0, **extra}])

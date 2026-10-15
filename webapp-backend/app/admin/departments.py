@@ -54,7 +54,7 @@ def create_department():
         session.commit()
     except IntegrityError:
         session.rollback()
-        return error("department name already exists", 409)
+        return error("project team name already exists", 409)
     dept_id = str(dept.id)
     actor = get_jwt_identity()
     g.jwt_uid = actor
@@ -70,7 +70,7 @@ def update_department(dept_id):
     session = orm_session()
     dept = session.get(Department, dept_id)
     if dept is None:
-        return error("department not found", 404)
+        return error("project team not found", 404)
     changes = {}
     if "name" in body:
         name = (body["name"] or "").strip()
@@ -87,7 +87,7 @@ def update_department(dept_id):
         session.commit()
     except IntegrityError:
         session.rollback()
-        return error("department name already exists", 409)
+        return error("project team name already exists", 409)
     actor = get_jwt_identity()
     g.jwt_uid = actor
     write_audit(actor, "department.update", None,
@@ -101,7 +101,7 @@ def delete_department(dept_id):
     dept_id = str(dept_id)
     dept = _dept(dept_id)
     if dept is None:
-        return error("department not found", 404)
+        return error("project team not found", 404)
     session = orm_session()
     session.delete(session.get(Department, dept_id))
     session.commit()

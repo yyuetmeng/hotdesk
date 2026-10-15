@@ -18,7 +18,7 @@ export default function SeatPopover({ seat, onClose }) {
   return <div className="disp-pop-backdrop" onClick={onClose}>
     <div className="disp-pop" role="dialog" aria-label={`Seat ${seat.label}`} onClick={(e) => e.stopPropagation()}>
       <h2>{seat.label}</h2>
-      <p className="disp-muted">{seat.department ?? 'No department'} · {stateLabel(seat.state)}</p>
+      <p className="disp-muted">{seat.department ?? 'No project team'} · {stateLabel(seat.state)}</p>
       {who && <p className="disp-who">{who}</p>}
       <h3>Today</h3>
       {activity === null ? <p className="disp-muted">Loading…</p>

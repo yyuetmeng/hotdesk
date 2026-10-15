@@ -77,16 +77,16 @@ def _tag_problems(el: dict, known_departments: set[str]) -> list[str]:
     if not dept and not open_to_all:
         return []
     if el.get("type") != "seat":
-        return ["only seats can have a department"]
+        return ["only seats can have a project team"]
     if dept and open_to_all:
-        return ["choose a department or free for all, not both"]
+        return ["choose a project team or free for all, not both"]
     if not isinstance(open_to_all, bool):
         return ["open_to_all must be true or false"]
     # A well-formed id of a department that no longer exists is not an error: deleting a
     # department silently untags its seats, also for editors opened before the delete
     # (_normalized saves those seats untagged). Only malformed ids are rejected.
     if dept and _element_uuid({"id": dept}) is None:
-        return ["unknown department id"]
+        return ["unknown project team id"]
     return []
 
 

@@ -284,7 +284,7 @@ def create_booking(viewer: User, plan_id, seat_id, day_text, preset, for_user_id
         if not is_usable(target, day):
             raise DeskError(f"{target.full_name}'s account is not active on that day")
         if not (department_ids(target) & department_ids(viewer)):
-            raise DeskError("you can only book for colleagues in your departments", 403)
+            raise DeskError("you can only book for colleagues in your project teams", 403)
         if viewer.booking_allowance <= 0:
             raise DeskError("you are not allowed to book for others", 403)
         already = session.scalar(select(func.count()).select_from(SeatBooking).where(
@@ -368,11 +368,11 @@ def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime, ct
     """
     day = rules.local_today(at)
     if not (el.open_to_all or el.department_id):
-        return _refuse("This seat cannot be used: it has no department.", 403)
+        return _refuse("This seat cannot be used: it has no project team.", 403)
     if not is_usable(viewer, day):
         return _refuse("Your account is not active today.", 403)
     if not may_use_seat(viewer, el):
-        return _refuse("This seat is for another department.", 403)
+        return _refuse("This seat is for another project team.", 403)
     mine = ctx["mine"] if ctx is not None else open_checkin_of(viewer)
     if mine is not None:
         if mine.seat_id == el.element_id:

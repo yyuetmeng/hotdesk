@@ -56,16 +56,16 @@ const SETTING_LABELS = {};
 
 // Seat department tag dropdown (spec 2026-10-15-seat-department-tags §3): None, Free for all, departments A–Z.
 function TagSelect({ value, departments, onChange }) {
-  return <label>Department / group <select value={value} aria-label="Department or group"
+  return <label>Project team <select value={value} aria-label="Project team"
     onChange={(e) => onChange(e.target.value)}>
     {value === 'mixed' && <option value="mixed" disabled>Mixed</option>}
     <option value="none">None (not bookable)</option>
-    <option value="all">Free for all departments</option>
+    <option value="all">Free for all project teams</option>
     {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
   </select></label>;
 }
 
-const untaggedWarning = (n) => `${n} ${n === 1 ? 'seat has' : 'seats have'} no department and can't be booked. Publish anyway?`;
+const untaggedWarning = (n) => `${n} ${n === 1 ? 'seat has' : 'seats have'} no project team and can't be booked. Publish anyway?`;
 
 const SWATCHES = [
   '#1e293b', '#475569', '#64748b', '#94a3b8', '#cbd5e1',
@@ -275,12 +275,12 @@ export default function EditorPage() {
   const selected = elements.find((el) => el.id === selectedId);
   const selectedSeatIds = selectedIds.filter((sid) => elements.some((el) => el.id === sid && isSeat(el)));
   const deptName = Object.fromEntries(departments.map((d) => [d.id, d.name]));
-  const tagLabel = (el) => (tagOf(el) === 'all' ? 'Free for all' : tagOf(el) === 'none' ? 'No department'
-    : deptName[el.department_id] ?? 'Unknown department');
+  const tagLabel = (el) => (tagOf(el) === 'all' ? 'Free for all' : tagOf(el) === 'none' ? 'No project team'
+    : deptName[el.department_id] ?? 'Unknown project team');
   const applyTag = (ids, tag) => { if (tag !== 'mixed') commit(setTag(elements, ids, tag)); };
   const untagged = countUntagged(elements);
   const usedDepartments = [...new Set(elements.filter((el) => isSeat(el) && el.department_id).map((el) => el.department_id))]
-    .map((did) => ({ id: did, name: deptName[did] ?? 'Unknown department' }))
+    .map((did) => ({ id: did, name: deptName[did] ?? 'Unknown project team' }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return <main className="page fp-editor">
@@ -363,7 +363,7 @@ export default function EditorPage() {
             left: Math.min(box.x1, box.x2) * cell, top: Math.min(box.y1, box.y2) * cell,
             width: (Math.abs(box.x2 - box.x1) + 1) * cell, height: (Math.abs(box.y2 - box.y1) + 1) * cell }} />}
         </div>
-        <ul className="fp-key" aria-label="Department key">
+        <ul className="fp-key" aria-label="Project team key">
           {usedDepartments.map((d) => <li key={d.id}><span className="fp-tag" style={{ background: departmentColor(d.id) }} />{d.name}</li>)}
           <li><span className="fp-tag fp-tag-all" />Free for all</li>
           <li><span className="fp-key-untagged" />Untagged ({untagged})</li>

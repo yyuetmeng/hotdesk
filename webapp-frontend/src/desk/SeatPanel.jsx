@@ -51,7 +51,7 @@ export default function SeatPanel({ planId, seat, date, preset, isToday, onChang
     {seat.open_to_all && <div className="desk-actions">
       {canBook
         ? <button className="button primary" onClick={() => book(null)}>Book for me · {presetLabel(preset)}</button>
-        : <p className="muted">{seat.state === 'not_bookable' ? 'This seat has no department.' : `Not bookable for ${presetLabel(preset)}.`}</p>}
+        : <p className="muted">{seat.state === 'not_bookable' ? 'This seat has no project team.' : `Not bookable for ${presetLabel(preset)}.`}</p>}
       {canBook && (colleagues === null
         ? <button className="button" onClick={() => setColleagues({ items: [], allowance: null })}>Book for a colleague…</button>
         : <div>
@@ -65,7 +65,7 @@ export default function SeatPanel({ planId, seat, date, preset, isToday, onChang
             </>}
         </div>)}
     </div>}
-    {!seat.open_to_all && seat.department_id && <p className="muted">Department seat: walk in and scan its QR code to check in.</p>}
+    {!seat.open_to_all && seat.department_id && <p className="muted">Project team seat: walk in and scan its QR code to check in.</p>}
 
     <h3>Today's activity</h3>
     {!isToday && <p className="muted">Shows today; booking above is for tomorrow.</p>}
