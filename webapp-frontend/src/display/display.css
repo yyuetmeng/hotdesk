@@ -9,13 +9,14 @@
 .disp-clock b { font-size: 1.4em; font-variant-numeric: tabular-nums; }
 .disp-clock small { opacity: .8; }
 
-.disp-capacity { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.2vh 1.2vw; }
-.disp-capacity.large { font-size: 1.15em; }
-.disp-capacity-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .6vh; }
-.disp-pct { font-weight: 700; }
-.disp-bar { display: flex; height: 1.2em; border-radius: 999px; overflow: hidden; background: #e2e8f0; }
+/* Capacity bars side by side in one compact row; title, percentage and counts share one size. */
+.disp-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1vh 1vw; }
+.disp-capacity { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .8vh 1vw; font-size: .85em; }
+.disp-capacity-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1em; margin-bottom: .5vh; }
+.disp-capacity-head b, .disp-pct { font-size: 1em; font-weight: 700; }
+.disp-bar { display: flex; height: .7em; border-radius: 999px; overflow: hidden; background: #e2e8f0; }
 .disp-bar span { display: block; height: 100%; }
-.disp-counts { display: flex; flex-wrap: wrap; gap: .4vh 1.4vw; margin-top: .6vh; color: #475569; }
+.disp-counts { display: flex; flex-wrap: wrap; gap: .3vh 1.1vw; margin-top: .5vh; color: #475569; font-size: 1em; }
 .disp-counts i, .disp-legend i { display: inline-block; width: .8em; height: .8em; border-radius: 50%; margin-right: .4em; vertical-align: -.05em; }
 .available { background: #16a34a; }
 .booked { background: #f59e0b; }
@@ -24,7 +25,8 @@
 
 .disp-floors { flex: 1; display: grid; gap: 1.6vh 1.6vw; min-height: 0; }
 .disp-floors.layout-grid { grid-template-columns: repeat(auto-fit, minmax(min(560px, 100%), 1fr)); }
-.disp-floor-card { display: flex; flex-direction: column; gap: 1vh; min-height: 0; }
+.disp-floor-card { display: flex; flex-direction: column; gap: .6vh; min-height: 0; }
+.disp-floor-name { margin: 0; font-size: .95em; font-weight: 700; color: #334155; }
 .disp-floor { width: 100%; flex: 1; min-height: 40vh; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; }
 .disp-seat { cursor: pointer; }
 .disp-seat:focus-visible circle { stroke: #2563eb; stroke-width: 4; }

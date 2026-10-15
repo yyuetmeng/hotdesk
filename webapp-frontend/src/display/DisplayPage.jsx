@@ -76,12 +76,14 @@ export function DisplayView({ loadConfig }) {
         <small>{offline ? `Offline — last updated ${sgTime(updatedAt)}` : `Updated ${sgTime(updatedAt)}`}</small>
       </div>
     </header>
-    {display.show_overall && floors.length > 0 &&
-      <CapacityBar title="All floors" summary={overall(floors.map((f) => f.summary))} large />}
+    {floors.length > 0 && <section className="disp-summary" aria-label="Capacity">
+      {display.show_overall && <CapacityBar title="All floors" summary={overall(floors.map((f) => f.summary))} />}
+      {shown.map((f) => <CapacityBar key={f.id} title={f.name} summary={f.summary} />)}
+    </section>}
     {!floors.length && <p className="disp-message">No published floors for this display.</p>}
     <section className={`disp-floors layout-${display.layout}`}>
       {shown.map((f) => <article key={f.id} className="disp-floor-card">
-        <CapacityBar title={f.name} summary={f.summary} />
+        {shown.length > 1 && <h2 className="disp-floor-name">{f.name}</h2>}
         <FloorDrawing floor={f} onSeatClick={setSeat} />
       </article>)}
     </section>

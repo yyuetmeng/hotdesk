@@ -1,8 +1,8 @@
 // Capacity line for a floor or the whole display: counts plus a stacked bar.
-export default function CapacityBar({ title, summary, large = false }) {
+export default function CapacityBar({ title, summary }) {
   const s = summary ?? { bookable: 0, available: 0, booked: 0, occupied: 0, occupancy_pct: 0 };
   const pct = (n) => (s.bookable ? (100 * n) / s.bookable : 0);
-  return <div className={`disp-capacity${large ? ' large' : ''}`}>
+  return <div className="disp-capacity">
     <div className="disp-capacity-head">
       <b>{title}</b>
       <span className="disp-pct">{s.occupancy_pct}% occupied</span>
