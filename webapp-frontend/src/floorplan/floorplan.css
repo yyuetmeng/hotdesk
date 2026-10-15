@@ -79,7 +79,11 @@
 .fp-zone-label small { margin-left: 6px; font-weight: 500; opacity: .85; }
 /* Zoom, Undo and Redo sit just above the grid on the right; sticky so they stay in view when the grid scrolls sideways. */
 /* Above the grid: grid size (Cols, Rows, Apply) on the left; Zoom, Undo, Redo on the right. */
-.fp-grid-tools { position: sticky; left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-.fp-grid-size { display: flex; align-items: center; gap: 8px; }
+/* Width is the grid's (set inline from cols x zoom), capped at the visible area, so both ends line up with
+   the grid at any zoom. Sticky so it stays put while a wide grid scrolls sideways. */
+.fp-grid-tools { position: sticky; left: 0; box-sizing: border-box; max-width: 100%; min-width: 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.fp-grid-size, .fp-grid-view { display: flex; align-items: center; gap: 8px; flex: none; }
+.fp-grid-view { margin-left: auto; }   /* stays on the right, even when the strip wraps onto two lines */
 .fp-grid-tools input[type="number"] { width: 64px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
 .fp-grid-tools label { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
