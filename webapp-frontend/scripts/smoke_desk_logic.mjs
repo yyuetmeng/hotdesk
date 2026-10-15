@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading } from '../src/desk/deskLogic.js';
+import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad } from '../src/desk/deskLogic.js';
 
 assert.equal(initials('Jane Tan'), 'JT');
 assert.equal(initials('Prince'), 'P');
@@ -20,4 +20,10 @@ assert.equal(floorLoading(null, 'p1'), true);
 assert.equal(floorLoading({ id: 'p1' }, 'p1'), false);
 assert.equal(floorLoading({ id: 'p1' }, 'p2'), true);
 assert.equal(floorLoading(null, ''), false);       // no floor chosen yet
+// One loader for the whole first load: until the floor list AND the first floor have arrived.
+assert.equal(firstLoad({ floors: null, floor: null, error: null }), true);
+assert.equal(firstLoad({ floors: [{ id: 'p1' }], floor: null, error: null }), true);
+assert.equal(firstLoad({ floors: [{ id: 'p1' }], floor: { id: 'p1' }, error: null }), false);
+assert.equal(firstLoad({ floors: [], floor: null, error: null }), false);          // nothing published
+assert.equal(firstLoad({ floors: [{ id: 'p1' }], floor: null, error: 'boom' }), false); // show the error
 console.log('desk logic smoke OK');

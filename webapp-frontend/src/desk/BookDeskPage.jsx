@@ -6,7 +6,7 @@ import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatDate, formatTime } from '../format.js';
 import FloorView from './FloorView.jsx';
 import SeatPanel from './SeatPanel.jsx';
-import { PRESETS, floorLoading, presetLabel } from './deskLogic.js';
+import { PRESETS, firstLoad, floorLoading, presetLabel } from './deskLogic.js';
 
 const addDays = (isoDay, days) => {
   const [y, m, d] = isoDay.split('-').map(Number);
@@ -55,7 +55,8 @@ export function BookDeskPage() {
   };
 
   const title = <PageTitle title="Book a desk"><p>Book a free-for-all seat for today or tomorrow, for yourself or a colleague.</p></PageTitle>;
-  if (!floors) return <main className="page">{title}{error ? <Notice kind="error">{error}</Notice> : <Loading label="Loading floors..." />}</main>;
+  if (firstLoad({ floors, floor, error })) return <main className="page">{title}<Loading label="Loading floors..." /></main>;
+  if (!floors) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
   if (!floors.length) return <main className="page">{title}<Notice>No floor plan has been published yet.</Notice></main>;
 
   return <main className="page">

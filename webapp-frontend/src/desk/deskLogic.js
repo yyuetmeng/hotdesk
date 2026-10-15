@@ -25,3 +25,6 @@ export const zoneCaption = (zone) => (zone.total ? `${zone.free} of ${zone.total
 
 /** Book a desk: true until the chosen floor's data has arrived (first load, or after changing floor). */
 export const floorLoading = (floor, planId) => Boolean(planId) && floor?.id !== planId;
+
+/** Book a desk: the first load (floor list, then the first floor) shows one loader, not two in a row. */
+export const firstLoad = ({ floors, floor, error }) => !error && (!floors || (floors.length > 0 && !floor));
