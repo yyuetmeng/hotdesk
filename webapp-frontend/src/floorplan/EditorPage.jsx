@@ -297,10 +297,6 @@ export default function EditorPage() {
         onChange={(e) => setMeta({ ...meta, rows: e.target.value })} /></label>
       <button className="button subtle" onClick={applyMeta}>Apply</button>
       <span className="fp-spacer" />
-      <label>Zoom <input type="range" min="16" max="48" value={cell} aria-label="Zoom"
-        onChange={(e) => setCell(Number(e.target.value))} /></label>
-      <button className="button subtle" onClick={undo} disabled={!past.length}>Undo</button>
-      <button className="button subtle" onClick={redo} disabled={!future.length}>Redo</button>
       <button className="button" onClick={() => setShowPreview(true)}>Preview</button>
       <button className="button primary" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save *' : 'Saved'}</button>
       <button className="button primary" onClick={() => lifecycle('publish', { confirmText: untagged ? untaggedWarning(untagged) : undefined })}
@@ -333,6 +329,12 @@ export default function EditorPage() {
         <p className="fp-hint">Drag onto the grid. Click an element to select; R rotates, Del removes. Drag on empty grid to select seats; Ctrl/Shift-click adds or removes a seat. Zones: drag by the outline or name.</p>
       </aside>
       <div className="fp-grid-wrap">
+        <div className="fp-grid-tools">
+          <label>Zoom <input type="range" min="16" max="48" value={cell} aria-label="Zoom"
+            onChange={(e) => setCell(Number(e.target.value))} /></label>
+          <button className="button subtle" onClick={undo} disabled={!past.length}>Undo</button>
+          <button className="button subtle" onClick={redo} disabled={!future.length}>Redo</button>
+        </div>
         <div ref={gridRef} className="fp-grid" onDragOver={onDragOver} onDrop={onDrop}
           style={{ width: plan.cols * cell, height: plan.rows * cell, '--cell': `${cell}px` }}
           onPointerDown={onGridPointerDown}>

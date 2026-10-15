@@ -77,3 +77,6 @@
   background: var(--zone); color: #fff; font-size: 11px; font-weight: 650; line-height: 1.25; pointer-events: auto; cursor: grab;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; }
 .fp-zone-label small { margin-left: 6px; font-weight: 500; opacity: .85; }
+/* Zoom, Undo and Redo sit just above the grid on the right; sticky so they stay in view when the grid scrolls sideways. */
+.fp-grid-tools { position: sticky; left: 0; display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 8px; }
+.fp-grid-tools label { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
