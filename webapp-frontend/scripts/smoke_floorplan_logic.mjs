@@ -165,3 +165,14 @@ console.log('floorplan ctrl-click smoke OK');
   assert.equal(validateAll([zone, { ...zone, id: 'z2', x: 3 }], 40, 40).length, 1);
 }
 console.log('floorplan zones smoke OK');
+
+// Manage Floor Plan list: Publish / Unpublish beside Delete, by publishing status.
+{
+  const { planActions } = await import('../src/floorplan/logic.js');
+  assert.deepEqual(planActions('draft'), [{ action: 'publish', label: 'Publish' }]);
+  assert.deepEqual(planActions('unpublished'), [{ action: 'publish', label: 'Publish' }]);
+  assert.deepEqual(planActions('changed'), [{ action: 'publish', label: 'Publish changes' }, { action: 'unpublish', label: 'Unpublish' }]);
+  assert.deepEqual(planActions('published'), [{ action: 'unpublish', label: 'Unpublish' }]);
+  assert.deepEqual(planActions('weird'), []);
+}
+console.log('floorplan list actions smoke OK');

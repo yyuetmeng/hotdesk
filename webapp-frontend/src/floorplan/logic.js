@@ -98,3 +98,10 @@ export function seatsInZone(elements, zone) {
   return elements.filter((el) => isSeat(el) && el.x >= zone.x && el.x < zone.x + w && el.y >= zone.y && el.y < zone.y + h)
     .map((el) => el.id);
 }
+
+/** Lifecycle buttons for a plan in the Manage Floor Plan list, by its publishing status. */
+export function planActions(status) {
+  const publish = { action: 'publish', label: status === 'changed' ? 'Publish changes' : 'Publish' };
+  const unpublish = { action: 'unpublish', label: 'Unpublish' };
+  return { draft: [publish], unpublished: [publish], changed: [publish, unpublish], published: [unpublish] }[status] ?? [];
+}

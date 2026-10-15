@@ -4,6 +4,7 @@ import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatDateTime } from '../format.js';
 import './floorplan.css';
+import { planActions } from './logic.js';
 
 const STATUS_LABEL = { draft: 'Draft', published: 'Published', changed: 'Unpublished changes', unpublished: 'Unpublished' };
 
@@ -39,6 +40,20 @@ export default function FloorPlansPage() {
     } finally { setCreating(false); }
   };
 
+  // Publish the saved draft, or take the plan down (spec 2026-10-15-floorplan-publishing §3).
+  const lifecycle = async (item, action) => {
+    const ask = action === 'unpublish'
+      ? `Unpublish "${item.name}"? Staff will no longer see it or be able to book it, and its bookings are cancelled. The draft is kept.`
+      : `Publish "${item.name}"? Staff will see the saved draft${item.published_version ? ' instead of the current version' : ''}.`;
+    if (!window.confirm(ask)) return;
+    setNotice(null);
+    try { await flaskRequest(`/api/admin/floor-plans/${item.id}/${action}`, { method: 'POST' }); await load(); }
+    catch (err) {
+      if (err.status === 401) setError('Session expired — sign in again.');
+      else setNotice(err.fields ? `${item.name}: ${Object.values(err.fields).flat().join('; ')} Open the plan to fix it.` : `${item.name}: ${err.message}`);
+    }
+  };
+
   const remove = async (item) => {
     if (!window.confirm(`Delete plan "${item.name}"? Its elements are removed too.`)) return;
     try { await flaskRequest(`/api/admin/floor-plans/${item.id}`, { method: 'DELETE' }); await load(); }
@@ -71,7 +86,10 @@ export default function FloorPlansPage() {
           <td>{item.cols}×{item.rows}</td>
           <td>{item.element_count}</td>
           <td>{formatDateTime(item.updated_at)}</td>
-          <td><button className="button subtle" onClick={() => remove(item)}>Delete</button></td>
+          <td><div className="row-actions">
+            {planActions(item.status).map((a) => <button key={a.action} className="button" onClick={() => lifecycle(item, a.action)}>{a.label}</button>)}
+            <button className="button subtle" onClick={() => remove(item)}>Delete</button>
+          </div></td>
         </tr>)}</tbody>
       </table>
       {!items.length && <p>No plans yet — create one above.</p>}
