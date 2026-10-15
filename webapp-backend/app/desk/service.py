@@ -164,23 +164,49 @@ def _booking_view(booking: SeatBooking) -> dict:
             "starts_at": booking.starts_at.isoformat(), "ends_at": booking.ends_at.isoformat()}
 
 
+def floor_context(seat_ids, day: date, at: datetime, viewer: User | None = None) -> dict:
+    """Everything the floor view needs for `day`, loaded with a fixed number of queries."""
+    session = orm_session()
+    day_start, day_end = _day_bounds(day)
+    blocks = _blocks_in(seat_ids, day_start, day_end)
+    held_ids = {b.booking_id for b in blocks}
+    held = {b.id: b for b in session.scalars(select(SeatBooking).where(SeatBooking.id.in_(held_ids)))} if held_ids else {}
+    active_by_seat: dict = {}
+    for b in session.scalars(select(SeatBooking).where(
+            SeatBooking.seat_id.in_(seat_ids), SeatBooking.booking_date == day,
+            SeatBooking.end_reason.is_(None)).order_by(SeatBooking.starts_at)):
+        active_by_seat.setdefault(b.seat_id, []).append(b)
+    blocks_by_seat: dict = {}
+    for block in blocks:
+        blocks_by_seat.setdefault(block.seat_id, []).append(block)
+    return {"blocks_by_seat": blocks_by_seat, "held": held, "active_by_seat": active_by_seat,
+            "open": open_checkins(seat_ids), "mine": open_checkin_of(viewer) if viewer is not None else None}
+
+
+def _overlaps(checkin: SeatCheckin | None, starts: datetime, ends: datetime) -> bool:
+    return checkin is not None and checkin.checked_in_at < ends and checkin.ends_at > starts
+
+
 def seat_states(plan: FloorPlan, day: date, preset: str | None, at: datetime,
                 viewer: User | None = None) -> list[dict]:
     seats = [el for el in plan.published_version.elements if el.type == "seat"]
-    ids = [el.element_id for el in seats]
+    ctx = floor_context([el.element_id for el in seats], day, at, viewer)
+    is_today = day == rules.local_today(at)
     starts, ends = _window(day, preset, at)
-    held = {}
-    for block in _blocks_in(ids, starts, ends):
-        held.setdefault(block.seat_id, block.booking_id)
-    bookings = {b.id: b for b in orm_session().scalars(
-        select(SeatBooking).where(SeatBooking.id.in_(set(held.values())))).all()} if held else {}
-    occupied = open_checkins(ids) if day == rules.local_today(at) else {}
+    ranges = {}
+    for p in rules.PRESETS:
+        try:
+            ranges[p] = rules.preset_range(day, p, at)
+        except rules.BookingRuleError:
+            ranges[p] = None
     out = []
     for el in seats:
-        checkin = occupied.get(el.element_id)
-        if checkin is not None and not (checkin.checked_in_at < ends and checkin.ends_at > starts):
+        seat_blocks = ctx["blocks_by_seat"].get(el.element_id, [])
+        checkin = ctx["open"].get(el.element_id) if is_today else None
+        if not _overlaps(checkin, starts, ends):
             checkin = None
-        booking = bookings.get(held.get(el.element_id))
+        holding = next((b for b in seat_blocks if starts <= b.block_start < ends), None)
+        booking = ctx["held"].get(holding.booking_id) if holding else None
         tagged = el.open_to_all or el.department_id is not None
         state = ("occupied" if checkin else "booked" if booking else "available" if tagged else "not_bookable")
         seat = {"id": str(el.element_id), "label": seat_label(el), "x": el.x, "y": el.y,
@@ -189,25 +215,15 @@ def seat_states(plan: FloorPlan, day: date, preset: str | None, at: datetime,
                 "occupant": person(checkin.user_name) if checkin else None,
                 "booking": _booking_view(booking) if booking and not checkin else None}
         if viewer is not None:
-            seat["can_book"] = {p: _can_book(el, day, p, at) for p in rules.PRESETS}
-            is_today = day == rules.local_today(at)
-            seat["can_check_in"] = is_today and checkin_decision(viewer, el, at)["ok"]
+            open_now = ctx["open"].get(el.element_id)
+            seat["can_book"] = {
+                p: bool(el.open_to_all and r and not any(r[0] <= b.block_start < r[1] for b in seat_blocks)
+                        and not _overlaps(open_now, *r))
+                for p, r in ranges.items()}
+            seat["can_check_in"] = is_today and checkin_decision(viewer, el, at, ctx)["ok"]
             seat["can_give_up"] = bool(is_today and checkin is not None and checkin.user_id == viewer.id)
         out.append(seat)
     return out
-
-
-def _can_book(el: FloorPlanVersionElement, day: date, preset: str, at: datetime) -> bool:
-    if not el.open_to_all:
-        return False
-    try:
-        starts, ends = rules.preset_range(day, preset, at)
-    except rules.BookingRuleError:
-        return False
-    if _blocks_in([el.element_id], starts, ends):
-        return False
-    checkin = open_checkins([el.element_id]).get(el.element_id)
-    return not (checkin and checkin.checked_in_at < ends and checkin.ends_at > starts)
 
 
 # --- bookings -----------------------------------------------------------------------------
@@ -326,8 +342,9 @@ def _refuse(reason: str, status: int) -> dict:
     return {"ok": False, "reason": reason, "status": status, "booking": None, "ends_at": None, "warning": None}
 
 
-def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime) -> dict:
-    """Whether `viewer` may check in to seat `el` now, and on what terms.
+def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime, ctx: dict | None = None) -> dict:
+    """Whether `viewer` may check in to seat `el` now, and on what terms. `ctx` (floor_context for
+    today) avoids per-seat queries on the floor view.
 
     Returns {"ok", "reason", "status", "booking", "ends_at", "warning"}; used by the check-in
     itself and by the seat page so the two never disagree.
@@ -339,16 +356,17 @@ def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime) ->
         return _refuse("Your account is not active today.", 403)
     if not may_use_seat(viewer, el):
         return _refuse("This seat is for another department.", 403)
-    mine = open_checkin_of(viewer)
+    mine = ctx["mine"] if ctx is not None else open_checkin_of(viewer)
     if mine is not None:
         if mine.seat_id == el.element_id:
             return _refuse("You are already checked in here.", 409)
         return _refuse(f"Give up your seat at {mine.seat_label} first.", 409)
-    taken = open_checkins([el.element_id]).get(el.element_id)
+    taken = (ctx["open"] if ctx is not None else open_checkins([el.element_id])).get(el.element_id)
     if taken is not None:
         return _refuse(f"This seat is occupied until {_hhmm(taken.ends_at)}.", 409)
 
-    bookings = _active_bookings_on(el.element_id, day)
+    bookings = (ctx["active_by_seat"].get(el.element_id, []) if ctx is not None
+                else _active_bookings_on(el.element_id, day))
     for b in bookings:
         if b.booked_for == viewer.id and rules.checkin_window_opens(b.starts_at) <= at < b.ends_at:
             return {"ok": True, "reason": None, "status": 201, "booking": b, "ends_at": b.ends_at, "warning": None}
@@ -470,12 +488,13 @@ def seat_activity(seat_id, at: datetime) -> list[dict]:
 
 # --- plan changes (spec §2.7) -------------------------------------------------------------
 
-def cancel_for_plan_change(plan: FloorPlan, at: datetime) -> int:
-    """After publish/unpublish: cancel today/tomorrow bookings on seats that are gone or no longer
-    free for all, and end check-ins on seats that are gone. Returns how many rows changed."""
+def cancel_for_plan_change(plan: FloorPlan, at: datetime, removed: bool = False) -> int:
+    """After publish/unpublish (or before deleting the plan, `removed=True`): cancel today/tomorrow
+    bookings on seats that are gone or no longer free for all, and end check-ins on seats that are
+    gone or were free for all and no longer are (spec §2.7). Returns how many rows changed."""
     session = orm_session()
     live = {}
-    if plan.published_version is not None:
+    if plan.published_version is not None and not removed:
         live = {el.element_id: el for el in plan.published_version.elements if el.type == "seat"}
     changed = 0
     for b in session.scalars(select(SeatBooking).where(
@@ -490,7 +509,8 @@ def cancel_for_plan_change(plan: FloorPlan, at: datetime) -> int:
             b.version_id = plan.published_version_id
     for c in session.scalars(select(SeatCheckin).where(
             SeatCheckin.plan_id == plan.id, SeatCheckin.checked_out_at.is_(None))).all():
-        if c.seat_id not in live:
+        el = live.get(c.seat_id)
+        if el is None or (c.seat_open_to_all and not el.open_to_all):
             c.checked_out_at, c.end_reason = at, "plan_changed"
             _free_booking_blocks(c.booking_id)
             changed += 1

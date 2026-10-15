@@ -62,3 +62,22 @@ def test_public_activity_today_only(client, world, monkeypatch):
     items = client.get(f"/api/public/seats/{world['seats']['F1']}/activity").get_json()["items"]
     assert [i["kind"] for i in items] == ["checked_in"]
     assert client.get("/api/public/seats/not-a-seat/activity").status_code == 404
+
+
+def test_deleting_published_plan_cancels_bookings_and_ends_check_ins(client, world, monkeypatch):
+    book(client, world, "jane", "F1", "pm")
+    set_now(monkeypatch, sg(DAY, 9))
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["carl"])).status_code == 201
+    assert client.delete(f"/api/admin/floor-plans/{world['plan']}", headers=hdr(world["tok"]["root"])).status_code == 204
+    assert run_one("select end_reason from seat_bookings")["end_reason"] == "plan_changed"
+    assert run_one("select end_reason from seat_checkins")["end_reason"] == "plan_changed"
+    assert run_one("select count(*) as n from seat_booking_blocks")["n"] == 0
+    assert client.get("/api/desk/me", headers=hdr(world["tok"]["carl"])).get_json()["checkin"] is None
+
+
+def test_retagging_seat_away_from_free_for_all_ends_its_check_ins(client, world, monkeypatch):
+    set_now(monkeypatch, sg(DAY, 9))
+    assert client.post(f"/api/desk/seats/{world['seats']['F2']}/check-in", headers=hdr(world["tok"]["bob"])).status_code == 201
+    _republish(client, world, {"F1": lambda e: e, "E1": lambda e: e,
+                               "F2": lambda e: {**e, "open_to_all": False, "department_id": world["eng"]}})
+    assert run_one("select end_reason from seat_checkins")["end_reason"] == "plan_changed"
