@@ -1,0 +1,45 @@
+/* Workspace dashboard (spec 2026-10-16-workspace-dashboard-design §4). Uses the app theme tokens. */
+.dash { display: grid; gap: 14px; align-content: start; }
+.dash .page-title { margin-bottom: 4px; }
+.dash-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 14px; align-items: start; }
+.dash-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 0 10px; font-size: 16px; }
+.dash-h a, .dash-h span { font-size: 12px; font-weight: 500; color: var(--muted); text-decoration: none; }
+.dash-h a { color: var(--accent); }
+.dash-h select { font-size: 13px; padding: 4px 8px; }
+.dash-sub { margin: -6px 0 10px; color: var(--muted); font-size: 13px; }
+
+.dash-now { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 22%, var(--surface)), var(--surface)); }
+.dash-now small { display: block; color: var(--muted); }
+.dash-seat { font-size: 30px; font-weight: 800; letter-spacing: -.02em; margin: 2px 0; }
+
+.dash-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.dash-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.dash-list b { font-size: 14px; } .dash-list small { display: block; color: var(--muted); font-size: 12px; }
+.dash-grow { flex: 1; min-width: 0; }
+.dash-av { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  color: #fff; background: var(--accent); }
+.dash-pill { flex: none; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 650; white-space: nowrap; }
+.dash-pill.in { background: #dcfce7; color: #166534; } .dash-pill.bk { background: #fef3c7; color: #92400e; }
+.dash-pill.rel { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+.dash-pill.cx { background: #fee2e2; color: #991b1b; } .dash-pill.tm { background: #e0e7ff; color: #3730a3; }
+:root[data-theme="dark"] .dash-pill.in { background: #0f2e1c; color: #86efac; }
+:root[data-theme="dark"] .dash-pill.bk { background: #33240a; color: #fcd34d; }
+:root[data-theme="dark"] .dash-pill.cx { background: #3a1518; color: #fca5a5; }
+:root[data-theme="dark"] .dash-pill.tm { background: #1e2a52; color: #c7d2fe; }
+
+.dash-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.dash-kpis div { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+.dash-kpis b { display: block; font-size: 20px; } .dash-kpis small { color: var(--muted); font-size: 12px; }
+.dash-trend, .dash-days { display: grid; grid-template-columns: 40px repeat(10, 1fr); gap: 6px; }
+.dash-trend { height: 160px; }
+.dash-axis { display: flex; flex-direction: column; justify-content: space-between; color: var(--muted); font-size: 10px; }
+.dash-col { position: relative; border-left: 1px dashed var(--border); }
+.dash-bar { position: absolute; left: 22%; right: 22%; min-height: 3px; border-radius: 5px; background: linear-gradient(#5dcaa5, #1d9e75); }
+.dash-days { margin-top: 4px; color: var(--muted); font-size: 11px; text-align: center; }
+
+.dash-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.dash-chip { display: grid; gap: 2px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2);
+  color: var(--text); text-decoration: none; transition: border-color .15s ease, background-color .15s ease; }
+.dash-chip:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
+.dash-chip small { color: var(--muted); font-size: 12px; }

@@ -1,6 +1,7 @@
 // Book a desk: today/tomorrow, AM/PM/full day, published floors, seat panel, my bookings.
 // Spec: docs/superpowers/specs/2026-10-15-seat-booking-and-checkin-design.md §6.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatDate, formatTime } from '../format.js';
@@ -18,6 +19,8 @@ const STATE_TEXT = { active: 'Booked', checked_in: 'Checked in', released: 'Rele
   cancelled: 'Cancelled', plan_changed: 'Cancelled (floor plan changed)' };
 
 export function BookDeskPage() {
+  const [params] = useSearchParams();
+  const wantSeat = useRef(params.get('seat'));
   const [floors, setFloors] = useState(null);
   const [planId, setPlanId] = useState('');
   const [today, setToday] = useState(null);
@@ -31,7 +34,8 @@ export function BookDeskPage() {
   useEffect(() => {
     flaskRequest('/api/desk/floors').then((d) => {
       setFloors(d.items);
-      if (d.items.length) setPlanId(d.items[0].id);
+      // ?plan= (from the dashboard's Book again) picks the floor when it is still published.
+      if (d.items.length) setPlanId(d.items.find((f) => f.id === params.get('plan'))?.id ?? d.items[0].id);
     }).catch((err) => setError(err.message));
   }, []);
 
@@ -43,7 +47,9 @@ export function BookDeskPage() {
       const data = await flaskRequest(`/api/desk/floors/${planId}${query}`);
       if (!today) setToday(data.date);
       setFloor(data);
-      setSelected((old) => (old ? data.seats.find((s) => s.id === old.id) ?? null : null));
+      const wanted = wantSeat.current ? data.seats.find((s) => s.id === wantSeat.current) : null;   // ?seat=, once
+      if (wanted) wantSeat.current = null;
+      setSelected((old) => wanted ?? (old ? data.seats.find((s) => s.id === old.id) ?? null : null));
       setMine((await flaskRequest('/api/desk/bookings/mine')).items);
       setError(null);
     } catch (err) { setError(err.message); }
