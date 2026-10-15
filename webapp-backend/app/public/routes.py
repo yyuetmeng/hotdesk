@@ -16,6 +16,7 @@ from app.core.desk_models import DashboardDisplay
 from app.core.errors import error
 from app.core.orm import orm_session
 from app.desk import rules, service
+from app.desk.zones import drawn_zones
 
 from . import public_bp
 
@@ -51,7 +52,7 @@ def floor(at, plan_id):
     return jsonify(id=str(plan.id), name=live.name, cols=live.cols, rows=live.rows,
                    date=rules.local_today(at).isoformat(), now=at.isoformat(),
                    elements=[_version_element_dto(el) for el in live.elements],
-                   seats=seats, summary=capacity(seats),
+                   seats=seats, summary=capacity(seats), zones=drawn_zones(live.elements, seats),
                    catalog=[_catalog_dto(entry) for entry in _catalog().values()])
 
 

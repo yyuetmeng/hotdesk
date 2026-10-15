@@ -14,6 +14,7 @@ from app.core.errors import error
 from app.core.orm import orm_session
 
 from . import desk_bp, rules, service
+from .zones import drawn_zones
 
 
 def desk_endpoint(fn):
@@ -62,10 +63,11 @@ def floor(viewer, at, plan_id):
     if preset is not None and preset not in rules.PRESETS:
         raise service.DeskError(f"unknown booking slot '{preset}'")
     live = plan.published_version
+    seats = service.seat_states(plan, day, preset, at, viewer)
     return jsonify(id=str(plan.id), name=live.name, cols=live.cols, rows=live.rows, version=live.version,
                    date=day.isoformat(), preset=preset,
                    elements=[_version_element_dto(el) for el in live.elements],
-                   seats=service.seat_states(plan, day, preset, at, viewer),
+                   seats=seats, zones=drawn_zones(live.elements, seats),
                    catalog=[_catalog_dto(entry) for entry in _catalog().values()])
 
 
