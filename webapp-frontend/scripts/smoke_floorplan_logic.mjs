@@ -134,3 +134,34 @@ console.log('floorplan selection smoke OK');
   assert.deepEqual(ctrlClickSelection(['w1'], els, els[0]), ['s1']);            // wall selection replaced by the seat
 }
 console.log('floorplan ctrl-click smoke OK');
+
+// Zones (spec 2026-10-15-floor-zones §3-4): own layer, up to 80 cells, never rotated.
+{
+  const { seatsInZone, zoneName } = await import('../src/floorplan/logic.js');
+  const { isZone } = await import('../src/floorplan/selection.js');
+  const { maxSizeFor } = await import('../src/floorplan/palette.js');
+  setCatalog([
+    { type: 'seat', label: 'Seat', w: 1, h: 1, color: '#16a34a', resizable: false, config: {} },
+    { type: 'table', label: 'Table', w: 2, h: 1, color: '#ca8a04', resizable: true, config: {} },
+    { type: 'zone', label: 'Zone', w: 6, h: 4, color: '#3b82f6', resizable: true, config: {} },
+  ]);
+  const zone = { id: 'z1', type: 'zone', x: 2, y: 2, w: 3, h: 2, rotation: 0, label: 'Z' };
+  assert.equal(isZone(zone), true);
+  assert.equal(maxSizeFor('zone'), 80);
+  assert.equal(maxSizeFor('table'), 20);
+  assert.equal(placementError({ id: 's9', type: 'seat', x: 3, y: 3, rotation: 0 }, [zone], 40, 40), null);
+  assert.equal(placementError({ id: 'z2', type: 'zone', x: 4, y: 3, w: 2, h: 2, rotation: 0 }, [zone], 40, 40), 'overlaps another element');
+  assert.equal(placementError({ id: 'z2', type: 'zone', x: 5, y: 2, w: 2, h: 2, rotation: 0 }, [zone], 40, 40), null);
+  assert.equal(resizeElement([zone], 'z1', 30, 25, 40, 40).error, null);
+  const table = { id: 't1', type: 'table', x: 10, y: 10, w: 2, h: 1, rotation: 0 };
+  assert.match(resizeElement([table], 't1', 21, 1, 40, 40).error, /1 to 20/);
+  assert.equal(rotateElement([zone], 'z1', 40, 40).error, 'zones cannot be rotated');
+  const seats = [[4, 3, 'in1'], [2, 2, 'in2'], [5, 3, 'out1'], [4, 4, 'out2']]
+    .map(([x, y, id]) => ({ id, type: 'seat', x, y, rotation: 0 }));
+  assert.deepEqual(seatsInZone([zone, ...seats], zone), ['in1', 'in2']);
+  assert.equal(zoneName({ label: '  ' }), 'Unnamed zone');
+  assert.equal(zoneName({ label: ' AI Lab ' }), 'AI Lab');
+  assert.deepEqual(validateAll([zone, ...seats], 40, 40), []);
+  assert.equal(validateAll([zone, { ...zone, id: 'z2', x: 3 }], 40, 40).length, 1);
+}
+console.log('floorplan zones smoke OK');

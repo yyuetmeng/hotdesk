@@ -10,6 +10,9 @@ export function setCatalog(items) {
 }
 
 export const MAX_ELEMENT_SIZE = 20;
+export const MAX_ZONE_SIZE = 80; // zones may cover the whole grid (spec 2026-10-15-floor-zones §3)
+
+export const maxSizeFor = (type) => (type === 'zone' ? MAX_ZONE_SIZE : MAX_ELEMENT_SIZE);
 
 export const isResizable = (type) => catalogByType[type]?.resizable !== false;
 

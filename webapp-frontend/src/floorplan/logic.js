@@ -1,4 +1,5 @@
-import { MAX_ELEMENT_SIZE, catalogByType, isResizable, sizeOf } from './palette.js';
+import { catalogByType, isResizable, maxSizeFor, sizeOf } from './palette.js';
+import { isSeat, isZone } from './selection.js';
 
 export function cellsOf(el) {
   const { w, h } = sizeOf(el);
@@ -11,9 +12,10 @@ export function placementError(el, elements, cols, rows) {
   if (!el.type || !catalogByType[el.type]) return 'unknown type';
   const { w, h } = sizeOf(el);
   if (el.x < 0 || el.y < 0 || el.x + w > cols || el.y + h > rows) return 'outside the grid';
+  // Zones form their own layer: they only clash with zones, other elements only with each other.
   const occupied = new Set();
   for (const other of elements) {
-    if (other.id === el.id) continue;
+    if (other.id === el.id || isZone(other) !== isZone(el)) continue;
     for (const [cx, cy] of cellsOf(other)) occupied.add(`${cx},${cy}`);
   }
   for (let dx = 0; dx < w; dx += 1)
@@ -41,6 +43,7 @@ export function moveElement(elements, id, x, y, cols, rows) {
 export function rotateElement(elements, id, cols, rows) {
   const current = elements.find((e) => e.id === id);
   if (!current) return { elements, error: 'element not found' };
+  if (isZone(current)) return { elements, error: 'zones cannot be rotated' };
   const rotated = { ...current, rotation: ((current.rotation || 0) + 90) % 360 };
   const error = placementError(rotated, elements, cols, rows);
   if (error) return { elements, error };
@@ -52,8 +55,9 @@ export function resizeElement(elements, id, w, h, cols, rows) {
   const current = elements.find((e) => e.id === id);
   if (!current) return { elements, error: 'element not found' };
   if (!isResizable(current.type)) return { elements, error: `${current.type} size is fixed` };
-  if (![w, h].every((n) => Number.isInteger(n) && n >= 1 && n <= MAX_ELEMENT_SIZE)) {
-    return { elements, error: `size must be 1 to ${MAX_ELEMENT_SIZE} cells` };
+  const max = maxSizeFor(current.type);
+  if (![w, h].every((n) => Number.isInteger(n) && n >= 1 && n <= max)) {
+    return { elements, error: `size must be 1 to ${max} cells` };
   }
   const resized = { ...current, w, h };
   const error = placementError(resized, elements, cols, rows);
@@ -72,7 +76,7 @@ export function validateAll(elements, cols, rows) {
     const error = placementError(el, [], cols, rows);
     if (error) { problems.push(`element ${i} (${el.type}): ${error}`); return; }
     for (const [cx, cy] of cellsOf(el)) {
-      const key = `${cx},${cy}`;
+      const key = `${isZone(el) ? 'z' : 'e'}${cx},${cy}`;
       if (seen.has(key)) problems.push(`element ${i} (${el.type}) overlaps element ${seen.get(key)}`);
       else seen.set(key, i);
     }
@@ -83,4 +87,14 @@ export function validateAll(elements, cols, rows) {
 /** True when the toolbar's name/grid fields differ from the saved plan (not yet applied). */
 export function metaChanged(meta, plan) {
   return meta.name.trim() !== plan.name || Number(meta.cols) !== plan.cols || Number(meta.rows) !== plan.rows;
+}
+
+/** A zone's display name: its label, or 'Unnamed zone' (spec 2026-10-15-floor-zones §3). */
+export const zoneName = (zone) => (zone.label ?? '').trim() || 'Unnamed zone';
+
+/** Ids of the seats whose cell lies inside the zone's rectangle. */
+export function seatsInZone(elements, zone) {
+  const { w, h } = sizeOf(zone);
+  return elements.filter((el) => isSeat(el) && el.x >= zone.x && el.x < zone.x + w && el.y >= zone.y && el.y < zone.y + h)
+    .map((el) => el.id);
 }

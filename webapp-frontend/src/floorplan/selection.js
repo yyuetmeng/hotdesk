@@ -4,6 +4,7 @@
 import { sizeOf } from './palette.js';
 
 export const isSeat = (el) => el.type === 'seat';
+export const isZone = (el) => el.type === 'zone';
 
 /** Ids of seats whose footprint lies fully inside the inclusive cell box (corners in any order). */
 export function seatsInBox(elements, { x1, y1, x2, y2 }) {
