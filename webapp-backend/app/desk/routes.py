@@ -15,6 +15,7 @@ from app.core.orm import orm_session
 
 from . import desk_bp, rules, service
 from .zones import drawn_zones
+from .dashboard import dashboard as desk_dashboard
 
 
 def desk_endpoint(fn):
@@ -136,6 +137,12 @@ def give_up(viewer, at, seat_id):
 @desk_endpoint
 def seat_activity(viewer, at, seat_id):
     return jsonify(items=service.seat_activity(seat_id, at))
+
+
+@desk_bp.get("/dashboard")
+@desk_endpoint
+def dashboard(viewer, at):
+    return jsonify(desk_dashboard(viewer, at))
 
 
 @desk_bp.get("/me")
