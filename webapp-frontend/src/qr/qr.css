@@ -26,3 +26,7 @@
 .labels-select-all:hover:has(input:not(:disabled)) { color: var(--accent); }
 .qr-check { display: grid; place-items: center; width: 28px; height: 28px; top: 4px; left: 4px; border-radius: 6px; }
 .qr-check:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* "New" badge, top right of a label that has never been downloaded. */
+.qr-new { position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  letter-spacing: .02em; color: #fff; background: #16a34a; box-shadow: 0 2px 6px rgb(22 163 74/.35); }

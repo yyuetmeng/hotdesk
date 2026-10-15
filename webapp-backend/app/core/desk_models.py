@@ -103,3 +103,14 @@ class DashboardDisplay(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class DeskLabelDownload(Base):
+    """A seat whose QR desk label has been downloaded at least once (sql/0021_desk_label_downloads.sql)."""
+
+    __tablename__ = "desk_label_downloads"
+
+    seat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    first_downloaded_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_downloaded_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    downloaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))

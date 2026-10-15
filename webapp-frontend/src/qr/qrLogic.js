@@ -39,3 +39,9 @@ export function labelFileNames(rows) {
     return `${base}${n > 1 ? `-${n}` : ''}.png`;
   });
 }
+
+/** "New" until any admin has downloaded the label; while the list is still loading (null) show nothing. */
+export const isNewLabel = (downloaded, seatId) => Boolean(downloaded) && !downloaded.has(seatId);
+
+/** A new set with these seats marked downloaded (leaves the original untouched). */
+export const withDownloaded = (downloaded, seatIds) => new Set([...(downloaded ?? []), ...seatIds]);

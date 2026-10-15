@@ -51,3 +51,16 @@ assert.deepEqual(labelFileNames([
   { floorName: 'Level 1', label: 'A1' }, { floorName: 'Level 1', label: 'A1' }, { floorName: 'L/2: East', label: 'Desk #3' },
 ]), ['Level-1_A1.png', 'Level-1_A1-2.png', 'L-2-East_Desk-3.png']);
 console.log('qr logic smoke OK');
+
+// "New" badge: a label is new until any admin has downloaded it; unknown (not loaded) shows no badge.
+{
+  const { isNewLabel, withDownloaded } = await import('../src/qr/qrLogic.js');
+  const done = new Set(['s1']);
+  assert.equal(isNewLabel(done, 's2'), true);
+  assert.equal(isNewLabel(done, 's1'), false);
+  assert.equal(isNewLabel(null, 's2'), false);
+  const next = withDownloaded(done, ['s2', 's3']);
+  assert.deepEqual([...next].sort(), ['s1', 's2', 's3']);
+  assert.deepEqual([...done], ['s1']);                    // original untouched (React state)
+}
+console.log('qr new-badge smoke OK');

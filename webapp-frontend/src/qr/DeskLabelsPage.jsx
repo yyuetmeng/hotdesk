@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
-import { filterRows, labelFileNames, seatRows, teamOptions, zoneOptions } from './qrLogic.js';
+import { filterRows, isNewLabel, labelFileNames, seatRows, teamOptions, withDownloaded, zoneOptions } from './qrLogic.js';
 import { makeZip } from './zip.js';
 import './qr.css';
 
@@ -48,6 +48,7 @@ export function DeskLabelsPage() {
   const [busy, setBusy] = useState('');
   const [filters, setFilters] = useState({ floor: params.get('floor') || 'all', zone: 'all', team: 'all', q: '' });
   const [selected, setSelected] = useState(() => new Set());
+  const [downloaded, setDownloaded] = useState(null);   // seat ids whose label any admin has downloaded
 
   useEffect(() => {
     (async () => {
@@ -56,6 +57,7 @@ export function DeskLabelsPage() {
         const loaded = await Promise.all(list.map((f) => flaskRequest(`/api/public/floors/${f.id}`)));
         setFloors(list);
         setRows(loaded.flatMap(seatRows));
+        flaskRequest('/api/admin/desk-labels/downloads').then((d) => setDownloaded(new Set(d.seat_ids))).catch(() => {});
       } catch (err) { setError(err.message); }
     })();
   }, []);
@@ -89,11 +91,20 @@ export function DeskLabelsPage() {
     setBusy(label); setError(null);
     try { await fn(); } catch (err) { setError(err.message); } finally { setBusy(''); }
   };
-  const downloadOne = (row) => run(row.id, async () => saveFile(await labelPng(row), labelFileNames([row])[0], 'image/png'));
+  // After a download, remember it on the server so the label is no longer flagged New (for every admin).
+  const markDownloaded = (ids) => {
+    setDownloaded((old) => withDownloaded(old, ids));
+    flaskRequest('/api/admin/desk-labels/downloads', { method: 'POST', body: { seat_ids: ids } }).catch(() => {});
+  };
+  const downloadOne = (row) => run(row.id, async () => {
+    saveFile(await labelPng(row), labelFileNames([row])[0], 'image/png');
+    markDownloaded([row.id]);
+  });
   const downloadZip = () => run('zip', async () => {
     const names = labelFileNames(chosen);
     const files = await Promise.all(chosen.map(async (r, i) => ({ name: names[i], data: await labelPng(r) })));
     saveFile(makeZip(files), `desk-labels-${new Date().toISOString().slice(0, 10)}.zip`, 'application/zip');
+    markDownloaded(chosen.map((r) => r.id));
   });
 
   const title = <PageTitle title="Print Desk Labels"><p>QR labels for the seats of published floors. Stick each label on its desk; people scan it to check in.</p></PageTitle>;
@@ -131,6 +142,7 @@ export function DeskLabelsPage() {
       </div>
       {!shown.length ? <p className="state">No seats match these filters.</p>
         : <div className="qr-sheet">{shown.map((r) => <div key={r.id} className={`qr-label${selected.has(r.id) ? ' selected' : ''}`}>
+          {isNewLabel(downloaded, r.id) && <span className="qr-new" title="This label has never been downloaded">New</span>}
           <label className="qr-check"><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)}
             aria-label={`Select ${r.label}`} /></label>
           {images[r.id] ? <img src={images[r.id]} alt={`QR code for ${r.label}`} /> : <div className="qr-placeholder" />}

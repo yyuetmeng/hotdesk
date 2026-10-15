@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
       '/api/admin/departments': { target: flaskBackend, changeOrigin: true },
       '/api/admin/displays': { target: flaskBackend, changeOrigin: true },
       '/api/admin/insights': { target: flaskBackend, changeOrigin: true },
+      '/api/admin/desk-labels': { target: flaskBackend, changeOrigin: true },
       '/api/desk': { target: flaskBackend, changeOrigin: true },
       '/api/public': { target: flaskBackend, changeOrigin: true },
       '/api': { target: backend, changeOrigin: true },
