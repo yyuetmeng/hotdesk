@@ -103,7 +103,7 @@ def test_catalog(client, db, admin_token):
     items = client.get("/api/admin/floor-plans/catalog", headers=hdr(admin_token)).get_json()["items"]
     by_type = {i["type"]: i for i in items}
     assert by_type["seat"] == {"type": "seat", "label": "Seat", "w": 1, "h": 1, "color": "#16a34a",
-                               "resizable": False, "config": {"bookable": True}}
+                               "resizable": False, "config": {}}
     assert by_type["wall"]["resizable"] is True and by_type["wall"]["config"] == {}
     assert [i["type"] for i in items] == ["wall", "seat", "table", "sofa", "locker", "toilet", "elevator", "stairs",
                                           "door", "window", "pantry", "plant", "corridor"]
@@ -194,17 +194,25 @@ def test_save_rotation_swaps_footprint(client, db, admin_token):
     assert bad.status_code == 400
 
 
-def test_seat_config_defaults_and_roundtrip(client, db, admin_token):
-    plan = _mk_plan(client, admin_token)
-    r = _save(client, admin_token, plan["id"], [
-        {"type": "seat", "x": 0, "y": 0, "rotation": 0},
-        {"type": "seat", "x": 2, "y": 0, "rotation": 0, "config": {"bookable": False}},
-        {"type": "wall", "x": 4, "y": 0, "rotation": 0},
-    ])
-    assert r.status_code == 200
-    els = client.get(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token)).get_json()["elements"]
-    by_x = {e["x"]: e["config"] for e in els}
-    assert by_x == {0: {"bookable": True}, 2: {"bookable": False}, 4: {}}
+def test_type_config_defaults_and_roundtrip(client, db, admin_token):
+    # No catalog type has settings since "Allow booking" became seat department tags; give seats a
+    # test-only setting to keep the per-type settings mechanism covered.
+    run_write("""update floor_elements set config = '{"quiet": false}' where type = 'seat'""")
+    try:
+        plan = _mk_plan(client, admin_token)
+        r = _save(client, admin_token, plan["id"], [
+            {"type": "seat", "x": 0, "y": 0, "rotation": 0},
+            {"type": "seat", "x": 2, "y": 0, "rotation": 0, "config": {"quiet": True}},
+            {"type": "wall", "x": 4, "y": 0, "rotation": 0},
+        ])
+        assert r.status_code == 200
+        els = client.get(f"/api/admin/floor-plans/{plan['id']}", headers=hdr(admin_token)).get_json()["elements"]
+        assert {e["x"]: e["config"] for e in els} == {0: {"quiet": False}, 2: {"quiet": True}, 4: {}}
+        bad = _save(client, admin_token, plan["id"],
+                    [{"type": "seat", "x": 0, "y": 0, "rotation": 0, "config": {"quiet": "yes"}}])
+        assert bad.status_code == 400 and any("must be bool" in m for m in bad.get_json()["fields"]["elements"])
+    finally:
+        run_write("update floor_elements set config = '{}' where type = 'seat'")
 
 
 def test_save_rejects_bad_elements(client, db, admin_token):
@@ -214,7 +222,7 @@ def test_save_rejects_bad_elements(client, db, admin_token):
         ([{"type": "seat", "x": 10, "y": 0, "rotation": 0}], "outside"),
         ([{"type": "seat", "x": 0, "y": 0, "rotation": 45}], "rotation"),
         ([{"type": "seat", "x": 0, "y": 0, "rotation": 0, "color": "red"}], "#rrggbb"),
-        ([{"type": "seat", "x": 0, "y": 0, "rotation": 0, "config": {"bookable": "yes"}}], "must be bool"),
+        ([{"type": "seat", "x": 0, "y": 0, "rotation": 0, "config": {"bookable": True}}], "not supported"),
         ([{"type": "wall", "x": 0, "y": 0, "rotation": 0, "config": {"bookable": True}}], "not supported"),
         ([{"type": "seat", "x": 0, "y": 0, "rotation": 0, "config": []}], "must be an object"),
         ([{"type": "seat", "x": 0, "y": 0, "rotation": 0},
