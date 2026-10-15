@@ -80,5 +80,5 @@
   background:var(--surface); border:1px solid var(--border); box-shadow:0 24px 60px rgb(0 0 0/.45); }
 .display-preview-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; border-bottom:1px solid var(--border); color:var(--muted); font-size:14px; }
 .display-preview-bar b { color:var(--text); }
-.display-preview-body { flex:1; overflow:auto; }
-.display-preview-body .disp { min-height:100%; }
+.display-preview-body { flex:1; min-height:0; overflow:hidden; }
+.display-preview-body .disp { height:100%; }

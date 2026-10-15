@@ -69,17 +69,19 @@ export function DisplayView({ loadConfig }) {
 
   const shown = display.layout === 'rotate' ? floors.slice(index % Math.max(floors.length, 1), (index % Math.max(floors.length, 1)) + 1) : floors;
   return <main className="disp">
-    <header className="disp-head">
-      <h1>{display.name}</h1>
-      <div className="disp-clock">
-        <b>{sgDateTime(now)}</b>
-        <small>{offline ? `Offline — last updated ${sgTime(updatedAt)}` : `Updated ${sgTime(updatedAt)}`}</small>
-      </div>
-    </header>
-    {floors.length > 0 && <section className="disp-summary" aria-label="Capacity">
-      {display.show_overall && <CapacityBar title="All floors" summary={overall(floors.map((f) => f.summary))} />}
-      {shown.map((f) => <CapacityBar key={f.id} title={f.name} summary={f.summary} />)}
-    </section>}
+    <div className="disp-top">
+      <header className="disp-head">
+        <h1>{display.name}</h1>
+        <div className="disp-clock">
+          <b>{sgDateTime(now)}</b>
+          <small>{offline ? `Offline — last updated ${sgTime(updatedAt)}` : `Updated ${sgTime(updatedAt)}`}</small>
+        </div>
+      </header>
+      {floors.length > 0 && <section className="disp-summary" aria-label="Capacity">
+        {display.show_overall && <CapacityBar title="All floors" summary={overall(floors.map((f) => f.summary))} />}
+        {shown.map((f) => <CapacityBar key={f.id} title={f.name} summary={f.summary} />)}
+      </section>}
+    </div>
     {!floors.length && <p className="disp-message">No published floors for this display.</p>}
     <section className={`disp-floors layout-${display.layout}`}>
       {shown.map((f) => <article key={f.id} className="disp-floor-card">
@@ -87,14 +89,16 @@ export function DisplayView({ loadConfig }) {
         <FloorDrawing floor={f} onSeatClick={setSeat} />
       </article>)}
     </section>
-    {display.layout === 'rotate' && floors.length > 1 && <nav className="disp-dots" aria-label="Floors">
-      {floors.map((f, i) => <button key={f.id} className={i === index % floors.length ? 'active' : ''}
-        aria-label={f.name} onClick={() => setIndex(i)} />)}
-    </nav>}
-    <footer className="disp-legend">
-      <span><i className="available" />Available</span><span><i className="booked" />Booked</span>
-      <span><i className="occupied" />Occupied</span><span><i className="not_bookable" />Not bookable</span>
-      <span>Tap a seat to see today&apos;s activity</span>
+    <footer className="disp-foot">
+      {display.layout === 'rotate' && floors.length > 1 && <nav className="disp-dots" aria-label="Floors">
+        {floors.map((f, i) => <button key={f.id} className={i === index % floors.length ? 'active' : ''}
+          aria-label={f.name} onClick={() => setIndex(i)} />)}
+      </nav>}
+      <div className="disp-legend">
+        <span><i className="available" />Available</span><span><i className="booked" />Booked</span>
+        <span><i className="occupied" />Occupied</span><span><i className="not_bookable" />Not bookable</span>
+        <span>Tap a seat to see today&apos;s activity</span>
+      </div>
     </footer>
     {seat && <SeatPopover seat={seat} onClose={closeSeat} />}
   </main>;
