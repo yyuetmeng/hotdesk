@@ -61,3 +61,14 @@ def test_deleting_user_keeps_booking_and_checkin_rows(db):
         checkin = conn.execute(text("select user_id, user_name from seat_checkins where booking_id = :b"),
                                {"b": bid}).one()
         assert checkin.user_id is None and checkin.user_name == "Jane Tan"
+
+
+def test_display_slug_and_layout_constraints(db):
+    with db.connect() as conn:
+        conn.execute(text("insert into dashboard_displays (slug, name) values ('office-a', 'Office A')"))
+        for slug, layout in (("Office A", "rotate"), ("-a", "rotate"), ("office-b", "carousel"), ("office-a", "grid")):
+            with pytest.raises(IntegrityError):
+                conn.execute(text("insert into dashboard_displays (slug, name, layout) values (:s, 'X', :l)"),
+                             {"s": slug, "l": layout})
+        row = conn.execute(text("select layout, rotate_seconds, show_overall from dashboard_displays")).one()
+        assert (row.layout, row.rotate_seconds, row.show_overall) == ("rotate", 20, True)

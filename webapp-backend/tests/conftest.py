@@ -67,7 +67,7 @@ def db(app, admin_conn):
         with admin_conn.connect() as conn:
             conn.execute(text(
                 "truncate users, departments, user_departments, user_tokens, audit_logs, "
-                "floor_plan_elements, floor_plans "
+                "floor_plan_elements, floor_plans, dashboard_displays "
                 "restart identity cascade"))
             conn.execute(text(
                 "insert into roles (id, name) values (1, 'user'), (2, 'admin') "
