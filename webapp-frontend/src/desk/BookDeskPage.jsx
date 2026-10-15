@@ -55,7 +55,7 @@ export function BookDeskPage() {
   };
 
   const title = <PageTitle title="Book a desk"><p>Book a free-for-all seat for today or tomorrow, for yourself or a colleague.</p></PageTitle>;
-  if (firstLoad({ floors, floor, error })) return <main className="page">{title}<Loading label="Loading floors..." /></main>;
+  if (firstLoad({ floors, floor, error })) return <main className="page">{title}<Loading label="Looking for a free desk…" /></main>;
   if (!floors) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
   if (!floors.length) return <main className="page">{title}<Notice>No floor plan has been published yet.</Notice></main>;
 
@@ -74,7 +74,7 @@ export function BookDeskPage() {
         {floors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
       </select></label>}
     </div>
-    {floorLoading(floor, planId) && !error && <Loading label={`Loading ${floors.find((f) => f.id === planId)?.name ?? 'floor'}...`} />}
+    {floorLoading(floor, planId) && !error && <Loading label={`Looking for a free desk on ${floors.find((f) => f.id === planId)?.name ?? 'this floor'}…`} />}
     {floor && <div className="desk-layout">
       <section className="card"><h2>{floor.name}</h2>
         <FloorView floor={floor} selectedId={selected?.id} onSelect={setSelected} /></section>
