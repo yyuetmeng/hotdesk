@@ -19,3 +19,6 @@ export const canBookAny = (seat) => Object.values(seat.can_book ?? {}).some(Bool
 export function footprint(el) {
   return el.rotation === 90 || el.rotation === 270 ? { w: el.h, h: el.w } : { w: el.w, h: el.h };
 }
+
+/** "N of M free" under a zone's name; empty when the zone has no usable seats (spec 2026-10-15-floor-zones §5). */
+export const zoneCaption = (zone) => (zone.total ? `${zone.free} of ${zone.total} free` : '');

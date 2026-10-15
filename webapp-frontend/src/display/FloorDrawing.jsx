@@ -1,7 +1,7 @@
 // Style "E" floor drawing for the public display: architectural walls, door swings, glass windows,
 // furniture and rooms with icons, seats as state circles with a chair icon or the person's initials.
 // Spec: docs/superpowers/specs/2026-10-15-floor-dashboard-design.md §3.
-import { footprint, initials } from '../desk/deskLogic.js';
+import { footprint, initials, zoneCaption } from '../desk/deskLogic.js';
 import { iconPath } from './icons.js';
 
 const C = 28;  // drawing units per grid cell
@@ -67,13 +67,26 @@ function Seat({ el, seat, onClick }) {
   </g>;
 }
 
+// Zone outline with its name and "N of M free" (spec 2026-10-15-floor-zones §5); drawn under everything else.
+function Zone({ zone }) {
+  const x = zone.x * C, y = zone.y * C, color = zone.color || '#3b82f6';
+  const caption = zoneCaption(zone);
+  return <g pointerEvents="none">
+    <rect x={x + 2} y={y + 2} width={zone.w * C - 4} height={zone.h * C - 4} rx="6"
+      fill={color} fillOpacity="0.06" stroke={color} strokeWidth="2" />
+    <text x={x + 10} y={y + 20} fontSize="14" fontWeight="700" fill="#0f172a">{zone.name}</text>
+    {caption && <text x={x + 10} y={y + 36} fontSize="11" fontWeight="600" fill={color}>{caption}</text>}
+  </g>;
+}
+
 export default function FloorDrawing({ floor, onSeatClick }) {
   const catalog = Object.fromEntries((floor.catalog ?? []).map((c) => [c.type, c]));
   const seats = Object.fromEntries(floor.seats.map((s) => [s.id, s]));
   const order = (el) => (el.type === 'corridor' ? 0 : el.type === 'seat' ? 3 : ['wall', 'window', 'door'].includes(el.type) ? 2 : 1);
-  const elements = [...floor.elements].sort((a, b) => order(a) - order(b));
+  const elements = floor.elements.filter((el) => el.type !== 'zone').sort((a, b) => order(a) - order(b));
   return <svg className="disp-floor" viewBox={`0 0 ${floor.cols * C} ${floor.rows * C}`} preserveAspectRatio="xMidYMid meet">
     <rect width={floor.cols * C} height={floor.rows * C} fill="#f8fafc" />
+    {(floor.zones ?? []).map((z) => <Zone key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
       ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} />
       : <Element key={el.id} el={el} catalog={catalog} />))}

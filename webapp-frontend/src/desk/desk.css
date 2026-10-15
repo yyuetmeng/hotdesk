@@ -49,3 +49,8 @@
   .page { padding: 0; }
   @page { size: A4; margin: 10mm; }
 }
+/* Zones (spec 2026-10-15-floor-zones §5): outline behind the floor, name and "N of M free" top-left. */
+.desk-zone { position: absolute; box-sizing: border-box; border: 1.5px solid var(--zone); border-radius: 6px;
+  background: color-mix(in srgb, var(--zone) 6%, transparent); pointer-events: none; padding: 3px 6px; }
+.desk-zone b { display: block; font-size: 12px; line-height: 1.2; color: var(--text); white-space: nowrap; }
+.desk-zone small { display: block; font-size: 10px; font-weight: 600; color: var(--zone); white-space: nowrap; }

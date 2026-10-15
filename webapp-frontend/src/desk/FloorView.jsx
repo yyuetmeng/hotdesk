@@ -1,6 +1,6 @@
 // Read-only floor plan for booking and check-in: published elements, seats coloured by state,
 // initials of who is on (or booked for) each seat. Spec 2026-10-15-seat-booking-and-checkin §2.8.
-import { footprint, initials, stateLabel } from './deskLogic.js';
+import { footprint, initials, stateLabel, zoneCaption } from './deskLogic.js';
 import './desk.css';
 
 export default function FloorView({ floor, selectedId, onSelect, cell = 30 }) {
@@ -8,7 +8,11 @@ export default function FloorView({ floor, selectedId, onSelect, cell = 30 }) {
   const seats = Object.fromEntries(floor.seats.map((s) => [s.id, s]));
   return <div className="desk-floor-wrap">
     <div className="desk-floor" style={{ width: floor.cols * cell, height: floor.rows * cell, '--cell': `${cell}px` }}>
-      {floor.elements.map((el) => {
+      {(floor.zones ?? []).map((z) => <div key={z.id} className="desk-zone"
+        style={{ left: z.x * cell, top: z.y * cell, width: z.w * cell, height: z.h * cell, '--zone': z.color || '#3b82f6' }}>
+        <b>{z.name}</b>{zoneCaption(z) && <small>{zoneCaption(z)}</small>}
+      </div>)}
+      {floor.elements.filter((el) => el.type !== 'zone').map((el) => {
         const size = footprint(el);
         const style = { left: el.x * cell, top: el.y * cell, width: size.w * cell, height: size.h * cell };
         const seat = seats[el.id];
