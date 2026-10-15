@@ -8,6 +8,7 @@ from functools import wraps
 from flask import jsonify
 
 from app.admin.floorplan_publishing import _version_element_dto
+from app.admin.floorplans import _catalog, _catalog_dto
 from app.core.errors import error
 from app.desk import rules, service
 
@@ -40,7 +41,8 @@ def floor(at, plan_id):
     return jsonify(id=str(plan.id), name=live.name, cols=live.cols, rows=live.rows,
                    date=rules.local_today(at).isoformat(), now=at.isoformat(),
                    elements=[_version_element_dto(el) for el in live.elements],
-                   seats=service.seat_states(plan, rules.local_today(at), None, at))
+                   seats=service.seat_states(plan, rules.local_today(at), None, at),
+                   catalog=[_catalog_dto(entry) for entry in _catalog().values()])
 
 
 @public_bp.get("/seats/<seat_id>/activity")

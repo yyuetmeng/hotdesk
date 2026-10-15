@@ -1,7 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { FloorPlanPage } from './pages/floor-plan/FloorPlanPage.jsx';
 import { DeskCheckInPage } from './pages/desk-check-in/DeskCheckInPage.jsx';
-import { BookDeskPage } from './pages/book-desk/BookDeskPage.jsx';
+import { BookDeskPage } from './desk/BookDeskPage.jsx';
 import { FloorDisplayPage } from './pages/floor-display/FloorDisplayPage.jsx';
 import { InsightsPage } from './pages/insights/InsightsPage.jsx';
 import { SensorsPage } from './pages/sensors/SensorsPage.jsx';

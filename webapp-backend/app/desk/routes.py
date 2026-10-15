@@ -6,6 +6,7 @@ from flask import g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 
 from app.admin.floorplan_publishing import _version_element_dto
+from app.admin.floorplans import _catalog, _catalog_dto
 from app.auth.routes import auth_required
 from app.core.audit import write_audit
 from app.core.auth_models import User
@@ -64,7 +65,8 @@ def floor(viewer, at, plan_id):
     return jsonify(id=str(plan.id), name=live.name, cols=live.cols, rows=live.rows, version=live.version,
                    date=day.isoformat(), preset=preset,
                    elements=[_version_element_dto(el) for el in live.elements],
-                   seats=service.seat_states(plan, day, preset, at, viewer))
+                   seats=service.seat_states(plan, day, preset, at, viewer),
+                   catalog=[_catalog_dto(entry) for entry in _catalog().values()])
 
 
 @desk_bp.post("/bookings")

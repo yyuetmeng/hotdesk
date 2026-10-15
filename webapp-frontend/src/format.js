@@ -28,3 +28,10 @@ export function formatDateTime(value) {
   if (!d || Number.isNaN(d.getTime())) return EMPTY;
   return `${formatDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
+
+/** HH:mm:ss, e.g. 17:05:03 (local time). */
+export function formatTime(value) {
+  const d = toDate(value);
+  if (!d || Number.isNaN(d.getTime())) return EMPTY;
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}

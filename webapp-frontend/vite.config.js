@@ -18,6 +18,8 @@ export default defineConfig(({ mode }) => {
       '/api/admin/floor-plans': { target: flaskBackend, changeOrigin: true },
       '/api/admin/users': { target: flaskBackend, changeOrigin: true },
       '/api/admin/departments': { target: flaskBackend, changeOrigin: true },
+      '/api/desk': { target: flaskBackend, changeOrigin: true },
+      '/api/public': { target: flaskBackend, changeOrigin: true },
       '/api': { target: backend, changeOrigin: true },
       '/labels': { target: backend, changeOrigin: true },
       '/healthz': { target: backend, changeOrigin: true },

@@ -1,0 +1,51 @@
+/* Booking / check-in pages (spec 2026-10-15-seat-booking-and-checkin). */
+.desk-floor-wrap { overflow: auto; }
+.desk-floor { position: relative; background-color: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  background-image: linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: var(--cell) var(--cell); }
+.desk-el { position: absolute; border-radius: 3px; opacity: .85; }
+.desk-seat { position: absolute; display: flex; align-items: center; justify-content: center; padding: 0;
+  border: 2px solid rgba(0, 0, 0, .15); border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; }
+.desk-seat.free-for-all { border-color: #0f172a; }
+.desk-seat.selected { outline: 3px solid var(--accent); outline-offset: 1px; }
+.state-available { background: #16a34a; }
+.state-booked { background: #f59e0b; }
+.state-occupied { background: #dc2626; }
+.state-not_bookable { background: #94a3b8; }
+.desk-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+.desk-legend li { display: flex; align-items: center; gap: 6px; }
+.desk-legend span { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, .15); }
+.desk-legend span.free-for-all { border-color: #0f172a; }
+
+.desk-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; }
+.desk-segment { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.desk-segment button { border: 0; padding: 8px 12px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+.desk-segment button.active { background: var(--accent); color: #fff; }
+.desk-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); gap: 16px; }
+.desk-panel h2 { margin: 0 0 6px; font-size: 20px; }
+.desk-panel .muted { color: var(--muted); margin: 0 0 10px; }
+.desk-activity { list-style: none; padding: 0; margin: 8px 0 0; font-size: 13px; }
+.desk-activity li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.desk-activity time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
+.desk-actions { display: grid; gap: 8px; margin: 12px 0; }
+.desk-colleagues { display: grid; gap: 6px; max-height: 220px; overflow: auto; margin-top: 6px; }
+.desk-colleagues button { text-align: left; }
+.desk-bookings { margin-top: 16px; }
+.desk-bookings td small { display: block; color: var(--muted); }
+.desk-checkin { max-width: 520px; margin: 0 auto; text-align: center; }
+.desk-checkin .big { font-size: 22px; margin: 12px 0; }
+.desk-checkin .button { min-width: 200px; padding: 12px 18px; font-size: 16px; }
+@media (max-width: 1000px) { .desk-layout { grid-template-columns: 1fr; } }
+
+/* Printable QR labels (A4). */
+.qr-sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; }
+.qr-label { border: 1px dashed #94a3b8; border-radius: 6px; padding: 4mm; text-align: center; break-inside: avoid; }
+.qr-label img { width: 40mm; height: 40mm; }
+.qr-label b { display: block; font-size: 14pt; }
+.qr-label small { display: block; color: #475569; }
+@media print {
+  .sidebar, .page-title, .qr-toolbar { display: none !important; }
+  .app-shell { display: block; }
+  .page { padding: 0; }
+  @page { size: A4; margin: 10mm; }
+}
