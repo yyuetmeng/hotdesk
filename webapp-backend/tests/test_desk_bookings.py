@@ -92,3 +92,33 @@ def test_unpublished_plan_not_bookable(client, world):
     assert r.status_code == 404
     assert book(client, world, "jane", "F1").status_code == 404
     assert client.get("/api/desk/floors", headers=hdr(world["tok"]["jane"])).get_json()["items"] == []
+
+
+def _queries_for(client, url, tok):
+    from sqlalchemy import event
+
+    from app.core.db import get_engine
+    count = {"n": 0}
+
+    def on_execute(*_args):
+        count["n"] += 1
+    engine = get_engine()
+    event.listen(engine, "before_cursor_execute", on_execute)
+    try:
+        assert client.get(url, headers=hdr(tok)).status_code == 200
+    finally:
+        event.remove(engine, "before_cursor_execute", on_execute)
+    return count["n"]
+
+
+def test_floor_view_query_count_does_not_grow_with_seats(client, world):
+    tok, root = world["tok"]["jane"], world["tok"]["root"]
+    url = f"/api/desk/floors/{world['plan']}?date={DAY.isoformat()}&preset=am"
+    small = _queries_for(client, url, tok)
+    draft = client.get(f"/api/admin/floor-plans/{world['plan']}", headers=hdr(root)).get_json()["elements"]
+    extra = [{"type": "seat", "x": x, "y": 5, "rotation": 0, "open_to_all": True} for x in range(8)]
+    assert client.put(f"/api/admin/floor-plans/{world['plan']}/elements", headers=hdr(root),
+                      json={"elements": draft + extra}).status_code == 200
+    assert client.post(f"/api/admin/floor-plans/{world['plan']}/publish", headers=hdr(root)).status_code == 200
+    large = _queries_for(client, url, tok)
+    assert large == small, (small, large)
