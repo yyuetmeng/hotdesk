@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 
 from app.core.audit import write_audit
 from app.core.errors import error
-from app.core.auth_models import User
+from app.core.auth_models import Department, User
 from app.core.floorplan_models import FloorElement, FloorPlan, FloorPlanElement
 from app.core.orm import orm_session
 from app.core.security import admin_required
@@ -62,7 +62,37 @@ def _element_dto(el: FloorPlanElement) -> dict:
     return {"id": str(el.id), "type": el.type, "x": el.x, "y": el.y,
             "w": el.w, "h": el.h, "rotation": el.rotation,
             "label": el.label, "color": el.color,
-            "config": _config_with_defaults(entry, el.config) if entry else (el.config or {})}
+            "config": _config_with_defaults(entry, el.config) if entry else (el.config or {}),
+            **_tag_dto(el)}
+
+
+def _tag_dto(el) -> dict:
+    """Seat department tag (spec 2026-10-15-seat-department-tags §5); non-seats are never tagged."""
+    return {"department_id": str(el.department_id) if el.department_id else None,
+            "open_to_all": bool(el.open_to_all)}
+
+
+def _tag_problems(el: dict, known_departments: set[str]) -> list[str]:
+    dept, open_to_all = el.get("department_id"), el.get("open_to_all", False)
+    if not dept and not open_to_all:
+        return []
+    if el.get("type") != "seat":
+        return ["only seats can have a department"]
+    if dept and open_to_all:
+        return ["choose a department or free for all, not both"]
+    if not isinstance(open_to_all, bool):
+        return ["open_to_all must be true or false"]
+    if dept and _element_uuid({"id": dept}) not in known_departments:
+        return ["unknown department id"]
+    return []
+
+
+def _known_departments(raw) -> set[str]:
+    ids = {_element_uuid({"id": el.get("department_id")}) for el in raw if isinstance(el, dict)}
+    ids.discard(None)
+    if not ids:
+        return set()
+    return {str(d) for d in orm_session().scalars(select(Department.id).where(Department.id.in_(ids)))}
 
 
 def _get_plan(plan_id: str) -> FloorPlan | None:
@@ -270,6 +300,7 @@ def _mark_draft_changed(plan: FloorPlan) -> None:
 
 def _validate_elements(raw, cols, rows, existing_ids: set[str]):
     catalog = _catalog()
+    known_departments = _known_departments(raw)
     problems, seen, seen_ids = [], {}, set()
     for i, el in enumerate(raw):
         etype = el.get("type") if isinstance(el, dict) else None
@@ -284,6 +315,7 @@ def _validate_elements(raw, cols, rows, existing_ids: set[str]):
                 problems.append(f"element {i}: duplicate element id")
             seen_ids.add(el_id)
         entry = catalog[etype]
+        problems.extend(f"element {i}: {p}" for p in _tag_problems(el, known_departments))
         try:
             x, y, rotation = int(el.get("x")), int(el.get("y")), int(el.get("rotation", 0))
         except (TypeError, ValueError):
@@ -325,7 +357,10 @@ def _normalized(raw):
         out.append({"type": item["type"], "x": int(item["x"]), "y": int(item["y"]),
                     "w": w, "h": h, "rotation": int(item.get("rotation", 0)),
                     "label": (item.get("label") or None), "color": (item.get("color") or None),
-                    "config": _config_with_defaults(entry, item.get("config"))})
+                    "config": _config_with_defaults(entry, item.get("config")),
+                    "department_id": (_element_uuid({"id": item.get("department_id")})
+                                      if item["type"] == "seat" else None),
+                    "open_to_all": item["type"] == "seat" and item.get("open_to_all") is True})
     return out
 
 

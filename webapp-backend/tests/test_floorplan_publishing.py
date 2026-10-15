@@ -144,3 +144,66 @@ def test_discard_restores_published_draft(client, db, admin_token):
     assert {e["id"]: (e["x"], e["y"]) for e in body["elements"]} == published
     assert body["status"] == "published"
     assert run_one("select action from audit_logs where action = 'floorplan.discard'")
+
+
+def _dept(name):
+    return str(run_one("insert into departments (name) values (:n) returning id", {"n": name})["id"])
+
+
+def _tags(elements):
+    return {(e["type"], e["x"]): (e["department_id"], e["open_to_all"]) for e in elements}
+
+
+def test_seat_tags_roundtrip(client, db, admin_token):
+    d = _dept("Eng")
+    plan = _mk_plan(client, admin_token)
+    r = _save(client, admin_token, plan["id"], [
+        {"type": "seat", "x": 0, "y": 0, "rotation": 0, "department_id": d},
+        {"type": "seat", "x": 2, "y": 0, "rotation": 0, "open_to_all": True},
+        {"type": "seat", "x": 4, "y": 0, "rotation": 0},
+        {"type": "wall", "x": 6, "y": 0, "rotation": 0}])
+    assert r.status_code == 200, r.get_json()
+    got = client.get(_url(plan["id"]), headers=hdr(admin_token)).get_json()["elements"]
+    assert _tags(got) == {("seat", 0): (d, False), ("seat", 2): (None, True),
+                          ("seat", 4): (None, False), ("wall", 6): (None, False)}
+
+
+def test_seat_tag_validation(client, db, admin_token):
+    d = _dept("Ops")
+    plan = _mk_plan(client, admin_token)
+    cases = [
+        ({"type": "seat", "department_id": "00000000-0000-0000-0000-000000000001"}, "unknown department id"),
+        ({"type": "seat", "department_id": "not-a-uuid"}, "unknown department id"),
+        ({"type": "seat", "department_id": d, "open_to_all": True}, "choose a department or free for all, not both"),
+        ({"type": "wall", "department_id": d}, "only seats can have a department"),
+    ]
+    for extra, fragment in cases:
+        r = _save(client, admin_token, plan["id"], [{"x": 0, "y": 0, "rotation": 0, **extra}])
+        assert r.status_code == 400, extra
+        assert any(fragment in m for m in r.get_json()["fields"]["elements"]), (fragment, r.get_json())
+
+
+def test_publish_copies_tags_and_department_delete_untags(client, db, admin_token):
+    d = _dept("Finance")
+    plan = _mk_plan(client, admin_token)
+    _save(client, admin_token, plan["id"], [{"type": "seat", "x": 0, "y": 0, "rotation": 0, "department_id": d}])
+    assert _publish(client, admin_token, plan["id"]).status_code == 200
+    pub = client.get(_url(plan["id"], "/published"), headers=hdr(admin_token)).get_json()
+    assert pub["elements"][0]["department_id"] == d
+    assert client.delete(f"/api/admin/departments/{d}", headers=hdr(admin_token)).status_code == 204
+    draft = client.get(_url(plan["id"]), headers=hdr(admin_token)).get_json()
+    pub = client.get(_url(plan["id"], "/published"), headers=hdr(admin_token)).get_json()
+    assert draft["elements"][0]["department_id"] is None and pub["elements"][0]["department_id"] is None
+    moved = {**draft["elements"][0], "x": 3}
+    assert _save(client, admin_token, plan["id"], [moved]).status_code == 200
+    assert _publish(client, admin_token, plan["id"]).status_code == 200
+
+
+def test_old_bookable_config_still_saves_and_publishes(client, db, admin_token):
+    plan = _mk_plan(client, admin_token)
+    run_write("insert into floor_plan_elements (plan_id, type, x, y, w, h, rotation, config) "
+              "values (cast(:p as uuid), 'seat', 0, 0, 1, 1, 0, '{\"bookable\": true}')", {"p": plan["id"]})
+    run_write("update floor_plans set draft_changed_at = now() where id = cast(:p as uuid)", {"p": plan["id"]})
+    assert _publish(client, admin_token, plan["id"]).status_code == 200
+    els = client.get(_url(plan["id"]), headers=hdr(admin_token)).get_json()["elements"]
+    assert _save(client, admin_token, plan["id"], els).status_code == 200

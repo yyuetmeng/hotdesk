@@ -14,14 +14,24 @@ from app.core.orm import orm_session
 from app.core.security import admin_required
 
 from . import admin_bp
-from .floorplans import (_catalog, _config_with_defaults, _get_plan, _plan_payload,
+from .floorplans import (_catalog, _config_with_defaults, _get_plan, _plan_payload, _tag_dto,
                          _validate_elements, plan_status)
 
-_ELEMENT_FIELDS = ("type", "x", "y", "w", "h", "rotation", "label", "color", "config")
+_ELEMENT_FIELDS = ("type", "x", "y", "w", "h", "rotation", "label", "color", "config",
+                   "department_id", "open_to_all")
 
 
 def _draft_problems(plan: FloorPlan) -> list[str]:
-    raw = [{"id": str(el.id), **{f: getattr(el, f) for f in _ELEMENT_FIELDS}} for el in plan.elements]
+    """Validate the stored draft as if it were saved now. Stored settings are normalised to the
+    current catalog first, so settings since removed from it (e.g. seat "bookable") do not block
+    publishing."""
+    catalog = _catalog()
+    raw = []
+    for el in plan.elements:
+        item = {"id": str(el.id), **{f: getattr(el, f) for f in _ELEMENT_FIELDS}, **_tag_dto(el)}
+        if el.type in catalog:
+            item["config"] = _config_with_defaults(catalog[el.type], el.config)
+        raw.append(item)
     return _validate_elements(raw, plan.cols, plan.rows, {item["id"] for item in raw})
 
 
@@ -29,7 +39,8 @@ def _version_element_dto(el: FloorPlanVersionElement) -> dict:
     entry = _catalog().get(el.type)
     return {"id": str(el.element_id), "type": el.type, "x": el.x, "y": el.y, "w": el.w, "h": el.h,
             "rotation": el.rotation, "label": el.label, "color": el.color,
-            "config": _config_with_defaults(entry, el.config) if entry else (el.config or {})}
+            "config": _config_with_defaults(entry, el.config) if entry else (el.config or {}),
+            **_tag_dto(el)}
 
 
 def _reloaded_payload(plan: FloorPlan):
