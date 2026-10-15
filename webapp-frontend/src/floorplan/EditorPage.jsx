@@ -4,9 +4,10 @@ import { flaskRequest } from '../api.js';
 import { formatDateTime } from '../format.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { CATALOG, baseSize, catalogByType, isResizable, maxSizeFor, setCatalog, sizeOf } from './palette.js';
-import { addElement, metaChanged, moveElement, placementError, removeElement, resizeElement, rotateElement, seatsInZone, validateAll, zoneName } from './logic.js';
+import { addElement, metaChanged, moveElement, placementError, previewFloor, removeElement, resizeElement, rotateElement, seatsInZone, validateAll, zoneName } from './logic.js';
 import { countUntagged, ctrlClickSelection, departmentColor, isSeat, isZone, seatsInBox, setTag, sharedTag, tagOf } from './selection.js';
 import './floorplan.css';
+import FloorPreview from './FloorPreview.jsx';
 
 let localSeq = 0;
 const nextId = () => `local-${Date.now()}-${localSeq++}`;
@@ -89,6 +90,7 @@ export default function EditorPage() {
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : null;
   const setSelectedId = (one) => setSelectedIds(one ? [one] : []);
   const [departments, setDepartments] = useState([]);
+  const [showPreview, setShowPreview] = useState(false);
   const [box, setBox] = useState(null);
   const boxRef = useRef(null);
   const [preview, setPreview] = useState(null);
@@ -167,7 +169,7 @@ export default function EditorPage() {
 
   useEffect(() => {
     const onKey = (event) => {
-      if (!plan || !selectedIds.length || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+      if (!plan || showPreview || !selectedIds.length || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
       if (event.key === 'Escape') { setSelectedIds([]); return; }
       if ((event.key === 'r' || event.key === 'R') && selectedId) {
         const result = rotateElement(elements, selectedId, plan.cols, plan.rows);
@@ -179,7 +181,7 @@ export default function EditorPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [plan, selectedId, selectedIds, elements, commit]);
+  }, [plan, showPreview, selectedId, selectedIds, elements, commit]);
 
   // Box selection: press on an empty cell and drag; seats fully inside are selected.
   const onGridPointerDown = (event) => {
@@ -299,6 +301,7 @@ export default function EditorPage() {
         onChange={(e) => setCell(Number(e.target.value))} /></label>
       <button className="button subtle" onClick={undo} disabled={!past.length}>Undo</button>
       <button className="button subtle" onClick={redo} disabled={!future.length}>Redo</button>
+      <button className="button" onClick={() => setShowPreview(true)}>Preview</button>
       <button className="button primary" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save *' : 'Saved'}</button>
       <button className="button primary" onClick={() => lifecycle('publish', { confirmText: untagged ? untaggedWarning(untagged) : undefined })}
         disabled={saving || validateAll(elements, plan.cols, plan.rows).length > 0 || (plan.status === 'published' && !dirty && !metaChanged(meta, plan))}>
@@ -312,6 +315,10 @@ export default function EditorPage() {
           confirmText: 'Unpublish this plan? Staff will no longer see it or be able to book it. The draft is kept.' })}>
         Unpublish</button>}
     </header>
+    {showPreview && <FloorPreview onClose={() => setShowPreview(false)}
+      note={dirty ? 'includes your unsaved changes; every seat with a project team shows as available' : 'every seat with a project team shows as available'}
+      floor={previewFloor({ ...plan, name: meta.name.trim() || plan.name }, elements, CATALOG,
+        Object.fromEntries(departments.map((d) => [d.id, d.name])))} />}
     <PublishBanner plan={plan} dirty={dirty || metaChanged(meta, plan)} />
     {problems.length > 0 && <Notice kind="error">{problems.join(' · ')}</Notice>}
     <div className="fp-panes">

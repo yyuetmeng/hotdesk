@@ -105,3 +105,29 @@ export function planActions(status) {
   const unpublish = { action: 'unpublish', label: 'Unpublish' };
   return { draft: [publish], unpublished: [publish], changed: [publish, unpublish], published: [unpublish] }[status] ?? [];
 }
+
+/** The draft as staff will see it, shaped like a published floor payload for the display drawing:
+ *  every tagged seat shows as available (a draft has no bookings), zones with "N of M free".
+ *  `departments` maps project team id to name. */
+export function previewFloor(plan, elements, catalog, departments = {}) {
+  const byType = Object.fromEntries(catalog.map((c) => [c.type, c]));
+  const sized = elements.filter((el) => byType[el.type]).map((el) => {
+    const entry = byType[el.type];
+    return { id: el.id, type: el.type, x: el.x, y: el.y,
+      w: entry.resizable === false ? entry.w : (el.w ?? entry.w), h: entry.resizable === false ? entry.h : (el.h ?? entry.h),
+      rotation: el.rotation || 0, label: el.label ?? null, color: el.color ?? null };
+  });
+  const seats = elements.filter(isSeat).map((el) => {
+    const tagged = Boolean(el.open_to_all || el.department_id);
+    return { id: el.id, label: (el.label ?? '').trim() || `Seat ${el.x},${el.y}`, x: el.x, y: el.y,
+      state: tagged ? 'available' : 'not_bookable', open_to_all: Boolean(el.open_to_all),
+      department: el.open_to_all ? 'Free for all' : (departments[el.department_id] ?? null), occupant: null, booking: null };
+  });
+  const usable = seats.filter((s) => s.state === 'available');
+  const zones = sized.filter(isZone).sort((a, b) => zoneName(a).localeCompare(zoneName(b))).map((z) => {
+    const inside = usable.filter((s) => s.x >= z.x && s.x < z.x + z.w && s.y >= z.y && s.y < z.y + z.h).length;
+    return { id: z.id, name: zoneName(z), x: z.x, y: z.y, w: z.w, h: z.h, color: z.color, total: inside, free: inside };
+  });
+  return { id: plan.id, name: plan.name, cols: plan.cols, rows: plan.rows, elements: sized, seats, zones, catalog,
+    summary: { bookable: usable.length, available: usable.length, booked: 0, occupied: 0, occupancy_pct: 0 } };
+}

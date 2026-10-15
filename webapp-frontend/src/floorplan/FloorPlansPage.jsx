@@ -4,7 +4,8 @@ import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatDateTime } from '../format.js';
 import './floorplan.css';
-import { planActions } from './logic.js';
+import { planActions, previewFloor } from './logic.js';
+import FloorPreview from './FloorPreview.jsx';
 
 const STATUS_LABEL = { draft: 'Draft', published: 'Published', changed: 'Unpublished changes', unpublished: 'Unpublished' };
 
@@ -14,6 +15,7 @@ export default function FloorPlansPage() {
   const [notice, setNotice] = useState(null);
   const [form, setForm] = useState({ name: '', cols: 20, rows: 15 });
   const [creating, setCreating] = useState(false);
+  const [preview, setPreview] = useState(null);   // { floor } | 'loading'
 
   const load = useCallback(async () => {
     try {
@@ -54,6 +56,17 @@ export default function FloorPlansPage() {
     }
   };
 
+  // The saved draft as staff will see it (same drawing as Book a desk and the floor display).
+  const openPreview = async (item) => {
+    setPreview('loading'); setNotice(null);
+    try {
+      const [catalog, plan, depts] = await Promise.all([flaskRequest('/api/admin/floor-plans/catalog'),
+        flaskRequest(`/api/admin/floor-plans/${item.id}`), flaskRequest('/api/admin/departments')]);
+      const names = Object.fromEntries(depts.items.map((d) => [d.id, d.name]));
+      setPreview({ floor: previewFloor(plan, plan.elements, catalog.items, names) });
+    } catch (err) { setPreview(null); setNotice(`${item.name}: ${err.message}`); }
+  };
+
   const remove = async (item) => {
     if (!window.confirm(`Delete plan "${item.name}"? Its elements are removed too.`)) return;
     try { await flaskRequest(`/api/admin/floor-plans/${item.id}`, { method: 'DELETE' }); await load(); }
@@ -67,6 +80,9 @@ export default function FloorPlansPage() {
   return <main className="page">
     {title}
     {notice && <Notice kind="error">{notice}</Notice>}
+    {preview === 'loading' && <Loading label="Preparing the preview..." />}
+    {preview?.floor && <FloorPreview floor={preview.floor} note="saved draft; every seat with a project team shows as available"
+      onClose={() => setPreview(null)} />}
     <section className="card">
       <form className="fp-form" onSubmit={create}>
         <input aria-label="Plan name" placeholder="Plan label" value={form.name}
@@ -87,6 +103,7 @@ export default function FloorPlansPage() {
           <td>{item.element_count}</td>
           <td>{formatDateTime(item.updated_at)}</td>
           <td><div className="row-actions">
+            <button className="button" onClick={() => openPreview(item)}>Preview</button>
             {planActions(item.status).map((a) => <button key={a.action} className="button" onClick={() => lifecycle(item, a.action)}>{a.label}</button>)}
             <button className="button subtle" onClick={() => remove(item)}>Delete</button>
           </div></td>

@@ -176,3 +176,30 @@ console.log('floorplan zones smoke OK');
   assert.deepEqual(planActions('weird'), []);
 }
 console.log('floorplan list actions smoke OK');
+
+// Preview (Manage Floor Plan list and editor): the draft as staff will see it, in the display drawing.
+{
+  const { previewFloor } = await import('../src/floorplan/logic.js');
+  const catalog = [
+    { type: 'seat', label: 'Seat', w: 1, h: 1, color: '#16a34a', resizable: false },
+    { type: 'table', label: 'Table', w: 2, h: 1, color: '#ca8a04', resizable: true },
+    { type: 'zone', label: 'Zone', w: 6, h: 4, color: '#3b82f6', resizable: true },
+  ];
+  const plan = { id: 'p1', name: 'Level 1', cols: 10, rows: 8 };
+  const elements = [
+    { id: 'z', type: 'zone', x: 0, y: 0, w: 4, h: 2, rotation: 0, label: ' AI Lab ' },
+    { id: 's1', type: 'seat', x: 1, y: 1, rotation: 0, label: 'A1', department_id: 'd1' },
+    { id: 's2', type: 'seat', x: 2, y: 1, rotation: 0, open_to_all: true },
+    { id: 's3', type: 'seat', x: 3, y: 1, rotation: 0 },                       // untagged
+    { id: 't', type: 'table', x: 5, y: 5, rotation: 90 },                      // catalog size 2x1
+  ];
+  const f = previewFloor(plan, elements, catalog, { d1: 'SAP' });
+  assert.deepEqual([f.id, f.name, f.cols, f.rows], ['p1', 'Level 1', 10, 8]);
+  assert.deepEqual(f.elements.find((e) => e.id === 't'), { id: 't', type: 'table', x: 5, y: 5, w: 2, h: 1, rotation: 90, label: null, color: null });
+  assert.deepEqual(f.seats.map((s) => [s.id, s.label, s.state, s.department]), [
+    ['s1', 'A1', 'available', 'SAP'], ['s2', 'Seat 2,1', 'available', 'Free for all'], ['s3', 'Seat 3,1', 'not_bookable', null]]);
+  assert.deepEqual(f.zones, [{ id: 'z', name: 'AI Lab', x: 0, y: 0, w: 4, h: 2, color: null, total: 2, free: 2 }]);
+  assert.deepEqual(f.summary, { bookable: 2, available: 2, booked: 0, occupied: 0, occupancy_pct: 0 });
+  assert.equal(f.catalog, catalog);
+}
+console.log('floorplan preview smoke OK');
