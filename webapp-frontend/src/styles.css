@@ -84,3 +84,5 @@
 .display-preview-body .disp { height:100%; }
 .page-title-action { flex:none; display:flex; gap:8px; align-items:center; }
 @media (max-width:850px) { .page-title-action { margin-top:10px; } }
+/* A page title with a description underneath gets a divider, so the header reads as its own section. */
+.page-title:has(> div > p) { padding-bottom:16px; margin-bottom:22px; border-bottom:1px solid var(--border); }
