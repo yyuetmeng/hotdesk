@@ -3,6 +3,7 @@
 Spec: docs/superpowers/specs/2026-10-15-seat-booking-and-checkin-design.md. Every public entry
 point calls settle(at) first, so releases and automatic ends are applied without a scheduler.
 """
+import logging
 import uuid
 from datetime import date, datetime, time, timedelta
 
@@ -15,6 +16,8 @@ from app.core.floorplan_models import FloorPlan, FloorPlanVersionElement
 from app.core.orm import orm_session
 
 from . import rules
+
+log = logging.getLogger("app.desk")
 
 
 class DeskError(Exception):
@@ -69,6 +72,7 @@ def settle(at: datetime) -> None:
         session.commit()
     except (OperationalError, IntegrityError):
         session.rollback()
+        log.warning("settle rolled back; releases and automatic ends retry on the next request", exc_info=True)
 
 
 def _free_booking_blocks(booking_id) -> None:
@@ -150,8 +154,11 @@ def _window(day: date, preset: str | None, at: datetime) -> tuple[datetime, date
     if preset in rules.PRESETS:
         start, end = rules.PRESETS[preset]
         return rules.at_local(day, start), rules.at_local(day, end)
-    current = rules.next_boundary(at) - (rules.BLOCK if rules.next_boundary(at) != at else timedelta(0))
-    return current, current + rules.BLOCK  # the 30-minute block in progress
+    boundary = rules.next_boundary(at)
+    current = boundary - rules.BLOCK if boundary != at else at
+    # The block in progress, plus blocks whose booked person may already check in (30 min early),
+    # so a seat is never shown free while check-in already holds it for someone.
+    return current, at + rules.EARLY_CHECKIN
 
 
 def _blocks_in(seat_ids, starts: datetime, ends: datetime) -> list[SeatBookingBlock]:

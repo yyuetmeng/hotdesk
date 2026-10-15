@@ -120,3 +120,30 @@ def test_settle_skips_rows_locked_by_another_request(client, world, monkeypatch)
     assert result["status"] == 200
     client.get(url)
     assert run_one("select end_reason from seat_bookings where id = cast(:b as uuid)", {"b": bid})["end_reason"] == "released"
+
+
+def test_seat_shows_booked_in_the_half_hour_before_its_booking(client, world, monkeypatch):
+    assert book(client, world, "jane", "F1").status_code == 201              # AM from 08:00, booked the day before
+    set_now(monkeypatch, sg(DAY, 7, 45))
+    seat = next(s for s in client.get(f"/api/public/floors/{world['plan']}").get_json()["seats"]
+                if s["id"] == world["seats"]["F1"])
+    assert seat["state"] == "booked"
+
+
+def test_settle_logs_when_it_rolls_back(client, world, monkeypatch, caplog):
+    import logging
+
+    from sqlalchemy.exc import OperationalError
+
+    from app.desk import service
+
+    def boom(*_a, **_k):
+        raise OperationalError("select", {}, Exception("simulated deadlock"))
+    monkeypatch.setattr(service, "_free_booking_blocks", boom)
+    book(client, world, "jane", "F1")
+    set_now(monkeypatch, sg(DAY, 13, 30))
+    client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["jane"]))
+    set_now(monkeypatch, sg(DAY, 18, 30))                                       # check-in due to end -> boom
+    with caplog.at_level(logging.WARNING):
+        assert client.get(f"/api/public/floors/{world['plan']}").status_code == 200
+    assert any("settle rolled back" in r.getMessage() for r in caplog.records)
