@@ -107,7 +107,7 @@ function DisplayForm({ display, plans, onCancel, onSaved, onDelete }) {
   };
   const err = (key) => fields[key] && <small className="users-field-error">{fields[key]}</small>;
 
-  return <form onSubmit={save} style={{ display: 'grid', gap: 12 }}>
+  return <form className="display-form" onSubmit={save} style={{ display: 'grid', gap: 12 }}>
     <h2 style={{ margin: 0 }}>{isNew ? 'New display' : display.name}</h2>
     {message && <Notice kind="error">{message}</Notice>}
     <label>Name <input value={form.name} required onChange={(e) => {

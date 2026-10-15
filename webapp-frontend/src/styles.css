@@ -70,3 +70,7 @@
 :root .button.primary:not(:disabled):hover { color:#fff; background:color-mix(in srgb, var(--accent) 85%, #000); border-color:color-mix(in srgb, var(--accent) 85%, #000); }
 .button:not(:disabled):active { transform:translateY(1px); }
 .button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+/* Display settings form: label above its field, hint underneath (checkbox rows keep their inline layout). */
+.display-form label { display:grid; gap:5px; color:var(--muted); font-size:13px; }
+.display-form label > input:not([type="checkbox"]), .display-form label > select { width:100%; }
+.display-form label > small { color:var(--muted); font-size:12px; }
