@@ -64,3 +64,9 @@
 }
 /* Buttons in a table row: the cell stays a table cell so its divider lines up with the row. */
 .row-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+/* Hover and keyboard focus for buttons, so it is clear they can be clicked. */
+.button { transition:background-color .15s ease, border-color .15s ease, color .15s ease; }
+:root .button:not(:disabled):hover { border-color:var(--accent); color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
+:root .button.primary:not(:disabled):hover { color:#fff; background:color-mix(in srgb, var(--accent) 85%, #000); border-color:color-mix(in srgb, var(--accent) 85%, #000); }
+.button:not(:disabled):active { transform:translateY(1px); }
+.button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
