@@ -39,6 +39,6 @@ export default function ThemeSettings() {
       <p className="theme-panel-current">{THEME_CHOICES.find((c) => c.value === choice).label}</p>
     </div>}
     <button type="button" className="sidebar-signout theme-cog" aria-expanded={open} aria-haspopup="dialog"
-      onClick={() => setOpen((v) => !v)}><Icon name="cog" />Settings</button>
+      title="Settings" onClick={() => setOpen((v) => !v)}><Icon name="cog" /><span className="nav-text">Settings</span></button>
   </div>;
 }
