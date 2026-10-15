@@ -3,6 +3,7 @@
 // Spec: docs/superpowers/specs/2026-10-15-floor-dashboard-design.md §3.
 import { footprint, initials, zoneCaption } from '../desk/deskLogic.js';
 import { iconPath } from './icons.js';
+import { thinBar } from './displayLogic.js';
 
 const C = 28;  // drawing units per grid cell
 const STATE_FILL = { available: '#16a34a', booked: '#f59e0b', occupied: '#dc2626', not_bookable: '#94a3b8' };
@@ -22,11 +23,10 @@ function Element({ el, catalog }) {
   const x = el.x * C, y = el.y * C, W = w * C, H = h * C, cx = x + W / 2, cy = y + H / 2;
   const color = el.color || catalog[el.type]?.color || '#64748b';
   switch (el.type) {
-    case 'wall':
-      return <rect x={x} y={y} width={W} height={H} fill="#334155" />;
-    case 'window':
-      return <g><rect x={x} y={y} width={W} height={H} fill="#334155" />
-        <rect x={x + 2} y={y + H * 0.3} width={W - 4} height={H * 0.4} fill="#e0f2fe" stroke="#38bdf8" strokeWidth="1.5" /></g>;
+    case 'wall':   // thin line along its run, not a filled block
+      return <rect {...thinBar(x, y, W, H, 6)} rx="1.5" fill="#334155" />;
+    case 'window': // thin glass pane: light fill with a blue edge
+      return <rect {...thinBar(x, y, W, H, 6)} rx="1.5" fill="#e0f2fe" stroke="#38bdf8" strokeWidth="1.5" />;
     case 'door':
       return <g fill="none" stroke="#b45309" strokeWidth="1.5">
         <path d={`M ${x} ${y + H} A ${W} ${H} 0 0 1 ${x + W} ${y}`} />
@@ -52,7 +52,7 @@ function Element({ el, catalog }) {
   }
 }
 
-function Seat({ el, seat, onClick }) {
+function Seat({ el, seat, onClick, selected }) {
   const { w, h } = footprint(el);
   const cx = (el.x + w / 2) * C, cy = (el.y + h / 2) * C, r = Math.min(w, h) * C * 0.42;
   const who = seat.occupant?.name ?? seat.booking?.booked_for?.name;
@@ -60,6 +60,7 @@ function Seat({ el, seat, onClick }) {
   return <g className="disp-seat" onClick={() => onClick?.(seat)} role="button" tabIndex={0} aria-label={label}
     onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(seat); }}>
     <title>{label}</title>
+    {selected && <circle cx={cx} cy={cy} r={r + 5} fill="none" stroke="#2563eb" strokeWidth="3" />}
     <circle cx={cx} cy={cy} r={r} fill={STATE_FILL[seat.state] ?? '#94a3b8'} stroke={seat.open_to_all ? '#0f172a' : '#fff'} strokeWidth="2" />
     {who
       ? <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={r * 0.85} fontWeight="700" fill="#fff">{initials(who)}</text>
@@ -86,7 +87,7 @@ function ZoneLabel({ zone }) {
   </g>;
 }
 
-export default function FloorDrawing({ floor, onSeatClick }) {
+export default function FloorDrawing({ floor, onSeatClick, selectedId = null }) {
   const catalog = Object.fromEntries((floor.catalog ?? []).map((c) => [c.type, c]));
   const seats = Object.fromEntries(floor.seats.map((s) => [s.id, s]));
   const order = (el) => (el.type === 'corridor' ? 0 : el.type === 'seat' ? 3 : ['wall', 'window', 'door'].includes(el.type) ? 2 : 1);
@@ -95,7 +96,7 @@ export default function FloorDrawing({ floor, onSeatClick }) {
     <rect width={floor.cols * C} height={floor.rows * C} fill="#f8fafc" />
     {(floor.zones ?? []).map((z) => <ZoneOutline key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
-      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} />
+      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId} />
       : <Element key={el.id} el={el} catalog={catalog} />))}
     {(floor.zones ?? []).map((z) => <ZoneLabel key={`${z.id}-label`} zone={z} />)}
   </svg>;

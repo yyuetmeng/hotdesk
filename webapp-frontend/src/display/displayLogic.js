@@ -81,3 +81,8 @@ export function previewConfig(form, plans) {
     floors: form.plan_ids.filter((id) => byId[id]).map((id) => ({ id, name: byId[id].name, published: byId[id].published_version != null })),
   };
 }
+
+/** A wall or window as a thin bar of `t` units along its long side, centred across its cells. */
+export function thinBar(x, y, W, H, t) {
+  return W >= H ? { x, y: y + (H - t) / 2, width: W, height: t } : { x: x + (W - t) / 2, y, width: t, height: H };
+}

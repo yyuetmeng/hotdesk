@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatDate, formatTime } from '../format.js';
-import FloorView from './FloorView.jsx';
+import FloorDrawing from '../display/FloorDrawing.jsx';
+import '../display/display.css';
 import SeatPanel from './SeatPanel.jsx';
 import { PRESETS, firstLoad, floorLoading, presetLabel } from './deskLogic.js';
 
@@ -77,7 +78,12 @@ export function BookDeskPage() {
     {floorLoading(floor, planId) && !error && <Loading label={`Looking for a free desk on ${floors.find((f) => f.id === planId)?.name ?? 'this floor'}…`} />}
     {floor && <div className="desk-layout">
       <section className="card"><h2>{floor.name}</h2>
-        <FloorView floor={floor} selectedId={selected?.id} onSelect={setSelected} /></section>
+        <div className="desk-drawing"><FloorDrawing floor={floor} selectedId={selected?.id} onSeatClick={setSelected} /></div>
+        <ul className="desk-legend">
+          <li><span className="available" />Available</li><li><span className="booked" />Booked</li>
+          <li><span className="occupied" />Occupied</li><li><span className="not_bookable" />Not bookable</li>
+          <li><span className="available free-for-all" />Free for all (bookable)</li>
+        </ul></section>
       {selected
         ? <SeatPanel planId={planId} seat={selected} date={date ?? floor.date} preset={preset} isToday={dayOffset === 0} onChanged={load} />
         : <aside className="card desk-panel"><p className="muted">Click a seat to see who is there, today's activity, and to book a free-for-all seat.</p></aside>}

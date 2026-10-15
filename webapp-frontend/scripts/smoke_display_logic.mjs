@@ -60,3 +60,12 @@ console.log('display refresh smoke OK');
   assert.equal(previewConfig({ ...form, rotate_seconds: '500' }, plans).rotate_seconds, 120); // clamped to 10-120
 }
 console.log('display preview smoke OK');
+
+// Walls and windows are drawn as a thin bar along their long side, centred in their cells.
+{
+  const { thinBar } = await import('../src/display/displayLogic.js');
+  assert.deepEqual(thinBar(0, 0, 112, 28, 6), { x: 0, y: 11, width: 112, height: 6 });   // horizontal run
+  assert.deepEqual(thinBar(56, 0, 28, 84, 6), { x: 67, y: 0, width: 6, height: 84 });   // vertical run
+  assert.deepEqual(thinBar(0, 0, 28, 28, 6), { x: 0, y: 11, width: 28, height: 6 });    // single cell: horizontal
+}
+console.log('display walls smoke OK');
