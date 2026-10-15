@@ -274,7 +274,7 @@ export default function EditorPage() {
     await patchMeta();
   };
 
-  if (error) return <main className="page"><PageTitle title="Floor plan editor" /><Notice kind="error">{error}</Notice></main>;
+  if (error) return <main className="page"><PageTitle title="Floor plan editor" action={<Link className="button subtle" to="/floor-plans">← All floor plans</Link>} /><Notice kind="error">{error}</Notice></main>;
   if (!plan) return <main className="page"><Loading label="Loading floor plan..." /></main>;
   const selected = elements.find((el) => el.id === selectedId);
   const selectedSeatIds = selectedIds.filter((sid) => elements.some((el) => el.id === sid && isSeat(el)));
@@ -288,7 +288,7 @@ export default function EditorPage() {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return <main className="page fp-editor">
-    <PageTitle title={plan.name} />
+    <PageTitle title={plan.name} action={<Link className="button subtle" to="/floor-plans">← All floor plans</Link>} />
     <header className="fp-toolbar">
       <input aria-label="Plan label" value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} />
       <span className="fp-spacer" />

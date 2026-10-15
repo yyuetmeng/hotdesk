@@ -31,4 +31,5 @@ export function SeatGrid({ seats, selected, onSelect, selectable = () => true, s
   </div>;
 }
 
-export function PageTitle({ title, children }) { return <div className="page-title"><div><h1>{title}</h1>{children}</div></div>; }
+// Page heading; `action` (optional) sits on the right, e.g. a link back to the parent page.
+export function PageTitle({ title, children, action }) { return <div className="page-title"><div><h1>{title}</h1>{children}</div>{action && <div className="page-title-action">{action}</div>}</div>; }

@@ -82,3 +82,5 @@
 .display-preview-bar b { color:var(--text); }
 .display-preview-body { flex:1; min-height:0; overflow:hidden; }
 .display-preview-body .disp { height:100%; }
+.page-title-action { flex:none; display:flex; gap:8px; align-items:center; }
+@media (max-width:850px) { .page-title-action { margin-top:10px; } }
