@@ -93,6 +93,20 @@ minutes after a same-day booking was made; check-ins end automatically. Both are
 desk/public request (no background job). Frontend: **Book a desk** (`/book`), **Desk check-in**
 (`/checkin/<seat_id>`, opened by a seat's QR code) and **Print QR codes** in the floor plan editor.
 
+## Floor displays (public TVs)
+
+Admins configure displays at sidebar **Floor display** (`/displays`); each display has a link
+`/display/<slug>` to open on a location's TV (no sign-in). Spec: `docs/superpowers/specs/2026-10-15-floor-dashboard-design.md`.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET/POST /api/admin/displays`, `PATCH/DELETE /api/admin/displays/<id>` | Configure displays `{name, slug, plan_ids, show_overall, layout: rotate\|grid, rotate_seconds 10-120}` (admins) |
+| `GET /api/public/displays/<slug>` | Display config with its floors in order (`published` flag) — no sign-in |
+| `GET /api/public/floors/<plan_id>` | Also returns `summary {bookable, available, booked, occupied, occupancy_pct}` and each seat's `department` |
+
+The TV refreshes every 30 seconds and keeps the last data when offline. Several TVs polling at once
+are safe: expired bookings are settled with `SKIP LOCKED` and conflicts are retried on the next request.
+
 ## Floor plans (`Authorization: Bearer <admin token>` required)
 
 | Endpoint | Purpose |
@@ -123,7 +137,7 @@ with SQL; the API and editor pick it up without a code change.
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in Supabase, JWT and Resend values.
-2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0017_...`) in the Supabase SQL editor, in order.
+2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0018_...`) in the Supabase SQL editor, in order.
 3. `pip install -r requirements.txt`
 4. `python scripts/create_admin.py` to create the first admin.
 5. `python run.py` to start the API; `python -m pytest` to run tests. Tests need a **local**

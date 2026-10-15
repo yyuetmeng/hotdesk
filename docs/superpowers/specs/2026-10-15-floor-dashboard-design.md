@@ -1,7 +1,7 @@
 # Public Floor Dashboard — Design
 
 **Date:** 2026-10-15
-**Status:** For approval
+**Status:** Implemented 2026-10-15 (plan `docs/superpowers/plans/2026-10-15-floor-dashboard.md`)
 **Scope:** Piece 4 of the seat booking programme (`2026-10-15-floorplan-publishing-design.md` §0). Public, no-sign-in **displays** for wall-mounted TVs: each display shows a chosen set of published floors drawn in style **E** (architectural plan with icons), live seat states with initials, per-floor and overall capacity, and today's seat activity on click. Admins configure displays; each has its own link so every location's TV shows only its own floors.
 
 ## 1. Why
