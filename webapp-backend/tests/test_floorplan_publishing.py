@@ -172,7 +172,6 @@ def test_seat_tag_validation(client, db, admin_token):
     d = _dept("Ops")
     plan = _mk_plan(client, admin_token)
     cases = [
-        ({"type": "seat", "department_id": "00000000-0000-0000-0000-000000000001"}, "unknown department id"),
         ({"type": "seat", "department_id": "not-a-uuid"}, "unknown department id"),
         ({"type": "seat", "department_id": d, "open_to_all": True}, "choose a department or free for all, not both"),
         ({"type": "wall", "department_id": d}, "only seats can have a department"),
@@ -207,3 +206,14 @@ def test_old_bookable_config_still_saves_and_publishes(client, db, admin_token):
     assert _publish(client, admin_token, plan["id"]).status_code == 200
     els = client.get(_url(plan["id"]), headers=hdr(admin_token)).get_json()["elements"]
     assert _save(client, admin_token, plan["id"], els).status_code == 200
+
+
+def test_deleted_department_id_saves_as_untagged(client, db, admin_token):
+    # An editor opened before a department was deleted still sends its (well-formed) id: the
+    # seat is silently untagged instead of blocking the save (spec: deleting a department
+    # silently untags its seats).
+    plan = _mk_plan(client, admin_token)
+    r = _save(client, admin_token, plan["id"], [
+        {"type": "seat", "x": 0, "y": 0, "rotation": 0, "department_id": "00000000-0000-0000-0000-000000000001"}])
+    assert r.status_code == 200, r.get_json()
+    assert r.get_json()["elements"][0]["department_id"] is None

@@ -82,9 +82,17 @@ def _tag_problems(el: dict, known_departments: set[str]) -> list[str]:
         return ["choose a department or free for all, not both"]
     if not isinstance(open_to_all, bool):
         return ["open_to_all must be true or false"]
-    if dept and _element_uuid({"id": dept}) not in known_departments:
+    # A well-formed id of a department that no longer exists is not an error: deleting a
+    # department silently untags its seats, also for editors opened before the delete
+    # (_normalized saves those seats untagged). Only malformed ids are rejected.
+    if dept and _element_uuid({"id": dept}) is None:
         return ["unknown department id"]
     return []
+
+
+def _known_or_none(dept, known_departments: set[str]) -> str | None:
+    dept_id = _element_uuid({"id": dept})
+    return dept_id if dept_id in known_departments else None
 
 
 def _known_departments(raw) -> set[str]:
@@ -351,6 +359,7 @@ def _validate_elements(raw, cols, rows, existing_ids: set[str]):
 
 def _normalized(raw):
     catalog, out = _catalog(), []
+    known_departments = _known_departments(raw)
     for item in raw:
         entry = catalog[item["type"]]
         (w, h), _ = _base_size(entry, item)
@@ -358,7 +367,7 @@ def _normalized(raw):
                     "w": w, "h": h, "rotation": int(item.get("rotation", 0)),
                     "label": (item.get("label") or None), "color": (item.get("color") or None),
                     "config": _config_with_defaults(entry, item.get("config")),
-                    "department_id": (_element_uuid({"id": item.get("department_id")})
+                    "department_id": (_known_or_none(item.get("department_id"), known_departments)
                                       if item["type"] == "seat" else None),
                     "open_to_all": item["type"] == "seat" and item.get("open_to_all") is True})
     return out
