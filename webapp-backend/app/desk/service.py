@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import delete, func, or_, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.core.auth_models import Department, User, UserDepartment
 from app.core.desk_models import SeatBooking, SeatBookingBlock, SeatCheckin
@@ -46,20 +46,29 @@ def _uuid(value) -> uuid.UUID | None:
 # --- settle -------------------------------------------------------------------------------
 
 def settle(at: datetime) -> None:
-    """Release unclaimed bookings past their release time and end check-ins past their end."""
+    """Release unclaimed bookings past their release time and end check-ins past their end.
+
+    Safe under concurrent requests (several TVs polling): rows another request is already settling
+    are skipped (SKIP LOCKED, fixed order), and a database conflict is rolled back instead of
+    failing the request — settle is idempotent, so the next request finishes the job.
+    """
     session = orm_session()
-    due = session.scalars(select(SeatBooking).where(
-        SeatBooking.end_reason.is_(None), SeatBooking.release_at <= at)).all()
-    for booking in due:
-        booking.ended_at, booking.end_reason = booking.release_at, "released"
-        booking.blocks = []
-    ended = session.scalars(select(SeatCheckin).where(
-        SeatCheckin.checked_out_at.is_(None), SeatCheckin.ends_at <= at)).all()
-    for checkin in ended:
-        checkin.checked_out_at, checkin.end_reason = checkin.ends_at, "auto"
-        _free_booking_blocks(checkin.booking_id)
-    if due or ended:
+    try:
+        due = session.scalars(select(SeatBooking).where(
+            SeatBooking.end_reason.is_(None), SeatBooking.release_at <= at)
+            .order_by(SeatBooking.id).with_for_update(skip_locked=True)).all()
+        for booking in due:
+            booking.ended_at, booking.end_reason = booking.release_at, "released"
+            booking.blocks = []
+        ended = session.scalars(select(SeatCheckin).where(
+            SeatCheckin.checked_out_at.is_(None), SeatCheckin.ends_at <= at)
+            .order_by(SeatCheckin.id).with_for_update(skip_locked=True)).all()
+        for checkin in ended:
+            checkin.checked_out_at, checkin.end_reason = checkin.ends_at, "auto"
+            _free_booking_blocks(checkin.booking_id)
         session.commit()
+    except (OperationalError, IntegrityError):
+        session.rollback()
 
 
 def _free_booking_blocks(booking_id) -> None:
@@ -141,7 +150,8 @@ def _window(day: date, preset: str | None, at: datetime) -> tuple[datetime, date
     if preset in rules.PRESETS:
         start, end = rules.PRESETS[preset]
         return rules.at_local(day, start), rules.at_local(day, end)
-    return at, at + rules.BLOCK
+    current = rules.next_boundary(at) - (rules.BLOCK if rules.next_boundary(at) != at else timedelta(0))
+    return current, current + rules.BLOCK  # the 30-minute block in progress
 
 
 def _blocks_in(seat_ids, starts: datetime, ends: datetime) -> list[SeatBookingBlock]:

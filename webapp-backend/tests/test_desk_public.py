@@ -81,3 +81,42 @@ def test_retagging_seat_away_from_free_for_all_ends_its_check_ins(client, world,
     _republish(client, world, {"F1": lambda e: e, "E1": lambda e: e,
                                "F2": lambda e: {**e, "open_to_all": False, "department_id": world["eng"]}})
     assert run_one("select end_reason from seat_checkins")["end_reason"] == "plan_changed"
+
+
+def test_seat_held_for_its_last_half_hour_shows_booked(client, world, monkeypatch):
+    set_now(monkeypatch, sg(DAY, 17, 25))
+    assert book(client, world, "jane", "F1", "pm").status_code == 201        # 17:30-18:00, release 17:55
+    set_now(monkeypatch, sg(DAY, 17, 40))
+    seat = next(s for s in client.get(f"/api/public/floors/{world['plan']}").get_json()["seats"]
+                if s["id"] == world["seats"]["F1"])
+    assert seat["state"] == "booked"
+
+
+def test_settle_skips_rows_locked_by_another_request(client, world, monkeypatch):
+    import threading
+
+    from sqlalchemy import create_engine, text
+
+    from conftest import BASE_URI, TEST_SCHEMA
+
+    bid = book(client, world, "jane", "F1").get_json()["id"]                # AM, release 08:30
+    set_now(monkeypatch, sg(DAY, 8, 31))
+    url = f"/api/public/floors/{world['plan']}"
+    result = {}
+    engine = create_engine(BASE_URI)
+    try:
+        with engine.connect() as locker:
+            locker.execute(text(f"set search_path to {TEST_SCHEMA}, public, extensions"))
+            locker.execute(text("select id from seat_bookings where id = cast(:b as uuid) for update"), {"b": bid})
+            worker = threading.Thread(target=lambda: result.setdefault("status", client.get(url).status_code))
+            worker.start()
+            worker.join(timeout=10)
+            finished = not worker.is_alive()
+            locker.rollback()                                              # release the lock either way
+        worker.join(timeout=30)
+    finally:
+        engine.dispose()
+    assert finished, "request blocked on a row locked by another request"
+    assert result["status"] == 200
+    client.get(url)
+    assert run_one("select end_reason from seat_bookings where id = cast(:b as uuid)", {"b": bid})["end_reason"] == "released"
