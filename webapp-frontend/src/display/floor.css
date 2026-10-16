@@ -43,3 +43,10 @@
 .fd .fd-found { stroke: #2563eb; }
 .fd .disp-seat { cursor: pointer; }
 .fd .disp-seat:focus-visible .fd-chair { stroke: #2563eb; stroke-width: 3; }
+
+/* Seat hover tip (FloorDrawing SeatTip). */
+.fd { --fd-tip-bg: #0f172a; --fd-tip-text: #e2e8f0; --fd-tip-head: #ffffff; }
+:root[data-theme="dark"] .fd { --fd-tip-bg: #f8fafc; --fd-tip-text: #334155; --fd-tip-head: #0f172a; }
+.fd .fd-tip rect { fill: var(--fd-tip-bg); opacity: .96; filter: drop-shadow(0 2px 4px rgb(0 0 0/.35)); }
+.fd .fd-tip text { fill: var(--fd-tip-text); }
+.fd .fd-tip .fd-tip-head { fill: var(--fd-tip-head); }

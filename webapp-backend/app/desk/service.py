@@ -286,7 +286,8 @@ def seat_states(plan: FloorPlan, day: date, preset: str | None, at: datetime,
         seat = {"id": str(el.element_id), "label": seat_label(el), "x": el.x, "y": el.y,
                 "department_id": str(el.department_id) if el.department_id else None,
                 "open_to_all": bool(el.open_to_all), "state": state,
-                "occupant": person(checkin.user_name) if checkin else None,
+                "occupant": {**person(checkin.user_name), "since": checkin.checked_in_at.isoformat(),   # times: floor tooltip
+                             "until": checkin.ends_at.isoformat()} if checkin else None,
                 "booking": _booking_view(booking) if booking and not checkin else None}
         if viewer is not None:
             open_now = ctx["open"].get(el.element_id)

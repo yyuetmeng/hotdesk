@@ -124,3 +124,19 @@ export function toiletGender(el) {
   const g = el?.config?.gender;
   return g === 'male' || g === 'female' ? g : 'unisex';
 }
+
+const hhmm = (iso) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+
+/** Two short lines for a seat's hover tip (owner 2026-10-16): seat number and team, then who and when. */
+export function seatTip(seat) {
+  const head = [seat.label || 'Seat', seat.department].filter(Boolean).join(' · ');
+  if (seat.state === 'occupied' && seat.occupant) {
+    const o = seat.occupant;
+    return [head, `${o.name}${o.since ? ` · in since ${hhmm(o.since)}` : ''}${o.until ? `, until ${hhmm(o.until)}` : ''}`];
+  }
+  if (seat.state === 'booked' && seat.booking) {
+    const b = seat.booking;
+    return [head, `Booked for ${b.booked_for?.name ?? 'someone'} · ${hhmm(b.starts_at)}–${hhmm(b.ends_at)}`];
+  }
+  return [head, seat.state === 'not_bookable' ? 'Not set up for booking' : 'Available'];
+}

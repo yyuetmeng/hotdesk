@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { initialDisplayState, nextFloorIndex, overall, overviewConfig, overviewOptions, reduceRefresh, resolvePick, rotationKey, sgDateTime, sgTime, slugify } from '../src/display/displayLogic.js';
+import { initialDisplayState, nextFloorIndex, overall, overviewConfig, overviewOptions, reduceRefresh, resolvePick, rotationKey, seatTip, sgDateTime, sgTime, slugify } from '../src/display/displayLogic.js';
 
 assert.deepEqual(
   overall([{ bookable: 3, available: 1, booked: 1, occupied: 1 }, { bookable: 5, available: 2, booked: 0, occupied: 3 }]),
@@ -102,3 +102,14 @@ console.log('floor overview smoke OK');
   assert.equal(overviewConfig([{ id: 'p1', name: 'L1' }], 'L1').name, 'L1');
 }
 console.log('overview picker smoke OK');
+
+// Seat hover tip (owner 2026-10-16): seat number and team, then who / when, in two short lines.
+assert.deepEqual(seatTip({ label: 'L1-A07', department: 'Bolt On', state: 'occupied',
+  occupant: { name: 'Jane Tan', since: '2026-10-16T09:02:00+08:00', until: '2026-10-16T18:00:00+08:00' } }),
+  ['L1-A07 · Bolt On', 'Jane Tan · in since 09:02, until 18:00']);
+assert.deepEqual(seatTip({ label: 'F1', department: 'Free for all', state: 'booked',
+  booking: { booked_for: { name: 'Carl Lim' }, starts_at: '2026-10-16T13:00:00+08:00', ends_at: '2026-10-16T18:00:00+08:00' } }),
+  ['F1 · Free for all', 'Booked for Carl Lim · 13:00–18:00']);
+assert.deepEqual(seatTip({ label: 'F2', department: 'Free for all', state: 'available' }), ['F2 · Free for all', 'Available']);
+assert.deepEqual(seatTip({ label: '', department: null, state: 'not_bookable' }), ['Seat', 'Not set up for booking']);
+console.log('seat tip smoke OK');

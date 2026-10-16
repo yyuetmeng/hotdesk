@@ -5,7 +5,8 @@
 // Colours come from CSS variables (floor.css), so the drawing follows the light / dark theme.
 import { footprint, initials, zoneCaption } from '../desk/deskLogic.js';
 import { iconPath } from './icons.js';
-import { monitorMarks, plantRadius, thinBar, toiletGender } from './displayLogic.js';
+import { useState } from 'react';
+import { monitorMarks, plantRadius, seatTip, thinBar, toiletGender } from './displayLogic.js';
 import './floor.css';
 
 const C = 28;  // drawing units per grid cell
@@ -105,16 +106,17 @@ function Element({ el, catalog }) {
 
 // A seat as a rounded chair: available = chair with a green dot, booked = amber, occupied = red with initials,
 // not bookable = faded and dashed. Selection ring and the Colleague Finder pulse are kept.
-function Seat({ el, seat, onClick, selected, highlight }) {
+function Seat({ el, seat, onClick, selected, highlight, onHover }) {
   const { w, h } = footprint(el);
   const cx = (el.x + w / 2) * C, cy = (el.y + h / 2) * C, s = Math.min(w, h) * C * 0.66;
   const who = seat.occupant?.name ?? seat.booking?.booked_for?.name;
   const label = [seat.label, seat.department, who].filter(Boolean).join(' · ');
   const ring = (cls, pad, extra = {}) => <rect className={cls} x={cx - s / 2 - pad} y={cy - s / 2 - pad} width={s + pad * 2} height={s + pad * 2}
     rx={6 + pad / 2} fill="none" {...extra} />;
+  const show = () => onHover?.({ seat, cx, top: cy - s / 2, bottom: cy + s / 2 });
+  const hide = () => onHover?.(null);
   return <g className={`disp-seat${highlight ? ' is-found' : ''}`} onClick={() => onClick?.(seat)} role="button" tabIndex={0} aria-label={label}
-    onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(seat); }}>
-    <title>{label}</title>
+    onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(seat); }} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
     {selected && ring('fd-selected', 4, { strokeWidth: 3 })}
     {highlight && <>{ring('disp-found-ring fd-found', 3, { strokeWidth: 3.5 })}{ring('disp-found-ring late fd-found', 3, { strokeWidth: 3.5 })}</>}
     <rect className={`fd-chair state-${seat.state}${seat.open_to_all ? ' ffa' : ''}`} x={cx - s / 2} y={cy - s / 2} width={s} height={s} rx="5" />
@@ -150,18 +152,35 @@ function ZoneLabel({ zone }) {
   </g>;
 }
 
+// Hover / keyboard-focus tip over a seat (owner 2026-10-16): seat number and team, then who and when. Drawn in the
+// SVG above everything, kept inside the drawing, flipped below the seat when there is no room above.
+function SeatTip({ tip, width, top }) {
+  const [a, b] = seatTip(tip.seat);
+  const w = Math.max(a.length * 6.3, b.length * 5.7) + 18, h = 36;
+  const x = Math.min(Math.max(tip.cx - w / 2, 2), width - w - 2);
+  const above = tip.top - h - 6;
+  const y = above >= -top + 2 ? above : tip.bottom + 6;
+  return <g className="fd-tip" pointerEvents="none">
+    <rect x={x} y={y} width={w} height={h} rx="6" />
+    <text x={x + 9} y={y + 15} fontSize="11" fontWeight="700" className="fd-tip-head">{a}</text>
+    <text x={x + 9} y={y + 29} fontSize="10">{b}</text>
+  </g>;
+}
+
 export default function FloorDrawing({ floor, onSeatClick, selectedId = null, selectedIds = [], highlightId = null }) {
   const catalog = Object.fromEntries((floor.catalog ?? []).map((c) => [c.type, c]));
   const seats = Object.fromEntries(floor.seats.map((s) => [s.id, s]));
   const order = (el) => (el.type === 'corridor' ? 0 : el.type === 'seat' ? 3 : ['wall', 'window', 'door'].includes(el.type) ? 2 : 1);
   const elements = floor.elements.filter((el) => el.type !== 'zone').sort((a, b) => order(a) - order(b));
   const top = floor.zones?.length ? LABEL_SPACE : 0;
+  const [tip, setTip] = useState(null);
   return <svg className="disp-floor fd" viewBox={`0 ${-top} ${floor.cols * C} ${floor.rows * C + top}`} preserveAspectRatio="xMidYMid meet">
     <rect y={-top} width={floor.cols * C} height={floor.rows * C + top} className="fd-bg" />
     {(floor.zones ?? []).map((z) => <ZoneOutline key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
-      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId || selectedIds.includes(el.id)} highlight={el.id === highlightId} />
+      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId || selectedIds.includes(el.id)} highlight={el.id === highlightId} onHover={setTip} />
       : <Element key={el.id} el={el} catalog={catalog} />))}
     {(floor.zones ?? []).map((z) => <ZoneLabel key={`${z.id}-label`} zone={z} />)}
+    {tip && <SeatTip tip={tip} width={floor.cols * C} top={top} />}
   </svg>;
 }
