@@ -71,11 +71,11 @@ export function UsersPage() {
   };
 
   const title = <PageTitle title="Manage Users / Project Teams"><p>Invite people, set their role and project teams, and control access.</p></PageTitle>;
-  if (error && !data) return <main className="page wide">{title}<Notice kind="error">{error}</Notice></main>;
-  if (!data) return <main className="page wide">{title}<Loading label="Loading users..." /></main>;
+  if (error && !data) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
+  if (!data) return <main className="page">{title}<Loading label="Loading users..." /></main>;
 
   const pages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
-  return <main className="page wide">
+  return <main className="page">
     {title}
     {error && <Notice kind="error">{error}</Notice>}
     {notice && <Notice kind={notice.kind}>{notice.message}</Notice>}
