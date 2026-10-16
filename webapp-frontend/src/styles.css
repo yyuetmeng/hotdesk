@@ -103,3 +103,21 @@
 .table-scroll { overflow-x: auto; }
 /* Manage Floor Display: the table needs the full width before the side panel fits beside it. */
 @media (max-width: 1280px) { .displays-split { grid-template-columns: 1fr; } }
+
+/* Mobile bottom bar (owner 2026-10-16): Book a desk, Desk check-in (raised centre button), Colleague Finder.
+   Only where the sidebar is a drawer; the open drawer and its backdrop cover it. */
+.bottom-nav { display:none; }
+@media (max-width:850px) {
+  .bottom-nav { display:grid; grid-template-columns:repeat(3, 1fr); align-items:end; position:fixed; left:0; right:0; bottom:0; z-index:35;
+    min-height:62px; padding:0 8px env(safe-area-inset-bottom); background:var(--sidebar); box-shadow:0 -4px 18px rgb(0 0 0/.2); }
+  .bottom-nav a { display:grid; justify-items:center; gap:3px; padding:9px 4px 8px; color:#a9b8d0; text-decoration:none; font-size:11px; font-weight:600; }
+  .bottom-nav a.active { color:#fff; }
+  .bottom-nav a.active:not(.main) .nav-icon { stroke:#93c5fd; }
+  .bottom-nav-fab { display:grid; place-items:center; width:62px; height:62px; margin-top:-30px; border-radius:50%; color:#fff;
+    background:var(--accent); border:4px solid var(--bg); box-shadow:0 6px 16px rgb(37 99 235/.45); transition:transform .15s ease; }
+  .bottom-nav a.main .nav-icon { width:28px; height:28px; opacity:1; }
+  .bottom-nav a.main:active .bottom-nav-fab { transform:scale(.95); }
+  .bottom-nav a.main.active .bottom-nav-fab { background:color-mix(in srgb, var(--accent) 82%, #000); }
+  .bottom-nav a:focus-visible { outline:2px solid #93c5fd; outline-offset:-2px; border-radius:10px; }
+  .app-content { padding-bottom:calc(78px + env(safe-area-inset-bottom)); }
+}

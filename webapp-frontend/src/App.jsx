@@ -20,7 +20,7 @@ import FloorPlansPage from './floorplan/FloorPlansPage.jsx';
 import EditorPage from './floorplan/EditorPage.jsx';
 import ThemeSettings from './ThemeSettings.jsx';
 import { isAdmin } from './roles.js';
-import { readCollapsed, saveCollapsed, shellClass } from './layout.js';
+import { BOTTOM_LINKS, readCollapsed, saveCollapsed, shellClass } from './layout.js';
 
 const workspaceLinks = [['/', 'Dashboard', 'dashboard'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin'], ['/finder', 'Colleague Finder', 'finder']];
 const analyticsLinks = [['/insights', 'Insights', 'insights']];
@@ -30,7 +30,7 @@ function NavIcon({ name }) {
   const paths = {
     dashboard: <><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></>,
     booking: <><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="m9 15 2 2 4-4"/></>,
-    checkin: <><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></>,
+    checkin: <><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></>,
     insights: <><path d="M3 3v18h18"/><path d="m7 14 3-3 3 2 5-6"/><path d="M15 7h3v3"/></>,
     display: <><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></>,
     planner: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M3 9h5M16 13h5M16 13v8"/></>,
@@ -138,5 +138,10 @@ function Workspace() {
       <Route path="/audit" element={<AdminOnly><AuditLogPage /></AdminOnly>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></div>
+    <nav className="bottom-nav" aria-label="Quick links">
+      {BOTTOM_LINKS.map((l) => <NavLink key={l.to} to={l.to} className={l.main ? 'main' : undefined}>
+        {l.main ? <span className="bottom-nav-fab"><NavIcon name={l.icon}/></span> : <NavIcon name={l.icon}/>}<span>{l.label}</span>
+      </NavLink>)}
+    </nav>
   </div>;
 }

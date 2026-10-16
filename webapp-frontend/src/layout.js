@@ -13,5 +13,12 @@ export function saveCollapsed(collapsed) {
   try { window.localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch { /* keep for this visit only */ }
 }
 
+// Mobile bottom bar (owner 2026-10-16), shown where the sidebar becomes a drawer; check-in is the raised centre button.
+export const BOTTOM_LINKS = [
+  { to: '/book', label: 'Book a desk', icon: 'booking', main: false },
+  { to: '/checkin', label: 'Check in', icon: 'checkin', main: true },
+  { to: '/finder', label: 'Finder', icon: 'finder', main: false },
+];
+
 export const shellClass = ({ collapsed, drawerOpen }) =>
   ['app-shell', collapsed && 'collapsed', drawerOpen && 'drawer-open'].filter(Boolean).join(' ');
