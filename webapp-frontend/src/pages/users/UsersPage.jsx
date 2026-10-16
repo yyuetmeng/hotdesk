@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { flaskRequest } from '../../api.js';
 import { Loading, Notice, PageTitle } from '../../components.jsx';
 import { formatDate } from '../../format.js';
 import { useAuth } from '../../auth.jsx';
 import './users.css';
 import { seatGroups, seatName } from './usualSeat.js';
+import AuditTimeline from '../audit/AuditTimeline.jsx';
+import { relativeTime } from '../audit/auditLogic.js';
 
 const PAGE_SIZE = 20;
 const EMPTY_FORM = { email: '', username: '', full_name: '', role: 'user', start_date: '', end_date: '',
@@ -74,6 +77,7 @@ export function UsersPage() {
     {title}
     {error && <Notice kind="error">{error}</Notice>}
     {notice && <Notice kind={notice.kind}>{notice.message}</Notice>}
+    <SecurityStrip onFilter={(status) => setFilter('status', status)} />
 
     <div className="content-split users-layout">
       <section className="card">
@@ -85,6 +89,7 @@ export function UsersPage() {
           </select></label>
           <label>Status <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)}>
             <option value="">All</option><option value="active">Active</option><option value="inactive">Disabled</option>
+            <option value="locked">Locked</option><option value="pending">Not activated</option>
           </select></label>
           <label>Project team <select value={filters.department} onChange={(e) => setFilter('department', e.target.value)}>
             <option value="">All</option>
@@ -100,7 +105,12 @@ export function UsersPage() {
               const [label, cls] = STATUS[statusOf(u)];
               return <tr key={u.id} className={`users-row${editing?.id === u.id ? ' selected' : ''}`}
                 onClick={() => { setNotice(null); setEditing(u); }}>
-                <td><b>{u.full_name}</b><small>@{u.username}{seatName(floors, u.usual_seat_id) ? ` · seat ${seatName(floors, u.usual_seat_id)}` : ''}</small></td>
+                <td><b>{u.full_name}</b><small>@{u.username}{seatName(floors, u.usual_seat_id) ? ` · seat ${seatName(floors, u.usual_seat_id)}` : ''}</small>
+                  <span className="users-badges">
+                    <small>{u.last_login_at ? `Last sign-in ${relativeTime(u.last_login_at)}` : 'Never signed in'}</small>
+                    {u.locked && <span className="users-badge red">Locked</span>}
+                    {u.failed_logins_7d > 0 && <span className="users-badge amber">{u.failed_logins_7d} failed sign-in{u.failed_logins_7d === 1 ? '' : 's'} (7 days)</span>}
+                  </span></td>
                 <td>{u.email}</td>
                 <td className="users-role">{u.role}</td>
                 <td>{u.departments.map((d) => d.name).join(', ') || '—'}</td>
@@ -147,6 +157,7 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState('');
+  const [tab, setTab] = useState('details');
 
   const set = (key, value) => setForm((old) => ({ ...old, [key]: value }));
   const toggleDept = (id) => set('department_ids', form.department_ids.includes(id)
@@ -212,11 +223,19 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
 
   const err = (key) => fields[key] && <small className="users-field-error">{fields[key]}</small>;
 
-  return <form className="users-form" onSubmit={save}>
+  const head = <>
     <div className="users-form-head">
       <h2>{isNew ? 'New user' : user.full_name}</h2>
       <button type="button" className="button" onClick={onClose}>Close</button>
     </div>
+    {!isNew && <div className="users-tabs" role="tablist">
+      <button type="button" role="tab" aria-selected={tab === 'details'} className={tab === 'details' ? 'active' : ''} onClick={() => setTab('details')}>Details</button>
+      <button type="button" role="tab" aria-selected={tab === 'history'} className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>History</button>
+    </div>}
+  </>;
+  if (tab === 'history') return <div className="users-form">{head}<UserHistory userId={user.id} /></div>;
+  return <form className="users-form" onSubmit={save}>
+    {head}
     {message && <Notice kind="error">{message}</Notice>}
 
     <label>Full name <input value={form.full_name} onChange={(e) => set('full_name', e.target.value)} required />{err('full_name')}</label>
@@ -319,5 +338,45 @@ function DepartmentsSection({ departments, onChanged }) {
           </div></td>
         </tr>)}</tbody></table>
       : <p className="state">No project teams yet.</p>}
+    <details className="users-team-changes">
+      <summary>Recent changes</summary>
+      <TeamChanges />
+    </details>
   </section>;
+}
+
+// Everything that happened to or was done by this user (spec 2026-10-16-audit-views §2).
+function UserHistory({ userId }) {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    flaskRequest(`/api/admin/audit?subject=${userId}&page_size=100`).then((d) => setItems(d.items)).catch((err) => setError(err.message));
+  }, [userId]);
+  return <div className="users-history">
+    {error && <Notice kind="error">{error}</Notice>}
+    <AuditTimeline items={error ? [] : items} empty="Nothing recorded for this user yet." />
+  </div>;
+}
+
+function TeamChanges() {
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    flaskRequest('/api/admin/audit?category=teams&page_size=10').then((d) => setItems(d.items)).catch(() => setItems([]));
+  }, []);
+  return <AuditTimeline items={items} empty="No project team changes yet." />;
+}
+
+// Sign-in health at a glance; each figure filters the users list or opens the audit log.
+function SecurityStrip({ onFilter }) {
+  const [s, setS] = useState(null);
+  useEffect(() => { flaskRequest('/api/admin/audit/security-summary').then(setS).catch(() => setS(null)); }, []);
+  if (!s) return null;
+  return <div className="users-health">
+    <Link to="/audit?category=security&q=login_failed" className={`users-health-tile${s.failed_today ? ' amber' : ''}`}>
+      <b>{s.failed_today}</b><small>failed sign-ins today</small></Link>
+    <button type="button" className={`users-health-tile${s.locked ? ' red' : ''}`} onClick={() => onFilter('locked')}>
+      <b>{s.locked}</b><small>locked accounts</small></button>
+    <button type="button" className="users-health-tile" onClick={() => onFilter('pending')}>
+      <b>{s.pending}</b><small>invitations not accepted</small></button>
+  </div>;
 }

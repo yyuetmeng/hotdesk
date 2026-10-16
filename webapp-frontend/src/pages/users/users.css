@@ -24,3 +24,22 @@
 .button.users-danger { color: #a21c1c; border-color: #ffc4c4; }
 .users-departments { margin-top: 16px; }
 @media (max-width: 1000px) { .users-layout { grid-template-columns: 1fr; } }
+
+/* Audit in Manage Users (spec 2026-10-16-audit-views §2). */
+.users-health { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.users-health-tile { display: grid; gap: 2px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); text-decoration: none; text-align: left; cursor: pointer; font: inherit; }
+.users-health-tile:hover { border-color: var(--accent); }
+.users-health-tile b { font-size: 22px; } .users-health-tile small { color: var(--muted); }
+.users-health-tile.amber b { color: #d97706; } .users-health-tile.red b { color: #dc2626; }
+.users-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; }
+.users-badges small { color: var(--muted); font-size: 11px; }
+.users-badge { padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 650; }
+.users-badge.red { background: #fee2e2; color: #991b1b; } .users-badge.amber { background: #fef3c7; color: #92400e; }
+:root[data-theme="dark"] .users-badge.red { background: #3a1518; color: #fca5a5; }
+:root[data-theme="dark"] .users-badge.amber { background: #33240a; color: #fcd34d; }
+.users-tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); justify-self: start; }
+.users-tabs button { border: 0; background: transparent; color: var(--muted); font-weight: 650; padding: 6px 14px; border-radius: 7px; cursor: pointer; }
+.users-tabs button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0/.15); }
+.users-history { max-height: 60vh; overflow-y: auto; padding-top: 6px; }
+.users-team-changes { margin-top: 14px; } .users-team-changes summary { cursor: pointer; color: var(--muted); margin-bottom: 10px; }
