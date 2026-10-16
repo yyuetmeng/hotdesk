@@ -17,10 +17,3 @@ export function activityWhen(iso, todayIso) {
   if (day === todayIso) return `Today ${time}`;
   return `${part(iso, { weekday: 'short' })} ${part(iso, { day: 'numeric', month: 'short' })} ${time}`;
 }
-
-/** "none yet", "A, B", or the first three and "+N more". */
-export function peopleText(people) {
-  if (!people.length) return 'none yet';
-  if (people.length <= 3) return people.join(', ');
-  return `${people.slice(0, 3).join(', ')} +${people.length - 3} more`;
-}

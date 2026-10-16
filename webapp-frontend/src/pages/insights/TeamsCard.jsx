@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiUrl, flaskRequest, readFlaskToken } from '../../api.js';
 import { Notice } from '../../components.jsx';
-import { peopleText } from './activityLogic.js';
+import TeamLinesModal from './TeamLinesModal.jsx';
 
 const REFRESH_MS = 30000;
 
@@ -22,6 +22,7 @@ export default function TeamsCard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState(null);   // { team, title } of the open line-data pop-up
 
   useEffect(() => {
     let alive = true;
@@ -47,13 +48,17 @@ export default function TeamsCard() {
     </div>
     {error && <Notice kind="error">{error}</Notice>}
     {!data ? <p className="state">Loading project teams…</p> : <div className="teams-table-wrap"><table className="teams-table">
-      <thead><tr><th>Project team</th><th className="num">Total seats</th><th className="num">In now</th><th className="num">Check-ins</th><th className="num">Check-outs</th><th>People</th></tr></thead>
+      <thead><tr><th>Project team</th><th className="num">Total seats</th><th className="num">In now</th><th className="num">Check-ins</th><th className="num">Check-outs</th><th className="teams-action"><span className="visually-hidden">Details</span></th></tr></thead>
       <tbody>{data.rows.map((r) => <tr key={r.team_id ?? 'none'}>
         <td>{r.name}</td><td className="num">{r.seats}</td><td className="num">{r.in_now}</td><td className="num">{r.check_ins}</td><td className="num">{r.check_outs}</td>
-        <td className="teams-people" title={r.people.join(', ')}>{peopleText(r.people)}</td>
+        <td className="teams-action"><button type="button" className="button subtle" disabled={!r.check_ins}
+          title={r.check_ins ? `See ${r.name}'s check-ins today` : 'No check-ins today'}
+          onClick={() => setView({ team: r.team_id ?? 'none', title: `${r.name} · check-ins today` })}>View</button></td>
       </tr>)}</tbody>
       <tfoot><tr><th>Total</th><th className="num">{data.total.seats}</th><th className="num">{data.total.in_now}</th><th className="num">{data.total.check_ins}</th>
-        <th className="num">{data.total.check_outs}</th><th className="teams-people">{data.total.people} {data.total.people === 1 ? 'person' : 'people'}</th></tr></tfoot>
+        <th className="num">{data.total.check_outs}</th><th className="teams-action"><button type="button" className="button subtle" disabled={!data.total.check_ins}
+          onClick={() => setView({ team: null, title: 'All project teams · check-ins today' })}>View all</button></th></tr></tfoot>
     </table></div>}
+    {view && <TeamLinesModal team={view.team} title={view.title} onClose={() => setView(null)} />}
   </section>;
 }
