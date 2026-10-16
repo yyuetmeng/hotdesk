@@ -16,6 +16,8 @@ from . import admin_bp
 
 MIN_DIM, MAX_DIM = 5, 80
 MAX_ELEMENT_SIZE = 20
+# Settings that take one of a fixed set of values (sql/0025: toilet gender).
+CONFIG_CHOICES = {"gender": ("unisex", "male", "female")}
 ZONE_TYPE = "zone"  # outline grouping the seats inside it; own layer, up to the grid size
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 ROTATIONS = (0, 90, 180, 270)
@@ -55,6 +57,8 @@ def _config_problems(entry: FloorElement, config) -> list[str]:
             problems.append(f"config '{key}' is not supported for {entry.type}")
         elif type(value) is not type(entry.config[key]):
             problems.append(f"config '{key}' must be {type(entry.config[key]).__name__}")
+        elif key in CONFIG_CHOICES and value not in CONFIG_CHOICES[key]:
+            problems.append(f"{key} must be one of {', '.join(CONFIG_CHOICES[key])}")
     return problems
 
 
