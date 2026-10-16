@@ -42,6 +42,33 @@ export function labelFileNames(rows) {
   });
 }
 
+/** Labels grouped by floor, then zone (by name, "No zone" last), floors in the order given (owner 2026-10-16). */
+export function groupByZone(rows) {
+  const floors = [], byKey = new Map();
+  rows.forEach((r) => {
+    if (!floors.includes(r.floorId)) floors.push(r.floorId);
+    const key = `${r.floorId}|${r.zone ?? ''}`;
+    if (!byKey.has(key)) byKey.set(key, { key, floorId: r.floorId, floorName: r.floorName, zone: r.zone, rows: [] });
+    byKey.get(key).rows.push(r);
+  });
+  const rank = (g) => [floors.indexOf(g.floorId), g.zone === null ? 1 : 0];
+  return [...byKey.values()].sort((a, b) => {
+    const [fa, na] = rank(a), [fb, nb] = rank(b);
+    return fa - fb || na - nb || (a.zone ?? '').localeCompare(b.zone ?? '');
+  });
+}
+
+/** ZIP paths: "<floor>/<zone or No-zone>/<floor>_<seat>.png", with -2, -3… so names are unique in each folder. */
+export function labelZipPaths(rows) {
+  const used = new Map();
+  return rows.map((r) => {
+    const base = `${safe(r.floorName)}/${safe(r.zone ?? 'No zone')}/${safe(r.floorName)}_${safe(r.label)}`;
+    const n = (used.get(base) ?? 0) + 1;
+    used.set(base, n);
+    return `${base}${n > 1 ? `-${n}` : ''}.png`;
+  });
+}
+
 /** "New" until any admin has downloaded the label; while the list is still loading (null) show nothing. */
 export const isNewLabel = (downloaded, seatId) => Boolean(downloaded) && !downloaded.has(seatId);
 

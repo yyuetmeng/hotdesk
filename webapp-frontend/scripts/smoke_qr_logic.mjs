@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { crc32, makeZip } from '../src/qr/zip.js';
-import { filterRows, labelFileNames, seatRows, teamOptions, zoneOptions } from '../src/qr/qrLogic.js';
+import { filterRows, groupByZone, labelFileNames, labelZipPaths, seatRows, teamOptions, zoneOptions } from '../src/qr/qrLogic.js';
 
 // --- ZIP (store-only; PNGs are already compressed) ---
 const enc = new TextEncoder();
@@ -45,6 +45,19 @@ assert.deepEqual(filterRows(rows, { ...all, team: 'none' }).map((r) => r.id), ['
 assert.deepEqual(filterRows(rows, { ...all, team: 'SAP' }).map((r) => r.id), ['s1']);
 assert.deepEqual(filterRows(rows, { ...all, q: ' b1 ' }).map((r) => r.id), ['s3']);
 assert.deepEqual(filterRows(rows, { ...all, floor: 'p2' }), []);
+
+// --- Grouped by zone (owner 2026-10-16): per floor, zones by name, "No zone" last ---
+{
+  const r = (id, floorId, floorName, zone) => ({ id, label: id, floorId, floorName, zone, team: null });
+  const groups = groupByZone([r('a', 'p1', 'Level 1', null), r('b', 'p1', 'Level 1', 'Pantry side'), r('c', 'p1', 'Level 1', 'AI Lab'),
+    r('d', 'p2', 'Level 2', 'AI Lab'), r('e', 'p1', 'Level 1', 'AI Lab')]);
+  assert.deepEqual(groups.map((g) => [g.floorName, g.zone, g.rows.map((x) => x.id)]), [
+    ['Level 1', 'AI Lab', ['c', 'e']], ['Level 1', 'Pantry side', ['b']], ['Level 1', null, ['a']], ['Level 2', 'AI Lab', ['d']]]);
+  assert.equal(new Set(groups.map((g) => g.key)).size, 4);
+  // ZIP: one folder per floor, then per zone; names unique inside each folder.
+  assert.deepEqual(labelZipPaths([r('A1', 'p1', 'Level 1', 'AI Lab'), r('A1', 'p1', 'Level 1', 'AI Lab'), r('B1', 'p1', 'Level 1', null), r('C/1', 'p2', 'Level 2', 'Room 2.1')]),
+    ['Level-1/AI-Lab/Level-1_A1.png', 'Level-1/AI-Lab/Level-1_A1-2.png', 'Level-1/No-zone/Level-1_B1.png', 'Level-2/Room-2.1/Level-2_C-1.png']);
+}
 
 // --- File names: safe, and unique inside one zip ---
 assert.deepEqual(labelFileNames([

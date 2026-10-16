@@ -1,12 +1,13 @@
 // Print Desk Labels (admins): QR labels for the seats of published floors, with filters, and
-// download one label as PNG or the selected labels as a ZIP.
+// download one label as PNG or the selected labels as a ZIP. Labels are shown by zone (with a select-all per
+// zone), and the ZIP has a folder per floor and zone.
 // Each QR encodes only the seat link; checking in still requires signing in.
 import QRCode from 'qrcode';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
-import { filterRows, isNewLabel, labelFileNames, seatRows, teamOptions, withDownloaded, zoneOptions } from './qrLogic.js';
+import { filterRows, groupByZone, isNewLabel, labelFileNames, labelZipPaths, seatRows, teamOptions, withDownloaded, zoneOptions } from './qrLogic.js';
 import { makeZip } from './zip.js';
 import './qr.css';
 import { formatDateTime } from '../format.js';
@@ -84,11 +85,14 @@ export function DeskLabelsPage() {
 
   const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value, ...(key === 'floor' ? { zone: 'all' } : {}) }));
   const toggle = (id) => setSelected((old) => { const next = new Set(old); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  const toggleAllShown = () => setSelected((old) => {
+  const toggleMany = (list, on) => setSelected((old) => {
     const next = new Set(old);
-    shown.forEach((r) => (allShownSelected ? next.delete(r.id) : next.add(r.id)));
+    list.forEach((r) => (on ? next.add(r.id) : next.delete(r.id)));
     return next;
   });
+  const toggleAllShown = () => toggleMany(shown, !allShownSelected);
+  const groups = useMemo(() => groupByZone(shown), [shown]);
+  const manyFloors = new Set(shown.map((r) => r.floorId)).size > 1;
 
   const run = async (label, fn) => {
     setBusy(label); setError(null);
@@ -104,7 +108,7 @@ export function DeskLabelsPage() {
     markDownloaded([row.id]);
   });
   const downloadZip = () => run('zip', async () => {
-    const names = labelFileNames(chosen);
+    const names = labelZipPaths(chosen);
     const files = await Promise.all(chosen.map(async (r, i) => ({ name: names[i], data: await labelPng(r) })));
     saveFile(makeZip(files), `desk-labels-${new Date().toISOString().slice(0, 10)}.zip`, 'application/zip');
     markDownloaded(chosen.map((r) => r.id));
@@ -149,7 +153,17 @@ export function DeskLabelsPage() {
         {selected.size > 0 && <button className="button subtle" onClick={() => setSelected(new Set())}>Clear selection</button>}
       </div>
       {!shown.length ? <p className="state">No seats match these filters.</p>
-        : <div className="qr-sheet">{shown.map((r) => <div key={r.id} className={`qr-label${selected.has(r.id) ? ' selected' : ''}`}>
+        : groups.map((g) => {
+          const picked = g.rows.filter((r) => selected.has(r.id)).length;
+          const all = picked === g.rows.length;
+          return <section key={g.key} className="qr-zone">
+          <header className="qr-zone-head">
+            <h2>{manyFloors && <span className="muted">{g.floorName} · </span>}{g.zone ?? 'No zone'}</h2>
+            <span className="muted">{g.rows.length} label{g.rows.length === 1 ? '' : 's'}{picked ? ` · ${picked} selected` : ''}</span>
+            <label className="labels-select-all"><input type="checkbox" checked={all} ref={(el) => { if (el) el.indeterminate = picked > 0 && !all; }}
+              onChange={() => toggleMany(g.rows, !all)} aria-label={`Select all in ${g.zone ?? 'No zone'}`} />Select all in zone</label>
+          </header>
+          <div className="qr-sheet">{g.rows.map((r) => <div key={r.id} className={`qr-label${selected.has(r.id) ? ' selected' : ''}`}>
           {isNewLabel(downloaded, r.id) && <span className="qr-new" title="This label has never been downloaded">New</span>}
           <label className="qr-check"><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)}
             aria-label={`Select ${r.label}`} /></label>
@@ -157,7 +171,9 @@ export function DeskLabelsPage() {
           <b title={downloadInfo[r.id] ? `Downloaded ${formatDateTime(downloadInfo[r.id].at)}${downloadInfo[r.id].by ? ` by ${downloadInfo[r.id].by}` : ''}` : 'Never downloaded'}>{r.label}</b><small>{r.floorName}{r.zone ? ` · ${r.zone}` : ''} · scan to check in</small>
           <button className="button subtle qr-download" disabled={busy === r.id} onClick={() => downloadOne(r)}>
             {busy === r.id ? 'Saving…' : 'Download PNG'}</button>
-        </div>)}</div>}
+        </div>)}</div>
+          </section>;
+        })}
     </>}
   </main>;
 }
