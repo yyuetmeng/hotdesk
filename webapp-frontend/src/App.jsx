@@ -10,6 +10,7 @@ import { DisplayPage } from './display/DisplayPage.jsx';
 import { BookDeskPage } from './desk/BookDeskPage.jsx';
 import { DisplaysPage } from './pages/displays/DisplaysPage.jsx';
 import { FloorOverviewPage } from './pages/overview/FloorOverviewPage.jsx';
+import { ScanPage } from './desk/ScanPage.jsx';
 import { InsightsPage } from './pages/insights/InsightsPage.jsx';
 import { AccountPage } from './pages/account/AccountPage.jsx';
 import { LoginPage } from './pages/login/LoginPage.jsx';
@@ -32,7 +33,8 @@ function NavIcon({ name }) {
   const paths = {
     dashboard: <><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></>,
     booking: <><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="m9 15 2 2 4-4"/></>,
-    checkin: <><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></>,
+    checkin: <><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12.5l2.8 2.8L16.5 9"/></>,
+    scan: <><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></>,
     insights: <><path d="M3 3v18h18"/><path d="m7 14 3-3 3 2 5-6"/><path d="M15 7h3v3"/></>,
     display: <><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></>,
     overview: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 10h18M10 10v11"/></>,
@@ -127,6 +129,7 @@ function Workspace() {
     <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
     <div className="app-content"><Routes>
       <Route path="/" element={<DashboardPage />} />
+      <Route path="/scan" element={<ScanPage />} />
       <Route path="/checkin" element={<CheckInPage />} />
       <Route path="/checkin/:seatId" element={<CheckInPage />} />
       <Route path="/overview" element={<FloorOverviewPage />} />

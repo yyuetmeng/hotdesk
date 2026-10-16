@@ -13,11 +13,12 @@ export function saveCollapsed(collapsed) {
   try { window.localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch { /* keep for this visit only */ }
 }
 
-// Mobile bottom bar (owner 2026-10-16), shown where the sidebar becomes a drawer; check-in is the raised centre button.
+// Mobile bottom bar (owner 2026-10-16), shown where the sidebar becomes a drawer: Book a desk, Scan QR code (the
+// raised centre button, opens the camera) and Check in (the Desk check-in page: bookings, manual check-in).
 export const BOTTOM_LINKS = [
   { to: '/book', label: 'Book a desk', icon: 'booking', main: false },
-  { to: '/checkin', label: 'Check in', icon: 'checkin', main: true },
-  { to: '/finder', label: 'Finder', icon: 'finder', main: false },
+  { to: '/scan', label: 'Scan QR code', icon: 'scan', main: true },
+  { to: '/checkin', label: 'Check in', icon: 'checkin', main: false },
 ];
 
 export const shellClass = ({ collapsed, drawerOpen }) =>

@@ -74,3 +74,16 @@
 
 /* Which day and slot the floor shows, next to the floor name. */
 .desk-showing { color: var(--muted); font-size: 14px; font-weight: 500; }
+
+/* Scan QR code (ScanPage.jsx): the camera in a rounded frame with a target square. */
+.desk-scan-frame { position: relative; width: min(100%, 520px); aspect-ratio: 3 / 4; max-height: 62vh; border-radius: 16px; overflow: hidden;
+  background: #0b0f15; border: 1px solid var(--border); }
+.desk-scan-frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.desk-scan-target { position: absolute; inset: 22% 18%; border: 3px solid rgb(255 255 255/.9); border-radius: 14px;
+  box-shadow: 0 0 0 999px rgb(0 0 0/.35); }
+.desk-scan-frame.live .desk-scan-target { animation: desk-scan-pulse 1.6s ease-in-out infinite; }
+@keyframes desk-scan-pulse { 50% { border-color: #93c5fd; } }
+.desk-scan-msg { margin: 12px 0 4px; }
+.desk-scan-msg.bad { color: #b91c1c; } .desk-scan-msg.warn { color: #b45309; }
+:root[data-theme="dark"] .desk-scan-msg.bad { color: #fca5a5; } :root[data-theme="dark"] .desk-scan-msg.warn { color: #fbbf24; }
+@media (prefers-reduced-motion: reduce) { .desk-scan-frame.live .desk-scan-target { animation: none; } }
