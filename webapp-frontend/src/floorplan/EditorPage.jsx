@@ -55,6 +55,8 @@ function SizeFields({ el, onResize }) {
 // Per-type settings come from the catalog's default config (floor_elements.config).
 const settingValue = (el, key) => el.config?.[key] ?? catalogByType[el.type]?.config?.[key];
 const SETTING_LABELS = {};
+// Settings with a fixed set of values, shown as a dropdown (sql/0025: toilet gender).
+const SETTING_CHOICES = { gender: { label: 'Gender', options: [['unisex', 'All-gender'], ['male', 'Male'], ['female', 'Female']] } };
 
 // Seat department tag dropdown (spec 2026-10-15-seat-department-tags §3): None, Free for all, departments A–Z.
 function TagSelect({ value, departments, onChange }) {
@@ -458,6 +460,11 @@ Zone (${el.x},${el.y})`, rect: e.currentTarget.getBoundingClientRect() }),
                 {SETTING_LABELS[key] ?? key}</label>)}
             </>;
           })()}
+          {Object.keys(catalogByType[selected.type].config || {}).filter((key) => SETTING_CHOICES[key]).map((key) =>
+            <label key={key}>{SETTING_CHOICES[key].label} <select value={settingValue(selected, key)}
+              onChange={(e) => updateSelected({ config: { ...selected.config, [key]: e.target.value } })}>
+              {SETTING_CHOICES[key].options.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+            </select></label>)}
           <div className="fp-actions">
             {!isZone(selected) && <button className="button subtle" onClick={() => {
               const result = rotateElement(elements, selected.id, plan.cols, plan.rows);

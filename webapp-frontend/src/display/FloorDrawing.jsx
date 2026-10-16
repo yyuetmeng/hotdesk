@@ -135,15 +135,18 @@ function ZoneOutline({ zone }) {
   </g>;
 }
 
-// Zone name and "N of M free", drawn after the seats so a corner seat cannot hide them; taps pass through.
+// Zone name and "N of M free" as a tab sitting on the zone's top edge, outside the zone, so it never
+// covers a seat. The drawing keeps room above the grid (LABEL_SPACE) for zones in the first row.
+const LABEL_SPACE = 22;
 function ZoneLabel({ zone }) {
-  const x = zone.x * C, y = zone.y * C, color = zone.color || '#3b82f6';
+  const x = zone.x * C + 2, y = zone.y * C + 2, color = zone.color || '#3b82f6';
   const caption = zoneCaption(zone);
-  const width = Math.min(zone.w * C - 10, Math.max(zone.name.length * 7.6, caption.length * 5.8) + 12);
+  const nameW = zone.name.length * 7.2;
+  const width = Math.min(zone.w * C - 4, nameW + (caption ? caption.length * 5.6 + 14 : 0) + 14);
   return <g pointerEvents="none">
-    <rect x={x + 6} y={y + 8} width={width} height={caption ? 32 : 20} rx="4" className="fd-label-plate" />
-    <text x={x + 12} y={y + 22} fontSize="12.5" fontWeight="700" className="fd-zone-name">{zone.name}</text>
-    {caption && <text x={x + 12} y={y + 35} fontSize="9.5" fontWeight="600" fill={color}>{caption}</text>}
+    <rect x={x} y={y - 18} width={width} height="18" rx="4" className="fd-label-plate" />
+    <text x={x + 7} y={y - 5} fontSize="11.5" fontWeight="700" className="fd-zone-name">{zone.name}</text>
+    {caption && <text x={x + 7 + nameW + 8} y={y - 5} fontSize="9.5" fontWeight="600" fill={color}>{caption}</text>}
   </g>;
 }
 
@@ -152,8 +155,9 @@ export default function FloorDrawing({ floor, onSeatClick, selectedId = null, hi
   const seats = Object.fromEntries(floor.seats.map((s) => [s.id, s]));
   const order = (el) => (el.type === 'corridor' ? 0 : el.type === 'seat' ? 3 : ['wall', 'window', 'door'].includes(el.type) ? 2 : 1);
   const elements = floor.elements.filter((el) => el.type !== 'zone').sort((a, b) => order(a) - order(b));
-  return <svg className="disp-floor fd" viewBox={`0 0 ${floor.cols * C} ${floor.rows * C}`} preserveAspectRatio="xMidYMid meet">
-    <rect width={floor.cols * C} height={floor.rows * C} className="fd-bg" />
+  const top = floor.zones?.length ? LABEL_SPACE : 0;
+  return <svg className="disp-floor fd" viewBox={`0 ${-top} ${floor.cols * C} ${floor.rows * C + top}`} preserveAspectRatio="xMidYMid meet">
+    <rect y={-top} width={floor.cols * C} height={floor.rows * C + top} className="fd-bg" />
     {(floor.zones ?? []).map((z) => <ZoneOutline key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
       ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId} highlight={el.id === highlightId} />
