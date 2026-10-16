@@ -42,11 +42,11 @@ export function DisplaysPage() {
     {title}
     {notice && <Notice kind={notice.kind}>{notice.text}</Notice>}
     {error && <Notice kind="error">{error}</Notice>}
-    <div className="content-split">
+    <div className="content-split displays-split">
       <section className="card">
         <div className="toolbar"><h2>Displays</h2>
           <button className="button primary" onClick={() => { setNotice(null); setEditing('new'); }}>New display</button></div>
-        {items.length ? <table><thead><tr><th>Name</th><th>Link</th><th>Floors</th><th>Layout</th><th /></tr></thead>
+        {items.length ? <div className="table-scroll"><table><thead><tr><th>Name</th><th>Link</th><th>Floors</th><th>Layout</th><th /></tr></thead>
           <tbody>{items.map((d) => <tr key={d.id}>
             <td><b>{d.name}</b>{d.last_change && <small className="displays-last-change">{d.last_change.actor_name ? `Edited by ${d.last_change.actor_name}` : 'Last change'} · {relativeTime(d.last_change.at)}</small>}</td>
             <td><code>/display/{d.slug}</code></td>
@@ -56,7 +56,7 @@ export function DisplaysPage() {
               <a className="button" href={`/display/${d.slug}`} target="_blank" rel="noreferrer">Open</a>
               <button className="button" onClick={() => copy(d.slug)}>Copy link</button>
               <button className="button" onClick={() => { setNotice(null); setEditing(d); }}>Edit</button>
-            </div></td></tr>)}</tbody></table>
+            </div></td></tr>)}</tbody></table></div>
           : <p className="state">No displays yet. Create one per location.</p>}
       </section>
       <aside className="card detail">

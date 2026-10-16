@@ -97,3 +97,9 @@
 .theme-switch input:checked + .theme-switch-track { background:#1d9e75; }
 .theme-switch input:checked + .theme-switch-track::after { transform:translateX(14px); }
 .theme-switch input:focus-visible + .theme-switch-track { outline:2px solid #fff; outline-offset:2px; }
+
+/* Wide tables scroll inside their card instead of spilling out; split layouts never let a column push past the page. */
+.content-split > * { min-width: 0; }
+.table-scroll { overflow-x: auto; }
+/* Manage Floor Display: the table needs the full width before the side panel fits beside it. */
+@media (max-width: 1280px) { .displays-split { grid-template-columns: 1fr; } }
