@@ -45,3 +45,28 @@ a.auth-submit { display:flex; align-items:center; justify-content:center; text-d
 /* "Keep me signed in": checkbox and text on one line (overrides the general .auth-card label/input rules). */
 .auth-card .auth-keep { display:flex; align-items:center; gap:10px; margin:16px 0 4px; color:var(--text); font-size:14px; font-weight:500; cursor:pointer; }
 .auth-card .auth-keep input { flex:none; width:18px; height:18px; min-height:0; margin:0; padding:0; border-radius:4px; accent-color:var(--accent); cursor:pointer; }
+
+/* Sign-in illustration: a small live floor + a "Checked in" card (not the loader's pin animation). */
+.auth-illus { position: relative; width: min(440px, 100%); }
+.auth-illus-floor { display: block; width: 100%; height: auto; }
+.auth-illus-room { fill: rgb(255 255 255/.04); stroke: rgb(255 255 255/.12); }
+.auth-illus-table { fill: rgb(231 201 160/.18); stroke: rgb(231 201 160/.45); }
+.auth-illus-wall { stroke: rgb(255 255 255/.18); stroke-width: 3; stroke-linecap: round; }
+.auth-illus-zone { fill: #8fb4ff; font-size: 11px; font-weight: 700; letter-spacing: .14em; }
+.auth-illus-seat { stroke: rgb(255 255 255/.85); stroke-width: 2; transition: fill .6s ease; }
+.auth-illus-seat.free, .auth-illus-legend .free { fill: #22c55e; background: #22c55e; }
+.auth-illus-seat.booked, .auth-illus-legend .booked { fill: #f59e0b; background: #f59e0b; }
+.auth-illus-seat.busy, .auth-illus-legend .busy { fill: #ef4444; background: #ef4444; }
+.auth-illus-seat.swap-a { animation: auth-swap-a 7s ease-in-out infinite; }
+.auth-illus-seat.swap-b { animation: auth-swap-b 9s ease-in-out infinite; }
+@keyframes auth-swap-a { 0%, 40% { fill: #22c55e; } 50%, 90% { fill: #f59e0b; } 100% { fill: #22c55e; } }
+@keyframes auth-swap-b { 0%, 45% { fill: #ef4444; } 55%, 95% { fill: #22c55e; } 100% { fill: #ef4444; } }
+.auth-illus-toast { position: absolute; right: -6px; bottom: -22px; display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-radius: 14px; background: #fff; color: #0f172a; box-shadow: 0 14px 34px rgb(0 0 0/.4); animation: auth-float 5s ease-in-out infinite; }
+.auth-illus-toast b { display: block; font-size: 13px; } .auth-illus-toast small { color: #64748b; font-size: 11px; }
+.auth-illus-check { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #1d9e75; color: #fff; font-weight: 800; }
+@keyframes auth-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.auth-illus-legend { display: flex; gap: 16px; margin: 34px 0 0; padding: 0; list-style: none; color: #b7c6dd; font-size: 12px; }
+.auth-illus-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+@media (prefers-reduced-motion: reduce) { .auth-illus-seat, .auth-illus-toast { animation: none; } }
+@media (max-width: 760px) { .auth-illus { display: none; } }

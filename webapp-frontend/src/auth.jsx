@@ -4,6 +4,7 @@ import { request } from './api.js';
 import { browserStores, clearToken, readToken, writeToken } from './session.js';
 import PinLoader from './PinLoader.jsx';
 import logo from './logo.png';
+import AuthIllustration from './AuthIllustration.jsx';
 import './auth.css';
 
 const AuthContext = createContext(null);
@@ -89,7 +90,7 @@ export function AuthLayout({ children }) {
     <Link to="/" className="auth-brand"><img src={logo} alt="" />Hot Desk</Link>
     <div className="auth-hero">
       <h1>Find a desk.<br />Check in with a scan.</h1>
-      <div className="auth-floor"><PinLoader decorative /></div>
+      <AuthIllustration />
       <ol className="auth-steps">
         <li>Book a seat for today or tomorrow</li>
         <li>Scan the desk&apos;s QR code to check in</li>
