@@ -71,7 +71,7 @@ export function ScanPage() {
   }, [navigate]);
 
   return <main className="page desk-scan">
-    <PageTitle title="Scan QR code"><p>Scan the QR code on a desk to check in there.</p></PageTitle>
+    <PageTitle title="Scan to check in"><p>Scan the QR code on a desk to check in there.</p></PageTitle>
     <div className={`desk-scan-frame${state === 'scanning' ? ' live' : ''}`}>
       <video ref={video} muted playsInline aria-label="Camera" />
       {state === 'scanning' && <span className="desk-scan-target" aria-hidden="true" />}

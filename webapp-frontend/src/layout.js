@@ -17,7 +17,7 @@ export function saveCollapsed(collapsed) {
 // raised centre button, opens the camera) and Colleague Finder. Desk check-in stays in the menu.
 export const BOTTOM_LINKS = [
   { to: '/book', label: 'Book a desk', icon: 'booking', main: false },
-  { to: '/scan', label: 'Scan QR code', icon: 'scan', main: true },
+  { to: '/scan', label: 'Scan to check in', icon: 'scan', main: true },
   { to: '/finder', label: 'Finder', icon: 'finder', main: false },
 ];
 
