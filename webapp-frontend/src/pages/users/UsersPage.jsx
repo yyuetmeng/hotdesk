@@ -374,7 +374,7 @@ function SecurityStrip({ refreshKey, onFilter }) {
   useEffect(() => { flaskRequest('/api/admin/audit/security-summary').then(setS).catch(() => setS(null)); }, [refreshKey]);
   if (!s) return null;
   return <div className="users-health">
-    <Link to="/audit?category=security&q=login_failed" className={`users-health-tile${s.failed_today ? ' amber' : ''}`}>
+    <Link to={`/audit?category=security&q=login_failed&from=${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(new Date())}`} className={`users-health-tile${s.failed_today ? ' amber' : ''}`}>
       <b>{s.failed_today}</b><small>failed sign-ins today</small></Link>
     <button type="button" className={`users-health-tile${s.locked ? ' red' : ''}`} onClick={() => onFilter('locked')}>
       <b>{s.locked}</b><small>locked accounts</small></button>

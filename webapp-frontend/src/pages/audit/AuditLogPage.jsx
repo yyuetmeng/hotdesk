@@ -12,7 +12,7 @@ const exact = (iso) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singap
 
 export function AuditLogPage() {
   const [params] = useSearchParams();
-  const [filters, setFilters] = useState({ category: params.get('category') || '', q: params.get('q') || '', from: '', to: '' });
+  const [filters, setFilters] = useState({ category: params.get('category') || '', q: params.get('q') || '', from: params.get('from') || '', to: params.get('to') || '' });
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);

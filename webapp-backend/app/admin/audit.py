@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 
 from flask import Response, current_app, g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
-from sqlalchemy import Text, cast, delete, func, or_, select
+from sqlalchemy import Text, cast, delete, func, or_, select, union_all
 
 from app.auth.routes import MAX_FAILED_ATTEMPTS
 from app.core.audit import write_audit
@@ -42,8 +42,16 @@ def _category_clause(name):
     return or_(*[AuditLog.action.startswith(p) for p in CATEGORIES[name]])
 
 
+MIN_RETENTION_DAYS, DEFAULT_RETENTION_DAYS = 30, 365
+
+
 def _purge():
-    days = int(current_app.config.get("AUDIT_RETENTION_DAYS", 365))
+    """Delete entries older than AUDIT_RETENTION_DAYS (at least 30 days, so a bad setting cannot wipe the log)."""
+    try:
+        days = int(current_app.config.get("AUDIT_RETENTION_DAYS") or DEFAULT_RETENTION_DAYS)
+    except (TypeError, ValueError):
+        days = DEFAULT_RETENTION_DAYS
+    days = max(days, MIN_RETENTION_DAYS)
     session = orm_session()
     session.execute(delete(AuditLog).where(AuditLog.created_at < func.now() - timedelta(days=days)))
     session.commit()
@@ -92,18 +100,36 @@ def _names(entries):
     ids = {e.target_id for e in entries if e.target_id}
     if not ids:
         return {}
-    session = orm_session()
-    names = dict(session.execute(select(User.id, User.full_name).where(User.id.in_(ids))).all())
-    names.update(session.execute(select(FloorPlan.id, FloorPlan.name).where(FloorPlan.id.in_(ids))).all())
-    names.update(session.execute(select(DashboardDisplay.id, DashboardDisplay.name).where(DashboardDisplay.id.in_(ids))).all())
-    return names
+    query = union_all(select(User.id, User.full_name).where(User.id.in_(ids)),
+                      select(FloorPlan.id, FloorPlan.name).where(FloorPlan.id.in_(ids)),
+                      select(DashboardDisplay.id, DashboardDisplay.name).where(DashboardDisplay.id.in_(ids)))
+    return dict(orm_session().execute(query).all())
 
 
-def describe(e: AuditLog, target: str | None, places: dict) -> str:
-    """A readable sentence for an audit entry."""
-    d = e.details or {}
+class _LazyPlaces:
+    """Seat places loaded only if an entry needs a seat label it did not store (older entries)."""
+
+    def __init__(self):
+        self._places = None
+
+    def get(self, key, default=None):
+        if self._places is None:
+            self._places = seat_places()
+        return self._places.get(key, default)
+
+
+def describe(e: AuditLog, target: str | None, places) -> str:
+    """A readable sentence for an audit entry; falls back to "<who>: <action>" if its details are malformed."""
+    try:
+        return _describe(e, target, places)
+    except Exception:   # noqa: BLE001 - one malformed entry must not break the log, History tabs or lists
+        return f"{e.actor_name or ('System' if e.actor_id is None else 'Someone')}: {e.action}"
+
+
+def _describe(e: AuditLog, target: str | None, places) -> str:
+    d = e.details if isinstance(e.details, dict) else {}
     who = e.actor_name or ("System" if e.actor_id is None else "Someone")
-    seat = d.get("seat_label") or (places.get(_uuid(d.get("seat_id"))) or {}).get("seat_label") or "a seat"
+    seat = d.get("seat_label") or ((places.get(_uuid(d.get("seat_id"))) or {}).get("seat_label") if d.get("seat_id") else None) or "a seat"
     where = f"{seat}{' · ' + d['plan_name'] if d.get('plan_name') else ''}"
     person = d.get("user_name")
     target = target or d.get("name") or d.get("slug") or d.get("email") or "an item"
@@ -117,7 +143,7 @@ def describe(e: AuditLog, target: str | None, places: dict) -> str:
         "password_reset.completed": f"{target} reset their password",
         "user.create": f"{who} created user {target}",
         "user.invitation_sent": f"{who} sent an invitation to {d.get('email', target)}",
-        "user.update": f"{who} changed {', '.join(f.replace('_', ' ') for f in d.get('fields', [])) or 'details'} for {target}",
+        "user.update": f"{who} changed {', '.join(str(f).replace('_', ' ') for f in (d.get('fields') or []) if f is not None) or 'details'} for {target}",
         "user.departments_updated": f"{who} changed the project teams of {target}",
         "user.enable": f"{who} enabled {target}",
         "user.disable": f"{who} disabled {target}",
@@ -166,7 +192,7 @@ def audit_page(clauses, category_clause, page: int, page_size: int = PAGE_SIZE):
     total = session.scalar(select(func.count()).select_from(AuditLog).where(*where))
     rows = session.scalars(select(AuditLog).where(*where).order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
                            .offset((page - 1) * page_size).limit(page_size)).all()
-    names, places = _names(rows), seat_places()
+    names, places = _names(rows), _LazyPlaces()
     return total, [_dto(e, names, places) for e in rows]
 
 
@@ -183,8 +209,9 @@ def audit_list():
         return error("validation failed", 400, fields={"filters": str(exc)})
     total, items = audit_page(clauses, category_clause, page, size)
     session = orm_session()
-    counts = {name: session.scalar(select(func.count()).select_from(AuditLog).where(*clauses, _category_clause(name)))
-              for name in CATEGORIES}
+    row = session.execute(select(*[func.count().filter(_category_clause(name)) for name in CATEGORIES])
+                          .select_from(AuditLog).where(*clauses)).one()
+    counts = dict(zip(CATEGORIES, row))
     return jsonify(items=items, total=total, page=page, page_size=size, counts=counts)
 
 
@@ -227,7 +254,7 @@ def last_changes(target_ids) -> dict:
         return {}
     rows = orm_session().scalars(select(AuditLog).where(AuditLog.target_id.in_(ids))
                                  .distinct(AuditLog.target_id).order_by(AuditLog.target_id, AuditLog.created_at.desc())).all()
-    names, places = _names(rows), seat_places()
+    names, places = _names(rows), _LazyPlaces()
     return {e.target_id: {"summary": describe(e, names.get(e.target_id), places), "actor_name": e.actor_name,
                           "at": e.created_at.astimezone(rules.TZ).isoformat()} for e in rows}
 
@@ -236,7 +263,7 @@ def history_for(target_id) -> list[dict]:
     """A target's audit entries, newest first, with consecutive saves by the same person collapsed into one."""
     rows = orm_session().scalars(select(AuditLog).where(AuditLog.target_id == target_id)
                                  .order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(200)).all()
-    names, places = _names(rows), seat_places()
+    names, places = _names(rows), _LazyPlaces()
     out = []
     for e in rows:
         item = _dto(e, names, places)
