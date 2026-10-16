@@ -82,8 +82,7 @@ def create_booking(viewer, at):
     booking = service.create_booking(viewer, body.get("plan_id"), body.get("seat_id"), body.get("date"),
                                      body.get("preset"), body.get("user_id"), at)
     write_audit(str(viewer.id), "booking.create", str(booking.id),
-                {"seat_id": str(booking.seat_id), "date": booking.booking_date.isoformat(),
-                 "preset": booking.preset, "booked_for": str(booking.booked_for)})
+                {**service._booking_details(booking), "booked_for": str(booking.booked_for)})
     return jsonify(service.booking_dto(booking)), 201
 
 
@@ -97,7 +96,7 @@ def my_bookings(viewer, at):
 @desk_endpoint
 def cancel_booking(viewer, at, booking_id):
     booking = service.cancel_booking(viewer, booking_id, at)
-    write_audit(str(viewer.id), "booking.cancel", str(booking.id), {"seat_id": str(booking.seat_id)})
+    write_audit(str(viewer.id), "booking.cancel", str(booking.id), service._booking_details(booking))
     return ("", 204)
 
 
@@ -123,8 +122,7 @@ def seat(viewer, at, seat_id):
 @desk_endpoint
 def check_in(viewer, at, seat_id):
     checkin, warning = service.check_in(viewer, seat_id, at)
-    write_audit(str(viewer.id), "checkin.start", str(checkin.id),
-                {"seat_id": str(checkin.seat_id), "method": checkin.method})
+    write_audit(str(viewer.id), "checkin.start", str(checkin.id), {**service._checkin_details(checkin), "method": checkin.method})
     return jsonify({**service.checkin_dto(checkin), "warning": warning}), 201
 
 
@@ -132,7 +130,7 @@ def check_in(viewer, at, seat_id):
 @desk_endpoint
 def give_up(viewer, at, seat_id):
     checkin = service.give_up(viewer, seat_id, at)
-    write_audit(str(viewer.id), "checkin.end", str(checkin.id), {"seat_id": str(checkin.seat_id), "reason": "given_up"})
+    write_audit(str(viewer.id), "checkin.end", str(checkin.id), {**service._checkin_details(checkin), "reason": "given_up"})
     return ("", 204)
 
 
