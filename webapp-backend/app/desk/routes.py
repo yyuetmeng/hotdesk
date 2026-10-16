@@ -170,9 +170,12 @@ def dashboard(viewer, at):
 @desk_bp.get("/displays")
 @desk_endpoint
 def displays(viewer, at):
-    """Displays by name, for the Floor overview picker (it then reads /api/public/displays/<slug>)."""
-    rows = orm_session().execute(select(DashboardDisplay.name, DashboardDisplay.slug).order_by(DashboardDisplay.name)).all()
-    return jsonify(items=[{"name": name, "slug": slug} for name, slug in rows])
+    """Displays by name, for the Floor overview picker (it then reads /api/public/displays/<slug>). Only displays
+    that show at least one published floor are listed (owner 2026-10-16)."""
+    published = {p.id for p in service.published_floors()}
+    rows = orm_session().execute(select(DashboardDisplay.name, DashboardDisplay.slug, DashboardDisplay.plan_ids)
+                                 .order_by(DashboardDisplay.name)).all()
+    return jsonify(items=[{"name": name, "slug": slug} for name, slug, plan_ids in rows if published & set(plan_ids or [])])
 
 
 @desk_bp.get("/me")

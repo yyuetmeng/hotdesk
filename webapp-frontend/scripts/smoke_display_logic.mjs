@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { initialDisplayState, nextFloorIndex, overall, overviewConfig, reduceRefresh, rotationKey, sgDateTime, sgTime, slugify } from '../src/display/displayLogic.js';
+import { initialDisplayState, nextFloorIndex, overall, overviewConfig, overviewOptions, reduceRefresh, resolvePick, rotationKey, sgDateTime, sgTime, slugify } from '../src/display/displayLogic.js';
 
 assert.deepEqual(
   overall([{ bookable: 3, available: 1, booked: 1, occupied: 1 }, { bookable: 5, available: 2, booked: 0, occupied: 3 }]),
@@ -91,3 +91,14 @@ assert.deepEqual(overviewConfig([{ id: 'p1', name: 'L1' }, { id: 'p2', name: 'L2
   floors: [{ id: 'p1', name: 'L1', published: true }, { id: 'p2', name: 'L2', published: true }] });
 console.log('floor overview smoke OK');
 
+// Floor overview picker: All floors, then displays, then single floors (all published only; the server filters).
+{
+  const opts = overviewOptions([{ name: 'Lobby', slug: 'lobby' }], [{ id: 'p1', name: 'L1' }, { id: 'p2', name: 'L2' }]);
+  assert.deepEqual(opts, { all: { value: '*all', label: 'All floors' }, displays: [{ value: 'd:lobby', label: 'Lobby' }],
+    floors: [{ value: 'f:p1', label: 'L1' }, { value: 'f:p2', label: 'L2' }] });
+  assert.equal(resolvePick('f:p2', opts), 'f:p2');
+  assert.equal(resolvePick('lobby', opts), 'd:lobby');               // older saved choice / gone: first display
+  assert.equal(resolvePick('f:gone', overviewOptions([], [{ id: 'p1', name: 'L1' }])), '*all');
+  assert.equal(overviewConfig([{ id: 'p1', name: 'L1' }], 'L1').name, 'L1');
+}
+console.log('overview picker smoke OK');

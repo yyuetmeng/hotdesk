@@ -11,3 +11,4 @@
 .overview-body .disp-floors { flex: none; grid-auto-rows: auto; gap: 14px; }
 .overview-body .disp-floor-card { gap: 8px; }
 .overview-body .disp-floor { height: auto; flex: none; }
+.overview-picker optgroup { color: #64748b; background: #fff; font-weight: 600; font-size: 13px; }

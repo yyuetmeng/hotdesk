@@ -73,3 +73,12 @@ def test_signed_in_users_can_list_displays_for_the_floor_overview(client, world)
     assert r.status_code == 200
     assert r.get_json()["items"] == [{"name": "Office A lobby", "slug": "office-a"}, {"name": "Office B", "slug": "office-b"}]
     assert client.get("/api/desk/displays").status_code == 401
+
+
+def test_overview_lists_only_displays_that_show_a_published_floor(client, world):
+    root = hdr(world["tok"]["root"])
+    draft = client.post("/api/admin/floor-plans", headers=root, json={"name": "Draft floor", "cols": 5, "rows": 5}).get_json()
+    assert _create(client, world).status_code == 201                                            # Level 1 (published)
+    assert _create(client, world, name="Draft only", slug="draft-only", plan_ids=[draft["id"]]).status_code == 201
+    items = client.get("/api/desk/displays", headers=hdr(world["tok"]["jane"])).get_json()["items"]
+    assert [i["slug"] for i in items] == ["office-a"]

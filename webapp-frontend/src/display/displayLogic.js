@@ -71,12 +71,27 @@ export function reduceRefresh(state, outcome) {
 
 /** The unsaved Manage Floor Display form as the config the TV reads (GET /api/public/displays/<slug>),
  *  so the preview shows exactly what will be saved. Deleted plans are dropped, drafts flagged. */
-/** Floor overview "All floors": a display config over every published floor (GET /api/public/floors), side by side. */
-export const overviewConfig = (floors) => ({
-  name: 'All floors', slug: '', show_overall: true, layout: 'grid', rotate_seconds: 20, plan_ids: floors.map((f) => f.id),
+/** Floor overview: a display config over published floors (GET /api/public/floors), side by side — all of them
+ * ("All floors") or a single floor. */
+export const overviewConfig = (floors, name = 'All floors') => ({
+  name, slug: '', show_overall: true, layout: 'grid', rotate_seconds: 20, plan_ids: floors.map((f) => f.id),
   floors: floors.map((f) => ({ id: f.id, name: f.name, published: true })),
 });
 
+
+/** Floor overview picker (owner 2026-10-16): All floors, the displays, then each floor; published only (server-side). */
+export const overviewOptions = (displays, floors) => ({
+  all: { value: '*all', label: 'All floors' },
+  displays: displays.map((d) => ({ value: `d:${d.slug}`, label: d.name })),
+  floors: floors.map((f) => ({ value: `f:${f.id}`, label: f.name })),
+});
+
+/** The saved choice if it is still offered, else the first display, else All floors. */
+export function resolvePick(saved, options) {
+  const all = [options.all, ...options.displays, ...options.floors].map((o) => o.value);
+  if (all.includes(saved)) return saved;
+  return options.displays[0]?.value ?? options.all.value;
+}
 
 export function previewConfig(form, plans) {
   const byId = Object.fromEntries(plans.map((p) => [p.id, p]));
