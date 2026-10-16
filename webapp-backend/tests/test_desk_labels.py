@@ -14,7 +14,7 @@ def world(client, db, monkeypatch):
 
 
 def test_nothing_downloaded_yet(client, world):
-    assert client.get(URL, headers=hdr(world["tok"]["root"])).get_json() == {"seat_ids": []}
+    assert client.get(URL, headers=hdr(world["tok"]["root"])).get_json() == {"seat_ids": [], "details": {}}
 
 
 def test_record_downloads_once_per_seat(client, world):

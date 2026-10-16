@@ -1,3 +1,4 @@
+from datetime import timedelta
 import datetime as dt
 import logging
 import uuid
@@ -9,7 +10,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.auth.tokens import invalidate_tokens, issue_token
 from app.core.audit import write_audit
-from app.core.auth_models import Department, Role, User, UserDepartment
+from app.auth.routes import MAX_FAILED_ATTEMPTS
+from app.core.auth_models import AuditLog, Department, Role, User, UserDepartment
 from app.core.email import invitation_email, send_email
 from app.core.errors import error
 from app.core.orm import orm_session
@@ -160,6 +162,10 @@ def list_users():
         conds.append(User.is_active.is_(True))
     elif status == "inactive":
         conds.append(User.is_active.is_(False))
+    elif status == "locked":
+        conds.append(User.failed_attempts >= MAX_FAILED_ATTEMPTS)
+    elif status == "pending":
+        conds.append(User.password_hash.is_(None))
     if department:
         try:
             dept_match = Department.id == str(uuid.UUID(department))
@@ -178,8 +184,15 @@ def list_users():
         .order_by(User.created_at.desc()).limit(page_size).offset((page - 1) * page_size)
     ).unique().all()
     g.jwt_uid = get_jwt_identity()
-    return jsonify(items=[public_user(u) for u in users], total=total,
-                   page=page, page_size=page_size)
+    ids = [u.id for u in users]
+    last_login = dict(session.execute(select(AuditLog.actor_id, func.max(AuditLog.created_at)).where(
+        AuditLog.action == "auth.login_success", AuditLog.actor_id.in_(ids)).group_by(AuditLog.actor_id)).all()) if ids else {}
+    failed = dict(session.execute(select(AuditLog.target_id, func.count()).where(
+        AuditLog.action == "auth.login_failed", AuditLog.target_id.in_(ids),
+        AuditLog.created_at >= func.now() - timedelta(days=7)).group_by(AuditLog.target_id)).all()) if ids else {}
+    return jsonify(items=[{**public_user(u), "last_login_at": last_login[u.id].isoformat() if u.id in last_login else None,
+                           "failed_logins_7d": failed.get(u.id, 0), "locked": u.failed_attempts >= MAX_FAILED_ATTEMPTS}
+                          for u in users], total=total, page=page, page_size=page_size)
 
 
 @admin_bp.get("/users/<uuid:user_id>")

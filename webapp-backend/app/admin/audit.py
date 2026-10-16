@@ -218,3 +218,33 @@ def security_summary():
             AuditLog.action == "auth.login_failed", AuditLog.created_at >= start)),
         locked=session.scalar(select(func.count()).select_from(User).where(User.failed_attempts >= MAX_FAILED_ATTEMPTS)),
         pending=session.scalar(select(func.count()).select_from(User).where(User.password_hash.is_(None))))
+
+
+def last_changes(target_ids) -> dict:
+    """The latest audit entry per target id: {id: {summary, actor_name, at}} (plans and displays lists)."""
+    ids = [i for i in target_ids if i]
+    if not ids:
+        return {}
+    rows = orm_session().scalars(select(AuditLog).where(AuditLog.target_id.in_(ids))
+                                 .distinct(AuditLog.target_id).order_by(AuditLog.target_id, AuditLog.created_at.desc())).all()
+    names, places = _names(rows), seat_places()
+    return {e.target_id: {"summary": describe(e, names.get(e.target_id), places), "actor_name": e.actor_name,
+                          "at": e.created_at.astimezone(rules.TZ).isoformat()} for e in rows}
+
+
+def history_for(target_id) -> list[dict]:
+    """A target's audit entries, newest first, with consecutive saves by the same person collapsed into one."""
+    rows = orm_session().scalars(select(AuditLog).where(AuditLog.target_id == target_id)
+                                 .order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(200)).all()
+    names, places = _names(rows), seat_places()
+    out = []
+    for e in rows:
+        item = _dto(e, names, places)
+        prev = out[-1] if out else None
+        if prev and e.action == "floorplan.elements_saved" and prev["action"] == e.action and prev["actor_id"] == item["actor_id"]:
+            prev["times"] += 1
+            prev["summary"] = f"{e.actor_name or 'Someone'} saved floor plan {names.get(e.target_id) or 'the plan'} ({prev['times']} saves)"
+            continue
+        item["times"] = 1
+        out.append(item)
+    return out

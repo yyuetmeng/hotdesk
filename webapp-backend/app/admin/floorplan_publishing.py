@@ -158,3 +158,22 @@ def discard_changes(plan_id):
     orm_session().commit()
     write_audit(actor, "floorplan.discard", plan_id, {"version": live.version})
     return _reloaded_payload(plan)
+
+
+@admin_bp.get("/floor-plans/<uuid:plan_id>/history")
+@admin_required
+def plan_history(plan_id):
+    """Published versions (v1..vN) and the plan's audit entries, saves collapsed (spec 2026-10-16-audit-views §3)."""
+    from app.core.auth_models import User
+    from .audit import history_for
+
+    g.jwt_uid = get_jwt_identity()
+    session = orm_session()
+    if session.get(FloorPlan, plan_id) is None:
+        return error("plan not found", 404)
+    rows = session.execute(
+        select(FloorPlanVersion, User.full_name).outerjoin(User, User.id == FloorPlanVersion.published_by)
+        .where(FloorPlanVersion.plan_id == plan_id).order_by(FloorPlanVersion.version)).all()
+    versions = [{"version": v.version, "name": v.name, "published_at": v.published_at.isoformat(), "published_by": by,
+                 "elements": len(v.elements)} for v, by in rows]
+    return jsonify(versions=versions, events=history_for(plan_id))

@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.core.audit import write_audit
+from app.core.auth_models import User
 from app.core.desk_models import DeskLabelDownload
 from app.core.errors import error
 from app.core.orm import orm_session
@@ -24,8 +25,10 @@ MAX_SEATS = 500
 @admin_required
 def label_downloads():
     g.jwt_uid = get_jwt_identity()
-    ids = orm_session().scalars(select(DeskLabelDownload.seat_id)).all()
-    return jsonify(seat_ids=[str(i) for i in ids])
+    rows = orm_session().execute(select(DeskLabelDownload.seat_id, DeskLabelDownload.last_downloaded_at, User.full_name)
+                                 .outerjoin(User, User.id == DeskLabelDownload.downloaded_by)).all()
+    return jsonify(seat_ids=[str(s) for s, _, _ in rows],
+                   details={str(s): {"at": at.isoformat(), "by": by} for s, at, by in rows})
 
 
 @admin_bp.post("/desk-labels/downloads")

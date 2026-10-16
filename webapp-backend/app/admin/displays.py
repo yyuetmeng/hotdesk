@@ -98,7 +98,9 @@ def _get(display_id) -> DashboardDisplay | None:
 def list_displays():
     g.jwt_uid = get_jwt_identity()
     items = orm_session().scalars(select(DashboardDisplay).order_by(DashboardDisplay.name)).all()
-    return jsonify(items=[display_dto(d) for d in items])
+    from .audit import last_changes   # local import: audit imports app.desk
+    changes = last_changes([d.id for d in items])
+    return jsonify(items=[{**display_dto(d), "last_change": changes.get(d.id)} for d in items])
 
 
 @admin_bp.post("/displays")

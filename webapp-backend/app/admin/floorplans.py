@@ -151,8 +151,10 @@ def list_plans():
     g.jwt_uid = get_jwt_identity()
     session = orm_session()
     plans = session.scalars(select(FloorPlan).order_by(FloorPlan.created_at.desc())).all()
+    from .audit import last_changes   # local import: audit imports app.desk, which imports this module
+    changes = last_changes([p.id for p in plans])
     return jsonify(items=[
-        {"id": str(p.id), "name": p.name, "cols": p.cols, "rows": p.rows,
+        {"id": str(p.id), "name": p.name, "cols": p.cols, "rows": p.rows, "last_change": changes.get(p.id),
          "element_count": session.scalar(
              select(func.count()).select_from(FloorPlanElement)
              .where(FloorPlanElement.plan_id == p.id)),
