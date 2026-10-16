@@ -63,9 +63,11 @@ export function UsersPage() {
   }, []);
 
   const setFilter = (key, value) => { setFilters((old) => ({ ...old, [key]: value })); setPage(1); };
+  const [changes, setChanges] = useState(0);   // bumps after every change so the health strip reloads too
   const afterChange = async (message, kind = 'success') => {
     setNotice({ kind, message });
     await Promise.all([loadUsers(), loadDepartments()]);
+    setChanges((n) => n + 1);
   };
 
   const title = <PageTitle title="Manage Users / Project Teams"><p>Invite people, set their role and project teams, and control access.</p></PageTitle>;
@@ -77,7 +79,7 @@ export function UsersPage() {
     {title}
     {error && <Notice kind="error">{error}</Notice>}
     {notice && <Notice kind={notice.kind}>{notice.message}</Notice>}
-    <SecurityStrip onFilter={(status) => setFilter('status', status)} />
+    <SecurityStrip refreshKey={changes} onFilter={(status) => setFilter('status', status)} />
 
     <div className="content-split users-layout">
       <section className="card">
@@ -367,9 +369,9 @@ function TeamChanges() {
 }
 
 // Sign-in health at a glance; each figure filters the users list or opens the audit log.
-function SecurityStrip({ onFilter }) {
+function SecurityStrip({ refreshKey, onFilter }) {
   const [s, setS] = useState(null);
-  useEffect(() => { flaskRequest('/api/admin/audit/security-summary').then(setS).catch(() => setS(null)); }, []);
+  useEffect(() => { flaskRequest('/api/admin/audit/security-summary').then(setS).catch(() => setS(null)); }, [refreshKey]);
   if (!s) return null;
   return <div className="users-health">
     <Link to="/audit?category=security&q=login_failed" className={`users-health-tile${s.failed_today ? ' amber' : ''}`}>

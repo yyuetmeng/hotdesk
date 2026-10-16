@@ -5,7 +5,8 @@ import uuid
 
 from flask import current_app, g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
-from sqlalchemy import func, or_, select
+from sqlalchemy import DateTime, func, literal, or_, select
+from sqlalchemy.orm import aliased
 from sqlalchemy.exc import IntegrityError
 
 from app.auth.tokens import invalidate_tokens, issue_token
@@ -187,9 +188,16 @@ def list_users():
     ids = [u.id for u in users]
     last_login = dict(session.execute(select(AuditLog.actor_id, func.max(AuditLog.created_at)).where(
         AuditLog.action == "auth.login_success", AuditLog.actor_id.in_(ids)).group_by(AuditLog.actor_id)).all()) if ids else {}
-    failed = dict(session.execute(select(AuditLog.target_id, func.count()).where(
-        AuditLog.action == "auth.login_failed", AuditLog.target_id.in_(ids),
-        AuditLog.created_at >= func.now() - timedelta(days=7)).group_by(AuditLog.target_id)).all()) if ids else {}
+    # Failed sign-ins in the last 7 days, counting only those after the account was last re-enabled or had its
+    # password reset, so the badge clears once an admin has dealt with it.
+    unlocked = (select(func.max(AuditLog.created_at)).where(
+        AuditLog.target_id == aliased_fail.target_id,
+        AuditLog.action.in_(UNLOCK_ACTIONS)).scalar_subquery())
+    failed = dict(session.execute(select(aliased_fail.target_id, func.count()).where(
+        aliased_fail.action == "auth.login_failed", aliased_fail.target_id.in_(ids),
+        aliased_fail.created_at >= func.now() - timedelta(days=7),
+        aliased_fail.created_at > func.coalesce(unlocked, literal("-infinity").cast(DateTime(timezone=True))))
+        .group_by(aliased_fail.target_id)).all()) if ids else {}
     return jsonify(items=[{**public_user(u), "last_login_at": last_login[u.id].isoformat() if u.id in last_login else None,
                            "failed_logins_7d": failed.get(u.id, 0), "locked": u.failed_attempts >= MAX_FAILED_ATTEMPTS}
                           for u in users], total=total, page=page, page_size=page_size)
@@ -210,6 +218,10 @@ def is_last_active_admin(user_id: str) -> bool:
         .where(Role.name == "admin", User.is_active.is_(True), User.id != user_id))
     return count == 0
 
+
+# Admin actions that unlock an account: after them, earlier failed sign-ins no longer count on the badge.
+UNLOCK_ACTIONS = ("user.enable", "user.password_reset", "password_reset.completed")
+aliased_fail = aliased(AuditLog)
 
 PATCHABLE = ("full_name", "username", "email", "role", "is_active",
              "start_date", "end_date", "department_ids", "booking_allowance", "usual_seat_id")

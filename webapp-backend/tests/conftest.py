@@ -9,7 +9,8 @@ from sqlalchemy.engine import make_url
 from app import create_app
 
 SQL_DIR = Path(__file__).resolve().parents[1] / "sql"
-TEST_SCHEMA = "hotdesk_test"
+# TEST_SCHEMA lets two test runs share the local database without clashing (each drops/creates its own schema).
+TEST_SCHEMA = os.environ.get("TEST_SCHEMA", "hotdesk_test")
 # Tests run only against a local PostgreSQL, never the Supabase app database. The connection
 # string comes from TEST_DATABASE_URI in webapp-backend/.env (see .env.example).
 load_dotenv()

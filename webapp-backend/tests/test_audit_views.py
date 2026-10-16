@@ -27,6 +27,17 @@ def test_users_list_has_last_sign_in_and_failed_count(client, world):
     assert items["dave"]["last_login_at"] is None                      # inactive, never signed in
 
 
+def test_enabling_a_user_clears_the_failed_and_locked_badges(client, world):
+    for _ in range(2):
+        client.post("/api/auth/login", json={"email_or_username": "jane", "password": "wrong"})
+    run_write("update users set is_active = false, failed_attempts = 5 where username = 'jane'")
+    before = {u["username"]: u for u in client.get("/api/admin/users", headers=_root(world)).get_json()["items"]}["jane"]
+    assert before["locked"] is True and before["failed_logins_7d"] == 2
+    assert client.patch(f"/api/admin/users/{world['users']['jane']}", headers=_root(world), json={"is_active": True}).status_code == 200
+    after = {u["username"]: u for u in client.get("/api/admin/users", headers=_root(world)).get_json()["items"]}["jane"]
+    assert after["locked"] is False and after["failed_logins_7d"] == 0     # only failures after the re-enable count
+
+
 def test_users_filter_locked_and_pending(client, world):
     run_write("update users set failed_attempts = 5 where username = 'bob'")
     run_write("insert into users (email, username, full_name, role_id) values ('new@x.com', 'newbie', 'New Person', 1)")
