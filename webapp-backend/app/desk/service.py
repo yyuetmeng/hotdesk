@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from app.core.auth_models import Department, User, UserDepartment
 from app.core.desk_models import SeatBooking, SeatBookingBlock, SeatCheckin
 from app.core.floorplan_models import FloorPlan, FloorPlanVersionElement
+from app.core.audit import audit_row
 from app.core.orm import orm_session
 
 from . import rules
@@ -48,6 +49,24 @@ def _uuid(value) -> uuid.UUID | None:
 
 # --- settle -------------------------------------------------------------------------------
 
+def _plan_name(plan_id) -> str | None:
+    plan = orm_session().get(FloorPlan, plan_id) if plan_id else None
+    if plan is None:
+        return None
+    return plan.published_version.name if plan.published_version else plan.name
+
+
+def _booking_details(b: SeatBooking) -> dict:
+    """Readable audit details for a booking (spec 2026-10-16-audit-views §0)."""
+    return {"seat_id": str(b.seat_id), "seat_label": b.seat_label, "plan_name": _plan_name(b.plan_id),
+            "user_name": b.booked_for_name, "date": b.booking_date.isoformat(), "preset": b.preset}
+
+
+def _checkin_details(c: SeatCheckin) -> dict:
+    return {"seat_id": str(c.seat_id), "seat_label": c.seat_label, "plan_name": _plan_name(c.plan_id),
+            "user_name": c.user_name, "date": c.checked_in_at.astimezone(rules.TZ).date().isoformat()}
+
+
 def settle(at: datetime) -> None:
     """Release unclaimed bookings past their release time and end check-ins past their end.
 
@@ -63,12 +82,14 @@ def settle(at: datetime) -> None:
         for booking in due:
             booking.ended_at, booking.end_reason = booking.release_at, "released"
             booking.blocks = []
+            audit_row(None, "booking.released", booking.id, _booking_details(booking))
         ended = session.scalars(select(SeatCheckin).where(
             SeatCheckin.checked_out_at.is_(None), SeatCheckin.ends_at <= at)
             .order_by(SeatCheckin.id).with_for_update(skip_locked=True)).all()
         for checkin in ended:
             checkin.checked_out_at, checkin.end_reason = checkin.ends_at, "auto"
             _free_booking_blocks(checkin.booking_id)
+            audit_row(None, "checkin.auto_ended", checkin.id, _checkin_details(checkin))
         session.commit()
     except (OperationalError, IntegrityError):
         session.rollback()
@@ -505,7 +526,7 @@ def seat_activity(seat_id, at: datetime) -> list[dict]:
 
 # --- plan changes (spec §2.7) -------------------------------------------------------------
 
-def cancel_for_plan_change(plan: FloorPlan, at: datetime, removed: bool = False) -> int:
+def cancel_for_plan_change(plan: FloorPlan, at: datetime, removed: bool = False, actor_id=None) -> int:
     """After publish/unpublish (or before deleting the plan, `removed=True`): cancel today/tomorrow
     bookings on seats that are gone or no longer free for all, and end check-ins on seats that are
     gone or were free for all and no longer are (spec §2.7). Returns how many rows changed."""
@@ -521,6 +542,7 @@ def cancel_for_plan_change(plan: FloorPlan, at: datetime, removed: bool = False)
         if el is None or not el.open_to_all:
             b.ended_at, b.end_reason = at, "plan_changed"
             b.blocks = []
+            audit_row(actor_id, "booking.plan_changed", b.id, _booking_details(b))
             changed += 1
         else:
             b.version_id = plan.published_version_id
@@ -530,6 +552,7 @@ def cancel_for_plan_change(plan: FloorPlan, at: datetime, removed: bool = False)
         if el is None or (c.seat_open_to_all and not el.open_to_all):
             c.checked_out_at, c.end_reason = at, "plan_changed"
             _free_booking_blocks(c.booking_id)
+            audit_row(actor_id, "checkin.plan_changed", c.id, _checkin_details(c))
             changed += 1
     session.commit()
     return changed

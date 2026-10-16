@@ -9,6 +9,7 @@ from flask import Response, g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import select
 
+from app.core.audit import write_audit
 from app.core.auth_models import Department, User
 from app.core.desk_models import SeatCheckin
 from app.core.errors import error
@@ -148,6 +149,7 @@ def insights_teams_xlsx():
     keys = ("date", "person", "username", "teams", "seat", "floor", "zone", "method", "checked_in", "checked_out", "ended")
     lines = [list(LINE_HEADERS)] + [[line[k] for k in keys] for line in check_in_lines(at)]
     body = write_xlsx([("Project teams", summary), ("Check-ins", lines)])
+    write_audit(get_jwt_identity(), "insights.exported", None, {"kind": "project_teams", "date": data["date"], "rows": len(lines) - 1})
     return Response(body, mimetype=XLSX,
                     headers={"Content-Disposition": f'attachment; filename="project-teams-{data["date"]}.xlsx"'})
 

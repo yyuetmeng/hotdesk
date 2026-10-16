@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 
 from app.core.auth_models import User
 from app.core.desk_models import SeatBooking, SeatCheckin
+from app.core.audit import write_audit
 from app.core.orm import orm_session
 
 from . import rules, service
@@ -46,7 +47,8 @@ def run_auto_book(user: User, at: datetime, places: dict) -> list[dict]:
         if day.weekday() >= 5 or _has_booking(user, day) or (day == today and _checked_in_today(user, day)):
             continue
         try:
-            service.create_booking(user, seat["plan_id"], seat["seat_id"], day.isoformat(), "full", None, at)
+            booking = service.create_booking(user, seat["plan_id"], seat["seat_id"], day.isoformat(), "full", None, at)
+            write_audit(user.id, "booking.auto_created", booking.id, service._booking_details(booking))
             notes.append({"date": day.isoformat(), "seat_label": seat["seat_label"], "ok": True, "message": None})
         except service.DeskError as exc:
             orm_session().rollback()

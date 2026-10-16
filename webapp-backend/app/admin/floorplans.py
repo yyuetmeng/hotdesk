@@ -275,7 +275,7 @@ def delete_plan(plan_id):
     name = plan.name
     from app.desk import rules, service  # local import: app.desk imports the admin modules
 
-    service.cancel_for_plan_change(plan, rules.now(), removed=True)
+    service.cancel_for_plan_change(plan, rules.now(), removed=True, actor_id=get_jwt_identity())
     session = orm_session()
     session.delete(plan)
     session.commit()

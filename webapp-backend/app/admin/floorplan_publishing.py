@@ -55,7 +55,7 @@ def _after_plan_change(plan: FloorPlan) -> None:
     """Cancel bookings / end check-ins that the new state of the plan no longer allows (spec §2.7)."""
     from app.desk import rules, service  # local import: app.desk imports this module
 
-    service.cancel_for_plan_change(plan, rules.now())
+    service.cancel_for_plan_change(plan, rules.now(), actor_id=get_jwt_identity())
 
 
 @admin_bp.post("/floor-plans/<uuid:plan_id>/publish")

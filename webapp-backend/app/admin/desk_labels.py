@@ -9,6 +9,7 @@ from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
+from app.core.audit import write_audit
 from app.core.desk_models import DeskLabelDownload
 from app.core.errors import error
 from app.core.orm import orm_session
@@ -46,4 +47,5 @@ def record_label_downloads():
         session = orm_session()
         session.execute(stmt)
         session.commit()
+        write_audit(actor, "desk_label.downloaded", None, {"count": len(seat_ids)})
     return ("", 204)

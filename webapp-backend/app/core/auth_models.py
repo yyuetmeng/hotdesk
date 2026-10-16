@@ -94,6 +94,7 @@ class AuditLog(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     actor_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"))
+    actor_name: Mapped[str | None] = mapped_column(Text)   # kept when the user is deleted (sql/0023)
     action: Mapped[str] = mapped_column(Text, nullable=False)
     target_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     details: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict,
