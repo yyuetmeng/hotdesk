@@ -26,3 +26,37 @@
 .desk-checkin .button { min-width: 200px; padding: 12px 18px; font-size: 16px; }
 @media (max-width: 1000px) { .desk-layout { grid-template-columns: 1fr; } }
 
+
+/* Booking form in the seat panel (BookingPanel.jsx, preview v3). */
+.bk { display: grid; gap: 12px; margin: 12px 0 16px; }
+.bk-field { display: grid; gap: 6px; }
+.bk-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.bk-segment { display: flex; width: 100%; }
+.bk-segment button { flex: 1; padding: 8px 6px; font-size: 13px; border-right: 1px solid var(--border); }
+.bk-segment button:last-child { border-right: 0; }
+.bk-segment button.active { font-weight: 650; }
+.bk-segment small { display: block; font-size: 11px; opacity: .75; }
+.bk-hint { margin: 0; font-size: 12.5px; color: var(--muted); }
+.bk-hint.warn { color: #b45309; }
+:root[data-theme="dark"] .bk-hint.warn { color: #fbbf24; }
+.bk-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 9px; }
+.bk-seat { display: inline-flex; align-items: center; gap: 6px; min-width: 64px; font-weight: 600; }
+.bk-dot { width: 10px; height: 10px; border-radius: 3px; background: var(--accent); }
+.bk-picker { position: relative; flex: 1; }
+.bk-picker input { width: 100%; padding: 6px 8px; }
+.bk-options { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; display: grid; max-height: 220px; overflow: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgb(15 23 42/.15); }
+.bk-options button { text-align: left; padding: 8px 10px; border: 0; background: none; color: var(--text); cursor: pointer; }
+.bk-options button:hover, .bk-options button:focus-visible { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.bk-none { padding: 8px 10px; color: var(--muted); font-size: 13px; }
+.bk-person { flex: 1; display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); font-size: 13.5px; }
+.bk-x { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px 4px; font-size: 13px; }
+.bk-x:hover { color: #dc2626; }
+.bk-summary { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); font-size: 13px; line-height: 1.5; }
+.bk-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.bk-chip { padding: 3px 10px; border-radius: 99px; font-size: 12.5px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.bk-chip.missing { border-color: #fdba74; background: color-mix(in srgb, #f97316 12%, transparent); }
+.bk-confirm { width: 100%; padding: 11px; font-weight: 650; }
+.bk-failed { margin: 6px 0 0; padding-left: 18px; }

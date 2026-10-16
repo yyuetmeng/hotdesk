@@ -150,7 +150,7 @@ function ZoneLabel({ zone }) {
   </g>;
 }
 
-export default function FloorDrawing({ floor, onSeatClick, selectedId = null, highlightId = null }) {
+export default function FloorDrawing({ floor, onSeatClick, selectedId = null, selectedIds = [], highlightId = null }) {
   const catalog = Object.fromEntries((floor.catalog ?? []).map((c) => [c.type, c]));
   const seats = Object.fromEntries(floor.seats.map((s) => [s.id, s]));
   const order = (el) => (el.type === 'corridor' ? 0 : el.type === 'seat' ? 3 : ['wall', 'window', 'door'].includes(el.type) ? 2 : 1);
@@ -160,7 +160,7 @@ export default function FloorDrawing({ floor, onSeatClick, selectedId = null, hi
     <rect y={-top} width={floor.cols * C} height={floor.rows * C + top} className="fd-bg" />
     {(floor.zones ?? []).map((z) => <ZoneOutline key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
-      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId} highlight={el.id === highlightId} />
+      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId || selectedIds.includes(el.id)} highlight={el.id === highlightId} />
       : <Element key={el.id} el={el} catalog={catalog} />))}
     {(floor.zones ?? []).map((z) => <ZoneLabel key={`${z.id}-label`} zone={z} />)}
   </svg>;

@@ -8,6 +8,7 @@ import { formatDate, formatTime } from '../format.js';
 import FloorDrawing from '../display/FloorDrawing.jsx';
 import '../display/display.css';
 import SeatPanel from './SeatPanel.jsx';
+import { canAddSeat } from './bookingLogic.js';
 import { PRESETS, firstLoad, floorLoading, nextDayName, presetLabel } from './deskLogic.js';
 
 const STATE_TEXT = { active: 'Booked', checked_in: 'Checked in', released: 'Released (no check-in)',
@@ -23,6 +24,9 @@ export function BookDeskPage() {
   const [preset, setPreset] = useState('am');
   const [floor, setFloor] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [multi, setMulti] = useState(false);     // booking several seats for colleagues: clicks add seats
+  const [picked, setPicked] = useState([]);       // the extra seats (the clicked seat is `selected`)
+  const [skipped, setSkipped] = useState(null);
   const [mine, setMine] = useState([]);
   const [error, setError] = useState(null);
 
@@ -45,11 +49,23 @@ export function BookDeskPage() {
       const wanted = wantSeat.current ? data.seats.find((s) => s.id === wantSeat.current) : null;   // ?seat=, once
       if (wanted) wantSeat.current = null;
       setSelected((old) => wanted ?? (old ? data.seats.find((s) => s.id === old.id) ?? null : null));
+      setPicked((old) => old.map((p) => data.seats.find((s) => s.id === p.id)).filter((s) => s && canAddSeat(s, preset, [])));
       setMine((await flaskRequest('/api/desk/bookings/mine')).items);
       setError(null);
     } catch (err) { setError(err.message); }
   }, [planId, date, preset]);
   useEffect(() => { load(); }, [load]);
+
+  const clickSeat = (seat) => {
+    if (multi && selected && seat.id !== selected.id) {
+      if (picked.some((p) => p.id === seat.id)) { setPicked((ps) => ps.filter((p) => p.id !== seat.id)); return; }
+      if (canAddSeat(seat, preset, [selected.id, ...picked.map((p) => p.id)])) { setPicked((ps) => [...ps, seat]); setSkipped(null); }
+      else setSkipped(`${seat.label} can't be added: only free-for-all seats that are free for ${presetLabel(preset)}.`);
+      return;
+    }
+    setSelected(seat); setPicked([]); setMulti(false); setSkipped(null);
+  };
+  const chooseMulti = (on) => { setMulti(on); if (!on) setPicked([]); setSkipped(null); };
 
   const cancel = async (b) => {
     try { await flaskRequest(`/api/desk/bookings/${b.id}`, { method: 'DELETE' }); await load(); }
@@ -72,21 +88,23 @@ export function BookDeskPage() {
       <div className="desk-segment" role="group" aria-label="Time">
         {PRESETS.map((p) => <button key={p} className={preset === p ? 'active' : ''} onClick={() => setPreset(p)}>{presetLabel(p)}</button>)}
       </div>
-      {floors.length > 1 && <label>Floor <select value={planId} onChange={(e) => { setPlanId(e.target.value); setSelected(null); }}>
+      {floors.length > 1 && <label>Floor <select value={planId} onChange={(e) => { setPlanId(e.target.value); setSelected(null); setPicked([]); setMulti(false); }}>
         {floors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
       </select></label>}
     </div>
     {floorLoading(floor, planId) && !error && <Loading label={`Looking for a free desk on ${floors.find((f) => f.id === planId)?.name ?? 'this floor'}…`} />}
     {floor && <div className="desk-layout">
       <section className="card"><h2>{floor.name}</h2>
-        <div className="desk-drawing"><FloorDrawing floor={floor} selectedId={selected?.id} onSeatClick={setSelected} /></div>
+        <div className="desk-drawing"><FloorDrawing floor={floor} selectedId={selected?.id} selectedIds={picked.map((p) => p.id)} onSeatClick={clickSeat} /></div>
         <ul className="desk-legend">
           <li><span className="available" />Available</li><li><span className="booked" />Booked</li>
           <li><span className="occupied" />Occupied</li><li><span className="not_bookable" />Not bookable</li>
           <li><span className="available free-for-all" />Free for all (bookable)</li>
         </ul></section>
       {selected
-        ? <SeatPanel planId={planId} seat={selected} date={date ?? floor.date} preset={preset} isToday={dayOffset === 0} onChanged={load} />
+        ? <SeatPanel planId={planId} seat={selected} isToday={dayOffset === 0} onChanged={load}
+          booking={{ picked, multi, setMulti: chooseMulti, onRemovePicked: (id) => setPicked((ps) => ps.filter((p) => p.id !== id)),
+            days: days ?? [floor.date, floor.date], dayOffset, setDayOffset, preset, setPreset, skipped }} />
         : <aside className="card desk-panel"><p className="muted">Click a seat to see who is there, today's activity, and to book a free-for-all seat.</p></aside>}
     </div>}
 
