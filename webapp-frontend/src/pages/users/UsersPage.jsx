@@ -143,7 +143,7 @@ export function UsersPage() {
       </aside>
     </div>
 
-    <DepartmentsSection departments={departments} onChanged={afterChange} />
+    <DepartmentsSection departments={departments} onChanged={afterChange} refreshKey={changes} />
   </main>;
 }
 
@@ -290,7 +290,7 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
   </form>;
 }
 
-function DepartmentsSection({ departments, onChanged }) {
+function DepartmentsSection({ departments, onChanged, refreshKey }) {
   const [name, setName] = useState('');
   const [message, setMessage] = useState(null);
 
@@ -342,7 +342,7 @@ function DepartmentsSection({ departments, onChanged }) {
       : <p className="state">No project teams yet.</p>}
     <details className="users-team-changes">
       <summary>Recent changes</summary>
-      <TeamChanges />
+      <TeamChanges refreshKey={refreshKey} />
     </details>
   </section>;
 }
@@ -360,11 +360,12 @@ function UserHistory({ userId }) {
   </div>;
 }
 
-function TeamChanges() {
+// Reloads after every change on the page (refreshKey), so adding, renaming or deleting a team shows up at once.
+function TeamChanges({ refreshKey }) {
   const [items, setItems] = useState(null);
   useEffect(() => {
     flaskRequest('/api/admin/audit?category=teams&page_size=10').then((d) => setItems(d.items)).catch(() => setItems([]));
-  }, []);
+  }, [refreshKey]);
   return <AuditTimeline items={items} empty="No project team changes yet." />;
 }
 
