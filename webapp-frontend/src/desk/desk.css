@@ -107,3 +107,8 @@
 .desk-result-actions { display: grid; gap: 8px; margin-top: 16px; }
 .desk-checkin .desk-result-actions .button { min-width: 0; width: 100%; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .desk-result-badge { animation: none; } }
+/* Smaller camera view (owner 2026-10-16): a centred square at most 300px (about 40% of the screen height on a
+   phone), with the target filling more of it since it is only a QR label. */
+.desk-scan-frame { width: min(100%, 300px); max-height: 40vh; aspect-ratio: 1; margin: 0 auto; }
+.desk-scan-target { width: min(62%, 180px); }
+.desk-scan .desk-scan-msg, .desk-scan > .muted { text-align: center; }
