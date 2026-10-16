@@ -47,12 +47,12 @@ export default function TeamsCard() {
     </div>
     {error && <Notice kind="error">{error}</Notice>}
     {!data ? <p className="state">Loading project teams…</p> : <div className="teams-table-wrap"><table className="teams-table">
-      <thead><tr><th>Project team</th><th className="num">In now</th><th className="num">Check-ins</th><th className="num">Check-outs</th><th>People</th></tr></thead>
+      <thead><tr><th>Project team</th><th className="num">Total seats</th><th className="num">In now</th><th className="num">Check-ins</th><th className="num">Check-outs</th><th>People</th></tr></thead>
       <tbody>{data.rows.map((r) => <tr key={r.team_id ?? 'none'}>
-        <td>{r.name}</td><td className="num">{r.in_now}</td><td className="num">{r.check_ins}</td><td className="num">{r.check_outs}</td>
+        <td>{r.name}</td><td className="num">{r.seats}</td><td className="num">{r.in_now}</td><td className="num">{r.check_ins}</td><td className="num">{r.check_outs}</td>
         <td className="teams-people" title={r.people.join(', ')}>{peopleText(r.people)}</td>
       </tr>)}</tbody>
-      <tfoot><tr><th>Total</th><th className="num">{data.total.in_now}</th><th className="num">{data.total.check_ins}</th>
+      <tfoot><tr><th>Total</th><th className="num">{data.total.seats}</th><th className="num">{data.total.in_now}</th><th className="num">{data.total.check_ins}</th>
         <th className="num">{data.total.check_outs}</th><th className="teams-people">{data.total.people} {data.total.people === 1 ? 'person' : 'people'}</th></tr></tfoot>
     </table></div>}
   </section>;

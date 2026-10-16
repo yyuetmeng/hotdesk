@@ -35,9 +35,9 @@ def test_teams_today(client, world, monkeypatch):
     rows = {r["name"]: r for r in body["rows"]}
     assert list(rows) == ["Engineering", "Ops"]
     eng = rows["Engineering"]
-    assert (eng["in_now"], eng["check_ins"], eng["check_outs"], eng["people"]) == (1, 2, 1, ["Carl Lim", "Jane Tan"])
-    assert (rows["Ops"]["in_now"], rows["Ops"]["check_ins"], rows["Ops"]["people"]) == (0, 0, [])
-    assert body["total"] == {"in_now": 1, "check_ins": 2, "check_outs": 1, "people": 2}
+    assert (eng["seats"], eng["in_now"], eng["check_ins"], eng["check_outs"], eng["people"]) == (1, 1, 2, 1, ["Carl Lim", "Jane Tan"])
+    assert (rows["Ops"]["seats"], rows["Ops"]["in_now"], rows["Ops"]["check_ins"], rows["Ops"]["people"]) == (0, 0, 0, [])
+    assert body["total"] == {"seats": 1, "in_now": 1, "check_ins": 2, "check_outs": 1, "people": 2}   # E1 is the only team seat
     assert body["date"] == DAY.isoformat()
 
 
@@ -52,7 +52,7 @@ def test_excel_export_has_two_sheets(client, world, monkeypatch):
     workbook = book_.read("xl/workbook.xml").decode()
     assert 'name="Project teams"' in workbook and 'name="Check-ins"' in workbook
     summary = book_.read("xl/worksheets/sheet1.xml").decode()
-    assert "Engineering" in summary and "Total" in summary and "In now" in summary
+    assert "Engineering" in summary and "Total" in summary and "In now" in summary and "Total seats" in summary
     lines = book_.read("xl/worksheets/sheet2.xml").decode()
     assert lines.count("<row ") == 3                                         # header + Jane + Carl
     assert "Carl Lim" in lines and "walk-in" in lines and "Jane Tan" in lines and "08:40" in lines and "F1" in lines

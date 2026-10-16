@@ -48,8 +48,19 @@ def _today(at):
     return ins, open_now, outs
 
 
+def _team_seats() -> dict:
+    """Seats on published floors tagged to each project team (free-for-all seats belong to no team)."""
+    counts = {}
+    for plan in service.published_floors():
+        for el in plan.published_version.elements:
+            if el.type == "seat" and el.department_id and not el.open_to_all:
+                counts[el.department_id] = counts.get(el.department_id, 0) + 1
+    return counts
+
+
 def teams_today(at) -> dict:
     names = _team_names()
+    seats = _team_seats()
     ins, open_now, outs = _today(at)
 
     def of(team_id, rows):
@@ -60,7 +71,8 @@ def teams_today(at) -> dict:
 
     def row(team_id, name):
         today_ins = of(team_id, ins)
-        return {"team_id": str(team_id) if team_id else None, "name": name, "in_now": len(of(team_id, open_now)),
+        return {"team_id": str(team_id) if team_id else None, "name": name, "seats": seats.get(team_id, 0) if team_id else 0,
+                "in_now": len(of(team_id, open_now)),
                 "check_ins": len(today_ins), "check_outs": len(of(team_id, outs)),
                 "people": sorted({c.user_name for c in today_ins}, key=str.casefold)}
 
@@ -69,7 +81,7 @@ def teams_today(at) -> dict:
     if no_team["in_now"] or no_team["check_ins"] or no_team["check_outs"]:
         rows.append(no_team)
     return {"date": rules.local_today(at).isoformat(), "rows": rows,
-            "total": {"in_now": len(open_now), "check_ins": len(ins), "check_outs": len(outs),
+            "total": {"seats": sum(seats.get(t, 0) for t in names), "in_now": len(open_now), "check_ins": len(ins), "check_outs": len(outs),
                       "people": len({c.user_id or c.user_name for c in ins})}}
 
 
@@ -89,10 +101,10 @@ def insights_teams_xlsx():
     at = rules.now()
     service.settle(at)
     data = teams_today(at)
-    summary = [["Project team", "In now", "Check-ins", "Check-outs", "People"]]
-    summary += [[r["name"], r["in_now"], r["check_ins"], r["check_outs"], ", ".join(r["people"])] for r in data["rows"]]
+    summary = [["Project team", "Total seats", "In now", "Check-ins", "Check-outs", "People"]]
+    summary += [[r["name"], r["seats"], r["in_now"], r["check_ins"], r["check_outs"], ", ".join(r["people"])] for r in data["rows"]]
     t = data["total"]
-    summary.append(["Total", t["in_now"], t["check_ins"], t["check_outs"], f"{t['people']} people"])
+    summary.append(["Total", t["seats"], t["in_now"], t["check_ins"], t["check_outs"], f"{t['people']} people"])
 
     names, places = _team_names(), seat_places()
     ins, _, _ = _today(at)
