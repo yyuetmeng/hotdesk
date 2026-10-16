@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import or_, select
 
-from app.core.auth_models import Department, User, UserDepartment
+from app.core.auth_models import Department, Role, User, UserDepartment
 from app.core.desk_models import SeatBooking, SeatCheckin
 from app.core.orm import orm_session
 
@@ -29,7 +29,9 @@ def find_people(q: str, at: datetime, team_id=None) -> list[dict]:
     today = rules.local_today(at)
     tomorrow = today + timedelta(days=1)
     like = f"%{q}%"
-    query = select(User).where(User.is_active.is_(True), or_(User.full_name.ilike(like), User.username.ilike(like)))
+    # Administrators are not listed: Colleague Finder is for finding colleagues (owner decision 2026-10-16).
+    query = (select(User).join(Role, Role.id == User.role_id)
+             .where(User.is_active.is_(True), Role.name != "admin", or_(User.full_name.ilike(like), User.username.ilike(like))))
     if team_id is not None:
         query = query.join(UserDepartment, UserDepartment.user_id == User.id).where(UserDepartment.department_id == team_id)
     users = session.scalars(query.order_by(User.full_name).limit(MAX_RESULTS * 2)).unique().all()
