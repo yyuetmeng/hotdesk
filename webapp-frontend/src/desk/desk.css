@@ -21,7 +21,9 @@
 .desk-colleagues button { text-align: left; }
 .desk-bookings { margin-top: 16px; }
 .desk-bookings td small { display: block; color: var(--muted); }
-.desk-checkin { max-width: 520px; margin: 0 auto; text-align: center; }
+/* Desk check-in: left-aligned like every other page (title, text and buttons line up); content kept readable. */
+.desk-checkin { text-align: left; }
+.desk-checkin > :not(.page-title) { max-width: 640px; }
 .desk-checkin .big { font-size: 22px; margin: 12px 0; }
 .desk-checkin .button { min-width: 200px; padding: 12px 18px; font-size: 16px; }
 @media (max-width: 1000px) { .desk-layout { grid-template-columns: 1fr; } }
