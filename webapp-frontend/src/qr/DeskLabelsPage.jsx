@@ -158,10 +158,12 @@ export function DeskLabelsPage() {
           const all = picked === g.rows.length;
           return <section key={g.key} className="qr-zone">
           <header className="qr-zone-head">
-            <h2>{manyFloors && <span className="muted">{g.floorName} · </span>}{g.zone ?? 'No zone'}</h2>
-            <span className="muted">{g.rows.length} label{g.rows.length === 1 ? '' : 's'}{picked ? ` · ${picked} selected` : ''}</span>
             <label className="labels-select-all"><input type="checkbox" checked={all} ref={(el) => { if (el) el.indeterminate = picked > 0 && !all; }}
               onChange={() => toggleMany(g.rows, !all)} aria-label={`Select all in ${g.zone ?? 'No zone'}`} />Select all in zone</label>
+            <div className="qr-zone-title">
+              <h2>{manyFloors && <span className="muted">{g.floorName} · </span>}{g.zone ?? 'No zone'}</h2>
+              <span className="muted">{g.rows.length} label{g.rows.length === 1 ? '' : 's'}{picked ? ` · ${picked} selected` : ''}</span>
+            </div>
           </header>
           <div className="qr-sheet">{g.rows.map((r) => <div key={r.id} className={`qr-label${selected.has(r.id) ? ' selected' : ''}`}>
           {isNewLabel(downloaded, r.id) && <span className="qr-new" title="This label has never been downloaded">New</span>}
