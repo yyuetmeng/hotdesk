@@ -7,6 +7,7 @@ import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatTime } from '../format.js';
 import { stateLabel } from './deskLogic.js';
+import { checkInLocation } from './location.js';
 import './desk.css';
 
 const CheckInTitle = () => <PageTitle title="Desk check-in"><p>Scan the QR code on a desk to check in there, and give the seat up when you leave.</p></PageTitle>;
@@ -31,7 +32,7 @@ function SeatCheckIn({ seatId }) {
         setSeat(info);
         if (info.can_check_in && !attempted.current) {
           attempted.current = true;
-          const c = await flaskRequest(`/api/desk/seats/${seatId}/check-in`, { method: 'POST' });
+          const c = await flaskRequest(`/api/desk/seats/${seatId}/check-in`, { method: 'POST', body: await checkInLocation() });
           setResult({ kind: 'success', text: `You're checked in at ${c.seat_label} since ${formatTime(c.checked_in_at)}, `
             + `until ${formatTime(c.ends_at).slice(0, 5)}.${c.warning ? ` ${c.warning}` : ''}` });
           await reload();

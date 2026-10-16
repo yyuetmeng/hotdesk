@@ -122,8 +122,10 @@ def seat(viewer, at, seat_id):
 @desk_bp.post("/seats/<seat_id>/check-in")
 @desk_endpoint
 def check_in(viewer, at, seat_id):
-    checkin, warning = service.check_in(viewer, seat_id, at)
-    write_audit(str(viewer.id), "checkin.start", str(checkin.id), {**service._checkin_details(checkin), "method": checkin.method})
+    location = service.parse_location(request.get_json(silent=True) or {}, at)
+    checkin, warning = service.check_in(viewer, seat_id, at, location)
+    write_audit(str(viewer.id), "checkin.start", str(checkin.id),
+                {**service._checkin_details(checkin), "method": checkin.method, **service.location_details(checkin)})
     return jsonify({**service.checkin_dto(checkin), "warning": warning}), 201
 
 

@@ -5,7 +5,7 @@ Spec: docs/superpowers/specs/2026-10-15-seat-booking-and-checkin-design.md §4.
 import datetime as dt
 import uuid
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, SmallInteger, Text, func, text
+from sqlalchemy import Boolean, Date, DateTime, Double, Float, ForeignKey, SmallInteger, Text, func, text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -84,6 +84,12 @@ class SeatCheckin(Base):
                                                    server_default=text("false"))
     user_department_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, default=list, server_default=text("'{}'"))
+    # Device location when checking in (sql/0026), for later vicinity checks; never returned by the API.
+    location_lat: Mapped[float | None] = mapped_column(Double)
+    location_lng: Mapped[float | None] = mapped_column(Double)
+    location_accuracy_m: Mapped[float | None] = mapped_column(Float)
+    location_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    location_status: Mapped[str | None] = mapped_column(Text)
 
 
 class DashboardDisplay(Base):

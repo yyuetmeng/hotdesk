@@ -451,7 +451,7 @@ def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime, ct
     return {"ok": True, "reason": None, "status": 201, "booking": None, "ends_at": ends_at, "warning": warning}
 
 
-def check_in(viewer: User, seat_id, at: datetime) -> tuple[SeatCheckin, str | None]:
+def check_in(viewer: User, seat_id, at: datetime, location: dict | None = None) -> tuple[SeatCheckin, str | None]:
     plan, el = seat_element(seat_id)
     decision = checkin_decision(viewer, el, at)
     if not decision["ok"]:
@@ -463,7 +463,7 @@ def check_in(viewer: User, seat_id, at: datetime) -> tuple[SeatCheckin, str | No
                           booking_id=booking.id if booking else None,
                           method="booking" if booking else "walk_in",
                           seat_department_id=el.department_id, seat_open_to_all=bool(el.open_to_all),
-                          user_department_ids=sorted(department_ids(viewer), key=str))
+                          user_department_ids=sorted(department_ids(viewer), key=str), **(location or {}))
     if booking is not None:
         booking.ended_at, booking.end_reason = at, "checked_in"
     session = orm_session()
@@ -474,6 +474,38 @@ def check_in(viewer: User, seat_id, at: datetime) -> tuple[SeatCheckin, str | No
         session.rollback()
         raise DeskError("This seat was just taken, or you are checked in elsewhere.", 409)
     return checkin, decision["warning"]
+
+
+LOCATION_FAILURES = {"denied", "unavailable", "unsupported", "timeout"}
+
+
+def parse_location(body: dict, at: datetime) -> dict:
+    """SeatCheckin location columns from a check-in body: {"location": {lat, lng, accuracy}} or
+    {"location_status": "denied"|...}. Never raises: a malformed location is stored as "invalid"."""
+    raw = body.get("location") if isinstance(body, dict) else None
+    if raw is not None:
+        try:
+            lat, lng, accuracy = (float(raw[k]) for k in ("lat", "lng", "accuracy"))
+            if not (-90 <= lat <= 90 and -180 <= lng <= 180 and 0 <= accuracy < 1e7):
+                raise ValueError
+        except (TypeError, ValueError, KeyError):
+            return {"location_status": "invalid"}
+        return {"location_lat": lat, "location_lng": lng, "location_accuracy_m": accuracy,
+                "location_at": at, "location_status": "captured"}
+    status = body.get("location_status") if isinstance(body, dict) else None
+    if status is None:
+        return {}
+    return {"location_status": status if status in LOCATION_FAILURES else "invalid"}
+
+
+def location_details(c: SeatCheckin) -> dict:
+    """What the audit log keeps about the location: whether it was captured and how accurate, not where."""
+    if c.location_status is None:
+        return {}
+    out = {"location_status": c.location_status}
+    if c.location_accuracy_m is not None:
+        out["location_accuracy_m"] = round(c.location_accuracy_m)
+    return out
 
 
 def give_up(viewer: User, seat_id, at: datetime) -> SeatCheckin:
