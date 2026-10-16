@@ -7,6 +7,12 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
 
 from app import create_app
+import app.core.security as _security
+from passlib.context import CryptContext
+
+# Tests hash and check passwords with the lightest bcrypt cost (4 rounds instead of the default 12): the same code
+# paths, roughly 100x faster. Every test signs several users in, so this is most of a test's setup time.
+_security._ctx = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=4)
 
 SQL_DIR = Path(__file__).resolve().parents[1] / "sql"
 # TEST_SCHEMA lets two test runs share the local database without clashing (each drops/creates its own schema).
