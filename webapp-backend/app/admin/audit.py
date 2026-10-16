@@ -3,12 +3,13 @@
 GET /api/admin/audit             filtered, newest first, with a readable summary per entry and counts per category
 GET /api/admin/audit.xlsx        the same filters as an Excel file (up to 5,000 rows)
 GET /api/admin/audit/security-summary   failed sign-ins today, locked accounts, invitations not accepted
-Entries older than AUDIT_RETENTION_DAYS (default 365) are deleted when the log is read.
+POST /api/admin/audit/clear      delete entries older than a period (at least 30 days), optionally by category
+Nothing is deleted automatically (owner 2026-10-16): the list reports how many entries are older than a month.
 """
 import uuid
 from datetime import date, datetime, timedelta
 
-from flask import Response, current_app, g, jsonify, request
+from flask import Response, g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import Text, cast, delete, func, or_, select, union_all
 
@@ -28,7 +29,7 @@ from . import admin_bp
 
 PAGE_SIZE = 50
 EXPORT_LIMIT = 5000
-CATEGORIES = {"security": ("auth.", "account.", "password_reset."), "users": ("user.",), "teams": ("department.",),
+CATEGORIES = {"security": ("auth.", "account.", "password_reset.", "audit."), "users": ("user.",), "teams": ("department.",),
               "floor_plans": ("floorplan.",), "displays": ("display.",), "desks": ("booking.", "checkin."),
               "exports": ("insights.", "desk_label.")}
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -42,19 +43,42 @@ def _category_clause(name):
     return or_(*[AuditLog.action.startswith(p) for p in CATEGORIES[name]])
 
 
-MIN_RETENTION_DAYS, DEFAULT_RETENTION_DAYS = 30, 365
+MIN_AGE_DAYS = 30           # entries younger than this cannot be cleared; older ones are flagged on the page
+KEEP_ACTIONS = ("audit.cleared",)   # the record of who cleared the log is never cleared
 
 
-def _purge():
-    """Delete entries older than AUDIT_RETENTION_DAYS (at least 30 days, so a bad setting cannot wipe the log)."""
-    try:
-        days = int(current_app.config.get("AUDIT_RETENTION_DAYS") or DEFAULT_RETENTION_DAYS)
-    except (TypeError, ValueError):
-        days = DEFAULT_RETENTION_DAYS
-    days = max(days, MIN_RETENTION_DAYS)
-    session = orm_session()
-    session.execute(delete(AuditLog).where(AuditLog.created_at < func.now() - timedelta(days=days)))
-    session.commit()
+def _month_ago():
+    return rules.now() - timedelta(days=MIN_AGE_DAYS)
+
+
+def _old_entries():
+    """{count, oldest}: entries older than a month, so admins know the log needs clearing."""
+    count, oldest = orm_session().execute(select(func.count(), func.min(AuditLog.created_at))
+                                          .where(AuditLog.created_at < _month_ago())).one()
+    return {"count": count, "oldest": oldest.astimezone(rules.TZ).date().isoformat() if oldest else None}
+
+
+def _clear_options(body):
+    """(cutoff datetime, categories list) from a clear request; raises ValueError with the message to show."""
+    if body.get("before"):
+        try:
+            day = date.fromisoformat(str(body["before"]))
+        except ValueError:
+            raise ValueError("before must be YYYY-MM-DD")
+        cutoff = datetime.combine(day, datetime.min.time(), rules.TZ)
+    elif body.get("older_than_days") is not None:
+        try:
+            cutoff = rules.now() - timedelta(days=int(body["older_than_days"]))
+        except (TypeError, ValueError):
+            raise ValueError("older_than_days must be a number")
+    else:
+        raise ValueError("choose a period: older_than_days or before")
+    if cutoff > _month_ago():
+        raise ValueError(f"only entries older than {MIN_AGE_DAYS} days can be cleared")
+    categories = body.get("categories") or []
+    if not isinstance(categories, list) or any(c not in CATEGORIES for c in categories):
+        raise ValueError("unknown category")
+    return cutoff, categories
 
 
 def _uuid(text):
@@ -173,6 +197,8 @@ def _describe(e: AuditLog, target: str | None, places) -> str:
         "checkin.auto_ended": f"{person or 'Someone'} was checked out of {where} automatically",
         "checkin.plan_changed": f"Ended {person or 'a'}{chr(39) + 's' if person else ''} check-in at {where} (floor plan changed)",
         "insights.exported": f"{who} exported {str(d.get('kind', 'data')).replace('_', ' ')} to Excel",
+        "audit.cleared": f"{who} cleared {d.get('count', '?')} audit entr{'y' if d.get('count') == 1 else 'ies'} older than {d.get('before', '?')}"
+                         + (f" ({', '.join(str(c).replace('_', ' ') for c in d['categories'])})" if d.get("categories") else " (all categories)"),
         "desk_label.downloaded": f"{who} downloaded {d.get('count', '?')} desk label{'s' if d.get('count') != 1 else ''}",
     }
     return texts.get(a, f"{who}: {a}")
@@ -200,7 +226,6 @@ def audit_page(clauses, category_clause, page: int, page_size: int = PAGE_SIZE):
 @admin_required
 def audit_list():
     g.jwt_uid = get_jwt_identity()
-    _purge()
     try:
         clauses, category_clause = _filters()
         page = max(int(request.args.get("page", 1)), 1)
@@ -212,7 +237,30 @@ def audit_list():
     row = session.execute(select(*[func.count().filter(_category_clause(name)) for name in CATEGORIES])
                           .select_from(AuditLog).where(*clauses)).one()
     counts = dict(zip(CATEGORIES, row))
-    return jsonify(items=items, total=total, page=page, page_size=size, counts=counts)
+    return jsonify(items=items, total=total, page=page, page_size=size, counts=counts, old=_old_entries())
+
+
+@admin_bp.post("/audit/clear")
+@admin_required
+def audit_clear():
+    """Delete entries older than the chosen period, in the chosen categories (all when none); dry_run counts only."""
+    actor = get_jwt_identity()
+    g.jwt_uid = actor
+    body = request.get_json(silent=True) or {}
+    try:
+        cutoff, categories = _clear_options(body)
+    except ValueError as exc:
+        return error(str(exc), 400)
+    where = [AuditLog.created_at < cutoff, AuditLog.action.not_in(KEEP_ACTIONS)]
+    if categories:
+        where.append(or_(*[_category_clause(c) for c in categories]))
+    session = orm_session()
+    if body.get("dry_run"):
+        return jsonify(count=session.scalar(select(func.count()).select_from(AuditLog).where(*where)))
+    deleted = session.execute(delete(AuditLog).where(*where)).rowcount
+    write_audit(actor, "audit.cleared", None, {"count": deleted, "before": cutoff.astimezone(rules.TZ).date().isoformat(),
+                                               "categories": categories})
+    return jsonify(deleted=deleted)
 
 
 @admin_bp.get("/audit.xlsx")

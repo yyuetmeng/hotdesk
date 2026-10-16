@@ -64,14 +64,6 @@ def test_a_malformed_entry_does_not_break_the_views(client, world):
     assert client.get(f"/api/admin/audit?subject={world['users']['jane']}", headers=root).status_code == 200
 
 
-@pytest.mark.parametrize("setting", [0, -5, ""])
-def test_retention_setting_has_a_floor(app, client, world, setting):
-    app.config["AUDIT_RETENTION_DAYS"] = setting
-    run_write("insert into audit_logs (action, details, created_at) values ('auth.login_failed', '{\"identifier\": \"keepme\"}', now() - interval '10 days')")
-    r = client.get("/api/admin/audit", query_string={"q": "keepme"}, headers=hdr(world["tok"]["root"]))
-    assert r.status_code == 200 and len(r.get_json()["items"]) == 1
-
-
 def test_plan_change_looks_the_admin_up_once(app, client, world):
     """Unpublishing cancels several bookings; the admin's name is read once, not once per audit row."""
     for who, seat in (("jane", "F1"), ("ali", "F2"), ("carl", "F1")):

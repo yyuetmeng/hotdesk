@@ -1,12 +1,64 @@
 // Administration → Audit log (spec 2026-10-16-audit-views §1): every audit entry, filterable by category,
 // person/text, and dates, with readable summaries, expandable details and an Excel export.
+// Nothing is deleted automatically: a banner flags entries older than a month and admins clear them here.
 import { Fragment, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { flaskRequest } from '../../api.js';
 import { Loading, Notice, PageTitle } from '../../components.jsx';
 import { downloadFile } from '../../download.js';
-import { CATEGORIES, auditQuery, categoryOf, relativeTime } from './auditLogic.js';
+import { CATEGORIES, PERIODS, auditQuery, categoryOf, clearBody, oldText, relativeTime } from './auditLogic.js';
 import './audit.css';
+
+const monthAgo = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(new Date(Date.now() - 30 * 86400000));
+
+function ClearPanel({ onDone, onClose }) {
+  const [opts, setOpts] = useState({ period: 30, before: '', categories: [] });
+  const [count, setCount] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const body = clearBody(opts);
+
+  useEffect(() => {
+    setCount(null);
+    const preview = clearBody(opts, true);
+    if (!preview) return undefined;
+    let alive = true;
+    flaskRequest('/api/admin/audit/clear', { method: 'POST', body: preview })
+      .then((d) => { if (alive) { setCount(d.count); setError(null); } })
+      .catch((err) => { if (alive) setError(err.message); });
+    return () => { alive = false; };
+  }, [opts]);
+
+  const toggle = (key) => setOpts((o) => ({ ...o, categories: o.categories.includes(key) ? o.categories.filter((k) => k !== key) : [...o.categories, key] }));
+  const run = async () => {
+    if (!window.confirm(`Delete ${count.toLocaleString('en-GB')} audit ${count === 1 ? 'entry' : 'entries'}? This cannot be undone.`)) return;
+    setBusy(true);
+    try { onDone((await flaskRequest('/api/admin/audit/clear', { method: 'POST', body })).deleted); }
+    catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+  const label = !body ? 'Pick a date' : count === null ? 'Counting…' : `Delete ${count.toLocaleString('en-GB')} ${count === 1 ? 'entry' : 'entries'}`;
+
+  return <section className="card audit-clear">
+    <h2>Clear old entries</h2>
+    <p className="muted">Entries are kept until you clear them. Only entries older than a month can be cleared, and a record of each clear is kept.</p>
+    {error && <Notice kind="error">{error}</Notice>}
+    <div className="toolbar">
+      <label>Period <select value={opts.period ?? 'date'}
+        onChange={(e) => setOpts((o) => ({ ...o, period: e.target.value === 'date' ? null : Number(e.target.value) }))}>
+        {PERIODS.map((p) => <option key={p.label} value={p.days ?? 'date'}>{p.label}</option>)}</select></label>
+      {opts.period === null && <label>Before <input type="date" max={monthAgo()} value={opts.before}
+        onChange={(e) => setOpts((o) => ({ ...o, before: e.target.value }))} /></label>}
+    </div>
+    <fieldset><legend>Categories</legend>
+      <label><input type="checkbox" checked={!opts.categories.length} onChange={() => setOpts((o) => ({ ...o, categories: [] }))} />All categories</label>
+      {CATEGORIES.map((c) => <label key={c.key}><input type="checkbox" checked={opts.categories.includes(c.key)} onChange={() => toggle(c.key)} />{c.label}</label>)}
+    </fieldset>
+    <div className="button-row">
+      <button className="button" onClick={onClose}>Close</button>
+      <button className="button danger" disabled={!body || !count || busy} onClick={run}>{busy ? 'Deleting…' : label}</button>
+    </div>
+  </section>;
+}
 
 const exact = (iso) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
 
@@ -18,6 +70,9 @@ export function AuditLogPage() {
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [cleared, setCleared] = useState(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -27,7 +82,7 @@ export function AuditLogPage() {
         .catch((err) => { if (alive) setError(err.message); });
     }, filters.q ? 300 : 0);
     return () => { alive = false; clearTimeout(timer); };
-  }, [filters, page]);
+  }, [filters, page, reload]);
 
   const set = (key, value) => { setFilters((f) => ({ ...f, [key]: value })); setPage(1); };
   const exportExcel = async () => {
@@ -42,6 +97,12 @@ export function AuditLogPage() {
   return <main className="page">
     {title}
     {error && <Notice kind="error">{error}</Notice>}
+    {cleared !== null && <Notice kind="success">Deleted {cleared.toLocaleString('en-GB')} audit {cleared === 1 ? 'entry' : 'entries'}.</Notice>}
+    {data?.old?.count > 0 && !clearing && <div className="audit-old" role="status">
+      <span>{oldText(data.old)} Clear old entries to keep the log small.</span>
+      <button className="button" onClick={() => setClearing(true)}>Clear old entries…</button></div>}
+    {clearing && <ClearPanel onClose={() => setClearing(false)}
+      onDone={(n) => { setCleared(n); setClearing(false); setReload((r) => r + 1); }} />}
     {data && <>
       <div className="audit-chips" role="radiogroup" aria-label="Category">
         <button type="button" role="radio" aria-checked={!filters.category} className={!filters.category ? 'active' : ''}
@@ -56,6 +117,7 @@ export function AuditLogPage() {
         <label>To <input type="date" value={filters.to} onChange={(e) => set('to', e.target.value)} /></label>
         <span className="fp-spacer" />
         <button className="button" onClick={exportExcel} disabled={busy}>{busy ? 'Exporting…' : 'Excel'}</button>
+        <button className="button" onClick={() => { setClearing(true); setCleared(null); }} disabled={clearing}>Clear…</button>
       </section>
       <section className="card">
         {!data.items.length ? <p className="state">No entries match these filters.</p> : <table className="audit-table">

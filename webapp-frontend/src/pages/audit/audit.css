@@ -15,6 +15,16 @@
 .audit-details dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; margin: 0; }
 .audit-details dt { color: var(--muted); font-size: 11px; text-transform: capitalize; }
 .audit-details dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.audit-old { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+  padding: 10px 14px; border-radius: 10px; border: 1px solid #fcd34d; background: #fffbeb; color: #92400e; }
+:root[data-theme="dark"] .audit-old { border-color: #78350f; background: #2a1d08; color: #fcd34d; }
+.audit-clear { margin-bottom: 12px; }
+.audit-clear h2 { margin-bottom: 4px; }
+.audit-clear .muted { color: var(--muted); margin-top: 0; }
+.audit-clear fieldset { border: 0; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.audit-clear legend { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+.audit-clear fieldset label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.audit-clear .button.danger { background: #dc2626; border-color: #dc2626; color: #fff; }
 .audit-pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; color: var(--muted); font-size: 13px; }
 
 .audit-timeline { list-style: none; margin: 0; padding: 0 0 0 6px; }

@@ -49,12 +49,6 @@ def test_filters(client, world):
     assert client.get(URL, query_string={"actor": "x"}, headers=hdr(world["tok"]["root"])).status_code == 400
 
 
-def test_old_entries_are_purged(client, world):
-    run_write("insert into audit_logs (action, details, created_at) values ('auth.login_failed', '{}', now() - interval '400 days')")
-    _get(client, world)
-    assert not [i for i in _get(client, world, category="security")["items"] if i["at"] < "2026-01-01"]
-
-
 def test_export(client, world):
     r = client.get("/api/admin/audit.xlsx", query_string={"category": "floor_plans"}, headers=hdr(world["tok"]["root"]))
     assert r.status_code == 200 and "audit-log-" in r.headers["Content-Disposition"]

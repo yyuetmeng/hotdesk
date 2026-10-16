@@ -24,6 +24,25 @@ export function relativeTime(iso, nowIso = new Date().toISOString()) {
   return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
 }
 
+// Clearing by hand (owner 2026-10-16): nothing is deleted automatically; only entries older than a month.
+export const PERIODS = [
+  { days: 30, label: 'Older than 1 month' }, { days: 90, label: 'Older than 3 months' },
+  { days: 180, label: 'Older than 6 months' }, { days: 365, label: 'Older than 1 year' }, { days: null, label: 'Before a date…' },
+];
+
+/** Body for POST /api/admin/audit/clear, or null while "Before a date" has no date yet. */
+export function clearBody({ period, before, categories }, dryRun = false) {
+  if (period === null && !before) return null;
+  return { ...(period === null ? { before } : { older_than_days: period }), categories, ...(dryRun ? { dry_run: true } : {}) };
+}
+
+const day = (iso) => new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${iso}T00:00:00Z`));
+/** The banner text for entries older than a month ('' when there are none). */
+export function oldText(old) {
+  if (!old?.count) return '';
+  return `${old.count.toLocaleString('en-GB')} ${old.count === 1 ? 'entry is' : 'entries are'} older than a month (oldest ${day(old.oldest)}).`;
+}
+
 /** Query string for GET /api/admin/audit from filters; empty values are left out. */
 export function auditQuery(filters) {
   return Object.entries(filters)
