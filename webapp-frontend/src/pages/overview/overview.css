@@ -1,7 +1,10 @@
-/* Floor overview: the TV display view (display.css) framed inside the app page, filling the rest of the screen. */
+/* Floor overview: the TV display view (display.css) inside the app page. A TV fits everything into one screen;
+   here the page grows with its content instead (owner 2026-10-16), so nothing is cut off and the page scrolls. */
 .overview-toolbar { align-items: center; margin-bottom: 12px; }
 .overview-toolbar label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
-.overview-body { height: calc(100vh - 210px); height: calc(100dvh - 210px); min-height: 560px; overflow: hidden;
-  border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 2px 8px rgb(15 23 42/.04); }
-.overview-body .disp { height: 100%; }
-@media (max-width: 850px) { .overview-body { height: auto; min-height: 0; } .overview-body .disp { height: auto; min-height: 70vh; overflow: visible; } }
+.overview-body { border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 2px 8px rgb(15 23 42/.04); overflow: hidden; }
+.overview-body .disp { height: auto; min-height: 0; overflow: visible; font-size: 14px; gap: 12px; padding: 14px 18px; }
+.overview-body .disp-top { max-height: none; overflow: visible; gap: 10px; }
+.overview-body .disp-floors { flex: none; grid-auto-rows: auto; gap: 14px; }
+.overview-body .disp-floor-card { gap: 8px; }
+.overview-body .disp-floor { height: auto; flex: none; }

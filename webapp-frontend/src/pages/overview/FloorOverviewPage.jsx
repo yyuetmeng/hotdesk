@@ -38,7 +38,6 @@ export function FloorOverviewPage() {
         {choices.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
         <option value={ALL}>All floors</option>
       </select></label>
-      {slug !== ALL && <a className="quiet-link" href={`/display/${slug}`} target="_blank" rel="noreferrer">Open on a TV ↗</a>}
     </div>
     <div className="overview-body"><DisplayView key={slug} loadConfig={load} /></div>
   </main>;
