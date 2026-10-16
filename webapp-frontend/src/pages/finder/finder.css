@@ -31,3 +31,8 @@
 .finder-facts dt { color: var(--muted); font-size: 12px; } .finder-facts dd { margin: 2px 0 0; font-weight: 600; }
 .finder-floor h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
 .finder-drawing .disp-floor { height: auto; max-height: 64vh; min-height: 0; }
+/* Mobile: the project team filter goes full width under the search box. */
+@media (max-width: 850px) {
+  .finder-team { flex: 1 1 100%; }
+  .finder-team select { width: 100%; min-width: 0; }
+}
