@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { initialDisplayState, nextFloorIndex, overall, reduceRefresh, rotationKey, sgDateTime, sgTime, slugify } from '../src/display/displayLogic.js';
+import { initialDisplayState, nextFloorIndex, overall, overviewConfig, reduceRefresh, rotationKey, sgDateTime, sgTime, slugify } from '../src/display/displayLogic.js';
 
 assert.deepEqual(
   overall([{ bookable: 3, available: 1, booked: 1, occupied: 1 }, { bookable: 5, available: 2, booked: 0, occupied: 3 }]),
@@ -84,3 +84,9 @@ console.log('display walls smoke OK');
   assert.equal(toiletGender({}), 'unisex');
 }
 console.log('display floor style smoke OK');
+
+// Floor overview "All floors": the same display view over every published floor, shown together.
+assert.deepEqual(overviewConfig([{ id: 'p1', name: 'L1' }, { id: 'p2', name: 'L2' }]), {
+  name: 'All floors', slug: '', show_overall: true, layout: 'grid', rotate_seconds: 20, plan_ids: ['p1', 'p2'],
+  floors: [{ id: 'p1', name: 'L1', published: true }, { id: 'p2', name: 'L2', published: true }] });
+console.log('floor overview smoke OK');

@@ -1,0 +1,7 @@
+/* Floor overview: the TV display view (display.css) framed inside the app page, filling the rest of the screen. */
+.overview-toolbar { align-items: center; margin-bottom: 12px; }
+.overview-toolbar label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.overview-body { height: calc(100vh - 210px); height: calc(100dvh - 210px); min-height: 560px; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 2px 8px rgb(15 23 42/.04); }
+.overview-body .disp { height: 100%; }
+@media (max-width: 850px) { .overview-body { height: auto; min-height: 0; } .overview-body .disp { height: auto; min-height: 70vh; overflow: visible; } }

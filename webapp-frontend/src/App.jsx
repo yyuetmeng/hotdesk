@@ -8,6 +8,7 @@ import { DeskLabelsPage } from './qr/DeskLabelsPage.jsx';
 import { DisplayPage } from './display/DisplayPage.jsx';
 import { BookDeskPage } from './desk/BookDeskPage.jsx';
 import { DisplaysPage } from './pages/displays/DisplaysPage.jsx';
+import { FloorOverviewPage } from './pages/overview/FloorOverviewPage.jsx';
 import { InsightsPage } from './pages/insights/InsightsPage.jsx';
 import { AccountPage } from './pages/account/AccountPage.jsx';
 import { LoginPage } from './pages/login/LoginPage.jsx';
@@ -22,7 +23,7 @@ import ThemeSettings from './ThemeSettings.jsx';
 import { isAdmin } from './roles.js';
 import { BOTTOM_LINKS, readCollapsed, saveCollapsed, shellClass } from './layout.js';
 
-const workspaceLinks = [['/', 'Dashboard', 'dashboard'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin'], ['/finder', 'Colleague Finder', 'finder']];
+const workspaceLinks = [['/', 'Dashboard', 'dashboard'], ['/overview', 'Floor overview', 'overview'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin'], ['/finder', 'Colleague Finder', 'finder']];
 const analyticsLinks = [['/insights', 'Insights', 'insights']];
 const adminLinks = [['/desk-labels', 'Print Desk Labels', 'labels'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users'], ['/audit', 'Audit Log', 'audit']];
 
@@ -33,6 +34,7 @@ function NavIcon({ name }) {
     checkin: <><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></>,
     insights: <><path d="M3 3v18h18"/><path d="m7 14 3-3 3 2 5-6"/><path d="M15 7h3v3"/></>,
     display: <><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></>,
+    overview: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 10h18M10 10v11"/></>,
     planner: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M3 9h5M16 13h5M16 13v8"/></>,
     users: <><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20v-1.5a6.5 6.5 0 0 1 13 0V20"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14a6.5 6.5 0 0 1 3 5.5V20"/></>,
     account: <><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></>,
@@ -126,6 +128,7 @@ function Workspace() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/checkin" element={<CheckInPage />} />
       <Route path="/checkin/:seatId" element={<CheckInPage />} />
+      <Route path="/overview" element={<FloorOverviewPage />} />
       <Route path="/book" element={<BookDeskPage />} />
       <Route path="/finder" element={<ColleagueFinderPage />} />
       <Route path="/displays" element={<AdminOnly><DisplaysPage /></AdminOnly>} />

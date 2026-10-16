@@ -63,3 +63,13 @@ def test_public_floor_summary_and_department_names(client, world, monkeypatch):
     assert floor["summary"] == {"bookable": 3, "available": 1, "booked": 1, "occupied": 1, "occupancy_pct": 33}
     names = {s["label"]: s["department"] for s in floor["seats"]}
     assert names == {"F1": "Free for all", "F2": "Free for all", "E1": "Engineering", "U1": None}
+
+
+def test_signed_in_users_can_list_displays_for_the_floor_overview(client, world):
+    """Floor overview (owner 2026-10-16) shows what a display shows; anyone signed in can pick one."""
+    assert _create(client, world, name="Office B", slug="office-b").status_code == 201
+    assert _create(client, world).status_code == 201
+    r = client.get("/api/desk/displays", headers=hdr(world["tok"]["jane"]))
+    assert r.status_code == 200
+    assert r.get_json()["items"] == [{"name": "Office A lobby", "slug": "office-a"}, {"name": "Office B", "slug": "office-b"}]
+    assert client.get("/api/desk/displays").status_code == 401

@@ -71,6 +71,12 @@ export function reduceRefresh(state, outcome) {
 
 /** The unsaved Manage Floor Display form as the config the TV reads (GET /api/public/displays/<slug>),
  *  so the preview shows exactly what will be saved. Deleted plans are dropped, drafts flagged. */
+/** Floor overview "All floors": a display config over every published floor (GET /api/public/floors), side by side. */
+export const overviewConfig = (floors) => ({
+  name: 'All floors', slug: '', show_overall: true, layout: 'grid', rotate_seconds: 20, plan_ids: floors.map((f) => f.id),
+  floors: floors.map((f) => ({ id: f.id, name: f.name, published: true })),
+});
+
 export function previewConfig(form, plans) {
   const byId = Object.fromEntries(plans.map((p) => [p.id, p]));
   const seconds = Number.parseInt(form.rotate_seconds, 10);

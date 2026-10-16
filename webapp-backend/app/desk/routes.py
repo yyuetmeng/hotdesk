@@ -4,12 +4,14 @@ from functools import wraps
 
 from flask import g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
+from sqlalchemy import select
 
 from app.admin.floorplan_publishing import _version_element_dto
 from app.admin.floorplans import _catalog, _catalog_dto
 from app.auth.routes import auth_required
 from app.core.audit import write_audit
 from app.core.auth_models import User
+from app.core.desk_models import DashboardDisplay
 from app.core.errors import error
 from app.core.orm import orm_session
 
@@ -163,6 +165,14 @@ def teams(viewer, at):
 @desk_endpoint
 def dashboard(viewer, at):
     return jsonify(desk_dashboard(viewer, at))
+
+
+@desk_bp.get("/displays")
+@desk_endpoint
+def displays(viewer, at):
+    """Displays by name, for the Floor overview picker (it then reads /api/public/displays/<slug>)."""
+    rows = orm_session().execute(select(DashboardDisplay.name, DashboardDisplay.slug).order_by(DashboardDisplay.name)).all()
+    return jsonify(items=[{"name": name, "slug": slug} for name, slug in rows])
 
 
 @desk_bp.get("/me")
