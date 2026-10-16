@@ -1,13 +1,14 @@
 """Bulk loading of users from an Excel template (owner 2026-10-16), for the initial mass load.
 
-GET  /api/admin/users/import-template.xlsx   Users sheet (headers + one reference record: an existing user, if any)
+GET  /api/admin/users/import-template.xlsx   Users sheet (headers + a sample row: Andy Lau, which upload ignores)
                                              and an Instructions sheet (rules, existing project teams)
 POST /api/admin/users/import         multipart: file (.xlsx or .csv); form: dry_run, create_teams, send_invitations,
                                      default_password (optional: every new user's starting password, 8+ characters)
 
-Each row gets a status: create / skip (email already exists, incl. the template's reference record) / error (with
+Each row gets a status: create / skip (email already exists, or the template's sample row) / error (with
 messages). A dry run changes nothing; an import creates the valid rows and leaves the rest, so re-uploading a fixed
-file is safe. Users are tagged to project teams from their "Project teams" column.
+file is safe. Users are tagged to project teams from their "Project teams" column. Uploads create normal users
+only (no Role column; an older file's Role column is ignored) - admins are made one at a time in Manage Users.
 """
 import csv
 import datetime as dt
@@ -27,12 +28,13 @@ from app.core.xlsx import write_xlsx
 from app.core.xlsx_read import read_xlsx
 
 from . import admin_bp
-from .users import ROLE_NAMES, _send_invitation, _valid_email
+from .users import _send_invitation, _valid_email
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MAX_BYTES = 5 * 1024 * 1024
 MAX_ROWS = 2000
-USER_COLUMNS = ["Full name", "Email", "Username", "Role", "Project teams", "Booking allowance", "Access from", "Access until"]
+USER_COLUMNS = ["Full name", "Email", "Username", "Project teams", "Booking allowance", "Access from", "Access until"]
+SAMPLE = {"Full name": "Andy Lau", "Email": "andy.lau@gmail.com", "Username": "andylau"}   # row 2 of the template
 SPLIT = re.compile(r"[;,\n]")
 EXCEL_EPOCH = dt.date(1899, 12, 30)
 
@@ -96,17 +98,10 @@ def _summary(rows: list[dict]) -> dict:
     return {k: sum(1 for r in rows if r["status"] == k) for k in ("create", "skip", "error")}
 
 
-def _reference_user():
-    """An existing, active user to show filled in as row 2 of the template: one in a project team if possible."""
-    users = orm_session().scalars(select(User).where(User.is_active.is_(True)).order_by(User.full_name)).unique().all()
-    people = [u for u in users if u.role is None or u.role.name != "admin"] or users
-    return next((u for u in people if u.departments), people[0] if people else None)
-
-
-def _reference_row(user) -> list:
-    return [user.full_name, user.email, user.username, user.role.name if user.role else "user",
-            "; ".join(d.name for d in user.departments), user.booking_allowance,
-            user.start_date.isoformat() if user.start_date else None, user.end_date.isoformat() if user.end_date else None]
+def _sample_row() -> list:
+    """Row 2 of the template: a made-up person showing how to fill a row in (the first project team, if any)."""
+    teams = _team_names()
+    return [SAMPLE["Full name"], SAMPLE["Email"], SAMPLE["Username"], teams[0] if teams else None, 0, None, None]
 
 
 def _template(sheet: str, columns: list[str], instructions: list[list], example: list | None) -> Response:
@@ -128,16 +123,15 @@ def users_template():
              ["Full name", "Yes", "The person's name, e.g. Tan Mei Ling"],
              ["Email", "Yes", "Their work email; it is also how they sign in. Rows whose email already exists are skipped."],
              ["Username", "No", "Letters, digits or _ (at least 2). Left empty: made from the email, e.g. mei.tan@x.com -> meitan"],
-             ["Role", "No", "user (default) or admin"],
              ["Project teams", "No", "One or more project team names, separated by ; (e.g. Bolt On; DDAP). Names must match an existing team, unless you tick 'Create missing project teams' when uploading."],
              ["Booking allowance", "No", "How many colleagues they may book for per day (0 if empty)"],
              ["Access from", "No", "First day they can sign in, YYYY-MM-DD (empty = straight away)"],
              ["Access until", "No", "Last day they can sign in, YYYY-MM-DD (empty = no end)"],
-             [], ["Row 2 of the Users sheet is a reference record: an existing user, filled in as an example. "
+             [], ["Row 2 of the Users sheet (Andy Lau) is a sample showing how to fill a row in. "
                   "You can leave it or delete it; it is ignored when you upload."],
+             ["Everyone uploaded is a normal user. To make someone an admin, edit them in Manage Users afterwards."],
              [], ["Existing project teams"]] + [[n] for n in _team_names()]
-    ref = _reference_user()
-    return _template("Users", USER_COLUMNS, rules, _reference_row(ref) if ref else None)
+    return _template("Users", USER_COLUMNS, rules, _sample_row())
 
 
 def _username_from(email: str) -> str:
@@ -150,21 +144,21 @@ def _check_users(rows, create_teams: bool) -> list[dict]:
     emails = set(session.scalars(select(func.lower(User.email))))
     usernames = set(session.scalars(select(func.lower(User.username))))
     teams = {n.lower(): n for n in _team_names()}
-    ref = _reference_user()
-    ref_email = ref.email.lower() if ref else None
     seen_emails, out = {}, []
     for number, r in rows:
         problems, notes = [], []
         name, email = _text(r["Full name"]), _text(r["Email"]).lower()
+        if email == SAMPLE["Email"]:
+            out.append({"row": number, "status": "skip", "full_name": name, "email": email, "username": _text(r["Username"]).lower(),
+                        "teams": [], "messages": ["This is the template's sample row (Andy Lau): ignored."],
+                        "_allowance": 0, "_start": None, "_end": None})
+            continue
         if not name:
             problems.append("Full name is required.")
         if not _valid_email(email):
             problems.append("A valid email is required.")
         elif email in seen_emails:
             problems.append(f"Same email as row {seen_emails[email]}.")
-        role = _text(r["Role"]).lower() or "user"
-        if role not in ROLE_NAMES:
-            problems.append("Role must be user or admin.")
         username = _text(r["Username"]).lower()
         if username:
             if len(username) < 2 or not username.replace("_", "").isalnum():
@@ -199,9 +193,7 @@ def _check_users(rows, create_teams: bool) -> list[dict]:
             problems.append("Dates must be YYYY-MM-DD.")
         exists = _valid_email(email) and email in emails and email not in seen_emails
         if exists:                                   # already loaded (e.g. a re-upload): skip, whatever else the row says
-            note = ("This is the template's reference record (an existing user): ignored." if email == ref_email
-                    else f"A user with email {email} already exists; skipped.")
-            status, problems, notes = "skip", [note], []
+            status, problems, notes = "skip", [f"A user with email {email} already exists; skipped."], []
         else:
             status = "error" if problems else "create"
         if _valid_email(email):
@@ -209,7 +201,7 @@ def _check_users(rows, create_teams: bool) -> list[dict]:
         if status == "create":
             usernames.add(username)
         out.append({"row": number, "status": status, "full_name": name, "email": email, "username": username,
-                    "role": role, "teams": list(dict.fromkeys(picked)), "messages": problems or notes,
+                    "teams": list(dict.fromkeys(picked)), "messages": problems or notes,
                     "_allowance": int(allowance) if allowance.isdigit() else 0, "_start": start, "_end": end})
     return out
 
@@ -244,12 +236,12 @@ def import_users():
                 session.add(teams[name.lower()])
                 session.flush()
                 audit_row(actor, "department.create", None, {"name": name, "department_id": str(teams[name.lower()].id), "source": "import"})
-        user = User(email=r["email"], username=r["username"], full_name=r["full_name"], role_id=roles[r["role"]],
+        user = User(email=r["email"], username=r["username"], full_name=r["full_name"], role_id=roles["user"],
                     booking_allowance=r["_allowance"], start_date=r["_start"], end_date=r["_end"], password_hash=password_hash)
         user.departments = [teams[n.lower()] for n in r["teams"]]
         session.add(user)
         session.flush()
-        audit_row(actor, "user.create", str(user.id), {"email": r["email"], "username": r["username"], "role": r["role"], "source": "import",
+        audit_row(actor, "user.create", str(user.id), {"email": r["email"], "username": r["username"], "role": "user", "source": "import",
                                                      "default_password": bool(password)})
         created.append((user, r))
     session.commit()

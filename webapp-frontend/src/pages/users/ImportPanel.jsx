@@ -1,5 +1,5 @@
-// Upload Users from the Excel template (owner 2026-10-16): download the template (row 2 is a reference record,
-// an existing user, which upload ignores), fill it in, choose the file, check it (a row-by-row preview; nothing
+// Upload Users from the Excel template (owner 2026-10-16): download the template (row 2 is a sample, Andy Lau,
+// which upload ignores), fill it in, choose the file, check it (a row-by-row preview; nothing
 // is saved), then upload. Rows with errors are left out and listed; rows whose email already exists are skipped,
 // so uploading a fixed file again is safe. Project teams come from each row's "Project teams" column.
 import { useState } from 'react';
@@ -46,7 +46,7 @@ export default function ImportPanel({ onClose, onDone }) {
     <ol className="users-import-steps">
       <li><button type="button" className="button" disabled={busy === 'template'}
         onClick={() => run('template', () => downloadFile('/api/admin/users/import-template.xlsx', 'users-template.xlsx'))}>Download the Excel template</button>
-        <span className="muted"> Row 2 is a reference record (an existing user) and is ignored on upload. The Instructions sheet explains each column and lists the project teams.</span></li>
+        <span className="muted"> Row 2 (Andy Lau) is a sample and is ignored on upload. Everyone uploaded is a normal user. The Instructions sheet explains each column and lists the project teams.</span></li>
       <li>Fill it in, then choose the file: <input type="file" accept=".xlsx,.csv" onChange={changed((e) => setFile(e.target.files?.[0] ?? null))} /></li>
       <li className="users-import-options">
         <label><input type="checkbox" checked={createTeams} onChange={changed((e) => setCreateTeams(e.target.checked))} />Create missing project teams</label>
@@ -68,10 +68,10 @@ export default function ImportPanel({ onClose, onDone }) {
         {preview.imported > 0 && <> — <b>uploaded {preview.imported}</b></>}
       </p>
       <div className="users-table-wrap"><table className="users-import-table">
-        <thead><tr><th>Row</th><th>Status</th><th>Name</th><th>Email</th><th>Username</th><th>Role</th><th>Project teams</th><th>Notes</th></tr></thead>
+        <thead><tr><th>Row</th><th>Status</th><th>Name</th><th>Email</th><th>Username</th><th>Project teams</th><th>Notes</th></tr></thead>
         <tbody>{preview.rows.map((r) => <tr key={r.row} className={`imp-${r.status}`}>
           <td>{r.row}</td><td><span className={`users-import-pill imp-${r.status}`}>{statusLabel(r.status)}</span></td>
-          <td>{r.full_name}</td><td>{r.email}</td><td>{r.username}</td><td>{r.role}</td><td>{r.teams.join(', ') || '—'}</td>
+          <td>{r.full_name}</td><td>{r.email}</td><td>{r.username}</td><td>{r.teams.join(', ') || '—'}</td>
           <td>{r.messages.join(' ')}</td>
         </tr>)}</tbody>
       </table></div>

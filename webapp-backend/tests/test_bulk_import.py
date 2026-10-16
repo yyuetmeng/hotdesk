@@ -14,7 +14,7 @@ from app.core.xlsx_read import read_xlsx
 from desk_helpers import build_world, hdr
 
 USERS = "/api/admin/users/import"
-HEAD = ["Full name", "Email", "Username", "Role", "Project teams", "Booking allowance", "Access from", "Access until"]
+HEAD = ["Full name", "Email", "Username", "Project teams", "Booking allowance", "Access from", "Access until"]
 
 
 @pytest.fixture()
@@ -47,10 +47,10 @@ def test_templates_download_as_excel_with_the_expected_columns(client, world):
 
 
 def test_preview_reports_each_row_and_changes_nothing(client, world):
-    rows = [["Mei Ling", "mei@x.com", "", "", "Engineering; Ops", 2, "", ""],
-            ["", "nobody@x.com", "", "", "", "", "", ""],                         # no name
-            ["Jane Again", "jane@x.com", "", "", "", "", "", ""],                 # email already exists
-            ["Bad Team", "bt@x.com", "", "", "Nope", "", "", ""]]                 # unknown team, not created
+    rows = [["Mei Ling", "mei@x.com", "", "Engineering; Ops", 2, "", ""],
+            ["", "nobody@x.com", "", "", "", "", ""],                         # no name
+            ["Jane Again", "jane@x.com", "", "", "", "", ""],                 # email already exists
+            ["Bad Team", "bt@x.com", "", "Nope", "", "", ""]]                 # unknown team, not created
     body = _upload(client, world, USERS, rows, dry_run="1").get_json()
     assert [(r["row"], r["status"]) for r in body["rows"]] == [(2, "create"), (3, "error"), (4, "skip"), (5, "error")]
     assert body["rows"][0]["username"] == "mei" and body["rows"][0]["teams"] == ["Engineering", "Ops"]
@@ -62,16 +62,16 @@ def test_preview_reports_each_row_and_changes_nothing(client, world):
 
 
 def test_import_creates_valid_rows_tags_teams_and_skips_the_rest(client, world):
-    rows = [["Mei Ling", "Mei@X.com", "", "Admin", "engineering", 2, "2026-10-01", "2027-03-31"],
-            ["Tan Ah Kow", "tak@x.com", "takow", "user", "New Team, Ops", "", "", ""],
-            ["", "nobody@x.com", "", "", "", "", "", ""]]
+    rows = [["Mei Ling", "Mei@X.com", "", "engineering", 2, "2026-10-01", "2027-03-31"],
+            ["Tan Ah Kow", "tak@x.com", "takow", "New Team, Ops", "", "", ""],
+            ["", "nobody@x.com", "", "", "", "", ""]]
     r = _upload(client, world, USERS, rows, create_teams="1")
     assert r.status_code == 200, r.get_json()
     body = r.get_json()
     assert body["summary"] == {"create": 2, "skip": 0, "error": 1} and body["imported"] == 2
     [mei] = run_query("select u.email, u.username, r.name as role, u.booking_allowance, u.start_date, u.end_date "
                       "from users u join roles r on r.id = u.role_id where u.full_name = 'Mei Ling'")
-    assert (mei["email"], mei["username"], mei["role"], mei["booking_allowance"]) == ("mei@x.com", "mei", "admin", 2)
+    assert (mei["email"], mei["username"], mei["role"], mei["booking_allowance"]) == ("mei@x.com", "mei", "user", 2)   # never admin
     assert str(mei["start_date"]) == "2026-10-01" and str(mei["end_date"]) == "2027-03-31"
     teams = {(r["full_name"], r["name"]) for r in run_query(
         "select u.full_name, d.name from user_departments ud join users u on u.id = ud.user_id "
@@ -84,20 +84,19 @@ def test_import_creates_valid_rows_tags_teams_and_skips_the_rest(client, world):
 
 
 def test_invitations_are_sent_only_when_asked(client, world):
-    _upload(client, world, USERS, [["Mei Ling", "mei@x.com", "", "", "", "", "", ""]], send_invitations="1")
+    _upload(client, world, USERS, [["Mei Ling", "mei@x.com", "", "", "", "", ""]], send_invitations="1")
     assert world["sent"] == ["mei@x.com"]
 
 
 def test_usernames_are_made_unique_and_rows_checked_against_each_other(client, world):
-    rows = [["Jane Two", "jane@other.com", "", "", "", "", "", ""],               # "jane" is taken -> jane2
-            ["Dup One", "dup@x.com", "", "", "", "", "", ""],
-            ["Dup Two", "DUP@x.com", "", "", "", "", "", ""],                       # same email twice in the file
-            ["Bad Role", "br@x.com", "", "boss", "", "", "", ""],
-            ["Bad Date", "bd@x.com", "", "", "", "", "31/12/2026", ""],
-            ["Bad Num", "bn@x.com", "", "", "", "-1", "", ""]]
+    rows = [["Jane Two", "jane@other.com", "", "", "", "", ""],               # "jane" is taken -> jane2
+            ["Dup One", "dup@x.com", "", "", "", "", ""],
+            ["Dup Two", "DUP@x.com", "", "", "", "", ""],                       # same email twice in the file
+            ["Bad Date", "bd@x.com", "", "", "", "31/12/2026", ""],
+            ["Bad Num", "bn@x.com", "", "", "-1", "", ""]]
     body = _upload(client, world, USERS, rows, dry_run="1").get_json()
     assert body["rows"][0]["username"] == "jane2"
-    assert [r["status"] for r in body["rows"]] == ["create", "create", "error", "error", "error", "error"]
+    assert [r["status"] for r in body["rows"]] == ["create", "create", "error", "error", "error"]
 
 
 def test_a_file_that_is_not_the_template_is_refused(client, world):
@@ -127,22 +126,31 @@ def test_reader_handles_shared_strings_numbers_and_dates_as_excel_saves_them():
     assert rows == [["Name", None, "When"], ["Mei Ling", 2.0, 46296.0]]          # blank row 2 dropped, gaps kept
 
 
-def test_template_has_a_reference_record_from_an_existing_user_which_upload_skips(client, world):
-    """Row 2 shows a real, existing user filled in, as an example; uploading it unchanged just skips it."""
+def test_template_has_the_andy_lau_sample_row_which_upload_ignores(client, world):
+    """Row 2 is a made-up sample (owner 2026-10-16): Andy Lau, andy.lau@gmail.com, andylau; upload ignores it."""
     root = hdr(world["tok"]["root"])
     rows = read_xlsx(client.get("/api/admin/users/import-template.xlsx", headers=root).data)
     assert len(rows) == 2
-    ref = dict(zip(HEAD, rows[1]))
-    assert ref["Email"] == "ali@x.com" and ref["Full name"] == "Ali Rahman"          # a user in a project team
-    assert ref["Project teams"] == "Engineering" and ref["Role"] == "user" and ref["Booking allowance"] == 1.0
-    body = _upload(client, world, USERS, [rows[1], ["Mei Ling", "mei@x.com", "", "", "", "", "", ""]]).get_json()
+    sample = dict(zip(HEAD, rows[1]))
+    assert (sample["Full name"], sample["Email"], sample["Username"]) == ("Andy Lau", "andy.lau@gmail.com", "andylau")
+    assert sample["Project teams"] == "Engineering"                                   # an existing team, as an example
+    body = _upload(client, world, USERS, [rows[1], ["Mei Ling", "mei@x.com", "", "", "", "", ""]]).get_json()
     assert [r["status"] for r in body["rows"]] == ["skip", "create"] and body["imported"] == 1
-    assert "reference record" in body["rows"][0]["messages"][0]                       # said plainly, and ignored
+    assert "sample" in body["rows"][0]["messages"][0]
+    assert "Andy Lau" not in _names()
+
+
+def test_a_role_column_in_an_older_file_is_ignored(client, world):
+    head = HEAD[:3] + ["Role"] + HEAD[3:]
+    body = _upload(client, world, USERS, [["Boss", "boss@x.com", "", "admin", "", "", "", ""]], head=head).get_json()
+    assert body["imported"] == 1
+    [boss] = run_query("select r.name from users u join roles r on r.id = u.role_id where u.email = 'boss@x.com'")
+    assert boss["name"] == "user"
 
 
 def test_a_default_password_lets_new_users_sign_in_straight_away(client, world):
     """Owner 2026-10-16: optionally give every uploaded user the same starting password (at least 8 characters)."""
-    rows = [["Mei Ling", "mei@x.com", "", "", "", "", "", ""]]
+    rows = [["Mei Ling", "mei@x.com", "", "", "", "", ""]]
     assert _upload(client, world, USERS, rows, default_password="short").status_code == 400
     assert "Mei Ling" not in _names()
     assert _upload(client, world, USERS, rows, default_password="Welcome#2026").get_json()["imported"] == 1
