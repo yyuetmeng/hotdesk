@@ -29,3 +29,22 @@
 .occ-axis { fill: var(--muted); font-size: 12px; }
 .occ-line { fill: none; stroke: #3b82f6; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .occ-peak { fill: none; stroke: #93c5fd; stroke-width: 1.5; stroke-dasharray: 5 4; }
+
+/* Top row: Project teams (wider) and Recent activity. */
+.insights-top { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); margin-bottom: 16px; }
+@media (max-width: 1100px) { .insights-top { grid-template-columns: 1fr; } }
+.teams-export { display: inline-flex; align-items: center; gap: 8px; font-weight: 650; }
+.teams-export svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.teams-table-wrap { overflow-x: auto; margin-top: 10px; }
+.teams-table th { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
+.teams-table .num { text-align: right; font-variant-numeric: tabular-nums; width: 90px; }
+.teams-table td.num { font-weight: 650; }
+.teams-table .teams-people { color: var(--muted); padding-left: 18px; }
+.teams-table tfoot th { color: var(--text); font-size: 14px; text-transform: none; letter-spacing: 0; }
+.activity-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.activity-list li { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--border); }
+.activity-dot { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; }
+.activity-dot.check_in { background: #16a34a; } .activity-dot.check_out { background: #64748b; }
+.activity-main { flex: 1; min-width: 0; } .activity-main b { display: block; font-size: 14px; }
+.activity-main small { display: block; color: var(--muted); font-size: 12px; }
+.activity-list time { flex: none; color: var(--muted); font-size: 12px; text-align: right; }
