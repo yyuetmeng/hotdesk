@@ -13,3 +13,18 @@
 .zone-util-pct { text-align: right; width: 56px; font-weight: 650; }
 .zone-util-legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 13px; }
 .zone-util-legend span { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+
+/* Insights: Utilisation by zone and Occupancy side by side (stacked on narrow screens). */
+.insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr)); gap: 16px; align-items: start; }
+.insights-grid .zone-util { margin-bottom: 0; }
+.occ-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.occ-head h2 { margin: 0 0 4px; } .occ-sub { margin: 0; color: var(--muted); font-size: 13px; max-width: 420px; }
+.occ-ranges { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+.occ-ranges button { border: 0; background: transparent; color: var(--muted); font-weight: 650; font-size: 13px; padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+.occ-ranges button:hover { color: var(--text); }
+.occ-ranges button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0/.18); }
+.occ-chart { display: block; width: 100%; height: auto; margin-top: 12px; }
+.occ-grid { stroke: var(--border); stroke-width: 1; }
+.occ-axis { fill: var(--muted); font-size: 12px; }
+.occ-line { fill: none; stroke: #3b82f6; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.occ-peak { fill: none; stroke: #93c5fd; stroke-width: 1.5; stroke-dasharray: 5 4; }
