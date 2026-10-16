@@ -20,8 +20,9 @@ export function DisplayPage() {
 }
 
 // The display itself. `loadConfig` returns the display config: the saved one for a TV, or the unsaved
-// form for the live preview in Manage Floor Display. Seat data is always live.
-export function DisplayView({ loadConfig }) {
+// form for the live preview in Manage Floor Display. Seat data is always live. `heading` replaces the display
+// name in the banner (Floor overview puts its display picker there).
+export function DisplayView({ loadConfig, heading = null }) {
   const [view, setView] = useState(initialDisplayState);
   const [index, setIndex] = useState(0);
   const [seat, setSeat] = useState(null);
@@ -71,7 +72,7 @@ export function DisplayView({ loadConfig }) {
   return <main className="disp">
     <div className="disp-top">
       <header className="disp-head">
-        <h1>{display.name}</h1>
+        <h1>{heading ?? display.name}</h1>
         <div className="disp-clock">
           <b>{sgDateTime(now)}</b>
           <small>{offline ? `Offline — last updated ${sgTime(updatedAt)}` : `Updated ${sgTime(updatedAt)}`}</small>

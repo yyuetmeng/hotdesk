@@ -1,7 +1,10 @@
 /* Floor overview: the TV display view (display.css) inside the app page. A TV fits everything into one screen;
    here the page grows with its content instead (owner 2026-10-16), so nothing is cut off and the page scrolls. */
-.overview-toolbar { align-items: center; margin-bottom: 12px; }
-.overview-toolbar label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+/* The display picker sits in the banner where a TV shows the display name, looking like that title. */
+.overview-picker { font: inherit; font-weight: 700; color: #fff; background: transparent; border: 1px solid rgb(255 255 255/.25);
+  border-radius: 8px; padding: 2px 30px 2px 10px; cursor: pointer; max-width: 100%; }
+.overview-picker:hover, .overview-picker:focus-visible { border-color: rgb(255 255 255/.6); outline: none; }
+.overview-picker option { color: #0f172a; background: #fff; font-weight: 500; font-size: 15px; }
 .overview-body { border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 2px 8px rgb(15 23 42/.04); overflow: hidden; }
 .overview-body .disp { height: auto; min-height: 0; overflow: visible; font-size: 14px; gap: 12px; padding: 14px 18px; }
 .overview-body .disp-top { max-height: none; overflow: visible; gap: 10px; }

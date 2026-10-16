@@ -33,12 +33,10 @@ export function FloorOverviewPage() {
   if (!choices) return <main className="page">{title}<Loading label="Loading the floor overview..." /></main>;
   return <main className="page overview">
     {title}
-    <div className="toolbar overview-toolbar">
-      <label>Display <select value={slug} onChange={(e) => choose(e.target.value)}>
+    <div className="overview-body"><DisplayView key={slug} loadConfig={load} heading={
+      <select className="overview-picker" value={slug} onChange={(e) => choose(e.target.value)} aria-label="Display">
         {choices.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
         <option value={ALL}>All floors</option>
-      </select></label>
-    </div>
-    <div className="overview-body"><DisplayView key={slug} loadConfig={load} /></div>
+      </select>} /></div>
   </main>;
 }
