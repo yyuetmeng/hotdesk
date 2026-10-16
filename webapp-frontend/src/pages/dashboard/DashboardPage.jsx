@@ -99,9 +99,25 @@ function History({ items, today }) {
   </section>;
 }
 
-function BookAgain({ items }) {
+function AutoBookNotes({ notes, today }) {
+  if (!notes?.length) return null;
+  return <>{notes.map((n) => <Notice key={n.date} kind={n.ok ? 'success' : 'error'}>
+    {n.ok ? `Auto-booked your usual seat ${n.seat_label} for ${dayText(n.date, today).toLowerCase() === 'today' ? 'today' : dayText(n.date, today)} (full day).`
+      : <>Your usual seat {n.seat_label} could not be booked for {dayText(n.date, today)}: {n.message} <Link to="/book">Book another desk</Link></>}
+  </Notice>)}</>;
+}
+
+function BookAgain({ items: all, usual }) {
+  const items = usual ? all.filter((f) => f.seat_id !== usual.seat_id) : all;
   return <section className="card"><h2 className="dash-h">Book again <span>your most used seats</span></h2>
-    {!items.length ? <p className="state">Seats you use will appear here for quick booking.</p> : <div className="dash-chips">
+    {!items.length && !usual ? <p className="state">Seats you use will appear here for quick booking.</p> : <div className="dash-chips">
+      {usual && <div className="dash-chip dash-chip-mine">
+        <b>{usual.seat_label} · {usual.plan_name}</b><small>Your seat{usual.zone ? ` · ${usual.zone}` : ''}</small>
+        <span className="row-actions">
+          <Link className="button" to={`/checkin/${usual.seat_id}`}>Check in</Link>
+          {usual.bookable && <Link className="button" to={`/book?plan=${usual.plan_id}&seat=${usual.seat_id}`}>Book</Link>}
+        </span>
+      </div>}
       {items.map((f) => <Link key={f.seat_id} className="dash-chip" to={`/book?plan=${f.plan_id}&seat=${f.seat_id}`}>
         <b>{f.seat_label} · {f.plan_name}</b><small>{f.zone ? `${f.zone} · ` : ''}used {f.count} {f.count === 1 ? 'time' : 'times'}</small></Link>)}
     </div>}
@@ -131,6 +147,7 @@ export function DashboardPage() {
   return <main className="page dash">
     {title}
     {error && <Notice kind="error">{error}</Notice>}
+    <AutoBookNotes notes={data.auto_book} today={today} />
     <RightNow data={data} />
     <div className="dash-row">
       <Upcoming items={data.upcoming} today={today} onCancel={cancel} />
@@ -140,6 +157,6 @@ export function DashboardPage() {
       <Trend trend={data.trend} />
       <History items={data.history} today={today} />
     </div>
-    <BookAgain items={data.favourites} />
+    <BookAgain items={data.favourites} usual={data.usual_seat} />
   </main>;
 }

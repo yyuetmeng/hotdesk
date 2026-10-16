@@ -14,12 +14,13 @@ const PILL = { checked_in: 'in', booked: 'bk', tomorrow: 'tm', away: 'away' };
 function Floor({ person }) {
   const [floor, setFloor] = useState(null);
   const [error, setError] = useState(null);
-  const { seat } = person;
+  const usual = !person.seat && person.usual_seat ? person.usual_seat : null;   // away: show where they usually sit
+  const seat = person.seat ?? usual;
   useEffect(() => {
     if (!seat?.plan_id) return undefined;
     let alive = true;
     setFloor(null); setError(null);
-    flaskRequest(`/api/desk/floors/${seat.plan_id}?date=${person.date}`)
+    flaskRequest(`/api/desk/floors/${seat.plan_id}${person.date ? `?date=${person.date}` : ''}`)
       .then((f) => { if (alive) setFloor(f); })
       .catch((err) => { if (alive) setError(err.message); });
     return () => { alive = false; };
@@ -29,7 +30,7 @@ function Floor({ person }) {
   if (error) return <Notice kind="error">{error}</Notice>;
   if (!floor) return <p className="state">Loading {seat.plan_name}…</p>;
   return <div className="finder-floor">
-    <h3>{floor.name}{person.status === 'tomorrow' ? ' · tomorrow' : ''}</h3>
+    <h3>{floor.name}{usual ? ' · their usual seat' : person.status === 'tomorrow' ? ' · tomorrow' : ''}</h3>
     <div className="finder-drawing"><FloorDrawing floor={floor} highlightId={seat.seat_id} /></div>
   </div>;
 }
@@ -124,6 +125,8 @@ export function ColleagueFinderPage() {
         <dl className="finder-facts">
           <div><dt>Where</dt><dd>{locationText(picked)}</dd></div>
           {timeText(picked) && <div><dt>When</dt><dd>{timeText(picked)}</dd></div>}
+          {picked.usual_seat && <div><dt>Usually sits at</dt>
+            <dd>{[picked.usual_seat.seat_label, picked.usual_seat.plan_name, picked.usual_seat.zone].filter(Boolean).join(' · ')}</dd></div>}
         </dl>
         <Floor key={`${picked.id}-${picked.seat?.seat_id ?? ''}`} person={picked} />
       </section>}

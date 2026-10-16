@@ -4,6 +4,7 @@ import { Loading, Notice, PageTitle } from '../../components.jsx';
 import { formatDate } from '../../format.js';
 import { useAuth } from '../../auth.jsx';
 import './users.css';
+import { seatGroups, seatName } from './usualSeat.js';
 
 const PAGE_SIZE = 20;
 const EMPTY_FORM = { email: '', username: '', full_name: '', role: 'user', start_date: '', end_date: '',
@@ -50,6 +51,13 @@ export function UsersPage() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
   useEffect(() => { loadDepartments(); }, [loadDepartments]);
+  // Seats of published floors, for the Usual seat picker and the seat shown under each name.
+  const [floors, setFloors] = useState([]);
+  useEffect(() => {
+    flaskRequest('/api/public/floors')
+      .then((d) => Promise.all(d.items.map((f) => flaskRequest(`/api/public/floors/${f.id}`))))
+      .then(setFloors).catch(() => setFloors([]));
+  }, []);
 
   const setFilter = (key, value) => { setFilters((old) => ({ ...old, [key]: value })); setPage(1); };
   const afterChange = async (message, kind = 'success') => {
@@ -92,7 +100,7 @@ export function UsersPage() {
               const [label, cls] = STATUS[statusOf(u)];
               return <tr key={u.id} className={`users-row${editing?.id === u.id ? ' selected' : ''}`}
                 onClick={() => { setNotice(null); setEditing(u); }}>
-                <td><b>{u.full_name}</b><small>@{u.username}</small></td>
+                <td><b>{u.full_name}</b><small>@{u.username}{seatName(floors, u.usual_seat_id) ? ` · seat ${seatName(floors, u.usual_seat_id)}` : ''}</small></td>
                 <td>{u.email}</td>
                 <td className="users-role">{u.role}</td>
                 <td>{u.departments.map((d) => d.name).join(', ') || '—'}</td>
@@ -115,7 +123,7 @@ export function UsersPage() {
 
       <aside className="card detail">
         {editing
-          ? <UserForm key={editing === 'new' ? 'new' : editing.id} user={editing === 'new' ? null : editing}
+          ? <UserForm floors={floors} key={editing === 'new' ? 'new' : editing.id} user={editing === 'new' ? null : editing}
               departments={departments} isSelf={editing !== 'new' && editing.id === me?.id}
               onClose={() => setEditing(null)} onChanged={afterChange}
               onSaved={(saved) => setEditing(saved)} />
@@ -127,13 +135,13 @@ export function UsersPage() {
   </main>;
 }
 
-function UserForm({ user, departments, isSelf, onClose, onChanged, onSaved }) {
+function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSaved }) {
   const isNew = !user;
   const [form, setForm] = useState(() => (isNew ? EMPTY_FORM : {
     email: user.email, username: user.username, full_name: user.full_name, role: user.role,
     start_date: user.start_date || '', end_date: user.end_date || '',
     department_ids: user.departments.map((d) => d.id), is_active: user.is_active,
-    booking_allowance: user.booking_allowance ?? 0,
+    booking_allowance: user.booking_allowance ?? 0, usual_seat_id: user.usual_seat_id ?? '',
   }));
   const [fields, setFields] = useState({});
   const [message, setMessage] = useState(null);
@@ -158,6 +166,7 @@ function UserForm({ user, departments, isSelf, onClose, onChanged, onSaved }) {
     run(async () => {
       const body = { ...form, start_date: form.start_date || null, end_date: form.end_date || null };
       if (body.booking_allowance !== undefined) body.booking_allowance = Number(body.booking_allowance);
+      if (body.usual_seat_id !== undefined) body.usual_seat_id = body.usual_seat_id || null;
       if (isNew) {
         delete body.is_active;
         const created = await flaskRequest('/api/admin/users', { method: 'POST', body });
@@ -169,7 +178,8 @@ function UserForm({ user, departments, isSelf, onClose, onChanged, onSaved }) {
         onSaved(created);
       } else {
         const changed = Object.fromEntries(Object.entries(body).filter(([key, value]) => {
-          const before = key === 'department_ids' ? user.departments.map((d) => d.id) : (user[key] ?? (key.endsWith('_date') ? null : ''));
+          const before = key === 'department_ids' ? user.departments.map((d) => d.id)
+            : (user[key] ?? (key.endsWith('_date') || key === 'usual_seat_id' ? null : ''));
           return JSON.stringify(value) !== JSON.stringify(before);
         }));
         if (!Object.keys(changed).length) { setMessage('Nothing to save.'); return; }
@@ -227,6 +237,13 @@ function UserForm({ user, departments, isSelf, onClose, onChanged, onSaved }) {
         : <small>No project teams yet — add one below the user list.</small>}
       {err('department_ids')}
     </fieldset>
+    {!isNew && <label>Usual seat <select value={form.usual_seat_id} onChange={(e) => set('usual_seat_id', e.target.value)}>
+      <option value="">None</option>
+      {form.usual_seat_id && !seatName(floors, form.usual_seat_id) && <option value={form.usual_seat_id}>Seat no longer published</option>}
+      {seatGroups(floors).map((g) => <optgroup key={g.plan} label={g.plan}>
+        {g.seats.map((seat) => <option key={seat.id} value={seat.id}>{seat.text}</option>)}</optgroup>)}
+    </select><small className="users-hint">Shown in Colleague Finder and on their dashboard. It does not reserve the seat.</small>
+      {err('usual_seat_id')}</label>}
     {!isNew && <label>Can book seats for others (0–20 colleagues per day)
       <input type="number" min="0" max="20" value={form.booking_allowance}
         onChange={(e) => set('booking_allowance', e.target.value)} />{err('booking_allowance')}</label>}

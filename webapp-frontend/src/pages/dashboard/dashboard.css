@@ -43,3 +43,8 @@
   color: var(--text); text-decoration: none; transition: border-color .15s ease, background-color .15s ease; }
 .dash-chip:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
 .dash-chip small { color: var(--muted); font-size: 12px; }
+
+/* "Your seat" (usual seat) chip in Book again. */
+.dash-chip-mine { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); }
+.dash-chip-mine .row-actions { justify-content: flex-start; margin-top: 6px; }
+.dash-chip-mine .button { padding: 4px 10px; font-size: 12px; }

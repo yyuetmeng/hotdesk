@@ -86,3 +86,14 @@
 @media (max-width:850px) { .page-title-action { margin-top:10px; } }
 /* A page title with a description underneath gets a divider, so the header reads as its own section. */
 .page-title:has(> div > p) { padding-bottom:16px; margin-bottom:22px; border-bottom:1px solid var(--border); }
+/* Settings panel: auto-book switch (only for people with a bookable usual seat). */
+.theme-panel { min-width:230px; }
+.theme-auto { margin-top:12px; padding-top:10px; border-top:1px solid #2a3a5c; }
+.theme-switch { display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13px; color:#fff; }
+.theme-switch input { position:absolute; opacity:0; width:1px; height:1px; }
+.theme-switch small { display:block; color:#8292ae; font-size:11px; margin-top:2px; }
+.theme-switch-track { flex:none; position:relative; width:34px; height:20px; border-radius:999px; background:#2a3a5c; transition:background-color .15s ease; }
+.theme-switch-track::after { content:''; position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; transition:transform .15s ease; }
+.theme-switch input:checked + .theme-switch-track { background:#1d9e75; }
+.theme-switch input:checked + .theme-switch-track::after { transform:translateX(14px); }
+.theme-switch input:focus-visible + .theme-switch-track { outline:2px solid #fff; outline-offset:2px; }

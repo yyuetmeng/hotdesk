@@ -1,5 +1,6 @@
 // Cog at the bottom of the sidebar; opens a small panel to pick follow-system / light / dark.
 import { useEffect, useRef, useState } from 'react';
+import { flaskRequest } from './api.js';
 import { THEME_CHOICES, applyTheme, readTheme, saveTheme } from './theme.js';
 
 const ICONS = {
@@ -27,6 +28,19 @@ export default function ThemeSettings() {
 
   const pick = (value) => { setChoice(value); saveTheme(value); applyTheme(value); };
 
+  // Auto-booking (spec 2026-10-16-usual-seat-and-auto-book §3): shown only with a bookable usual seat.
+  const [me, setMe] = useState(null);
+  useEffect(() => {
+    if (!open) return;
+    flaskRequest('/api/desk/me').then(setMe).catch(() => setMe(null));
+  }, [open]);
+  const seat = me?.usual_seat;
+  const toggleAuto = async (on) => {
+    setMe((old) => ({ ...old, auto_book: on }));
+    try { await flaskRequest('/api/desk/me', { method: 'PATCH', body: { auto_book: on } }); }
+    catch { setMe((old) => ({ ...old, auto_book: !on })); }
+  };
+
   return <div className="theme-settings" ref={ref}>
     {open && <div className="theme-panel" role="dialog" aria-label="Settings">
       <p className="theme-panel-label">Theme</p>
@@ -37,6 +51,14 @@ export default function ThemeSettings() {
         </button>)}
       </div>
       <p className="theme-panel-current">{THEME_CHOICES.find((c) => c.value === choice).label}</p>
+      {seat?.bookable && <div className="theme-auto">
+        <p className="theme-panel-label">Booking</p>
+        <label className="theme-switch">
+          <input type="checkbox" role="switch" checked={Boolean(me.auto_book)} onChange={(e) => toggleAuto(e.target.checked)} />
+          <span className="theme-switch-track" aria-hidden="true" />
+          <span>Auto-book my usual seat<small>{seat.seat_label} · {seat.plan_name}, next working day</small></span>
+        </label>
+      </div>}
     </div>}
     <button type="button" className="sidebar-signout theme-cog" aria-expanded={open} aria-haspopup="dialog"
       title="Settings" onClick={() => setOpen((v) => !v)}><Icon name="cog" /><span className="nav-text">Settings</span></button>
