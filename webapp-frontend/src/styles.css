@@ -122,3 +122,10 @@
   .app-content { padding-bottom:calc(78px + env(safe-area-inset-bottom)); }
 }
 
+/* Smaller raised "Scan to check in" button (owner 2026-10-16): a 50px circle, label kept on one line. */
+@media (max-width:850px) {
+  .bottom-nav-fab { width:50px; height:50px; margin-top:-22px; border-width:3px; }
+  .bottom-nav a.main .nav-icon { width:23px; height:23px; }
+  .bottom-nav a span:last-child { white-space:nowrap; }
+  .bottom-nav a.main span:last-child { font-size:10.5px; }
+}
