@@ -22,7 +22,7 @@ export function bookingProblem({ forWho, rows, allowance }) {
   const seen = new Set();
   const twice = rows.find((r) => (seen.has(r.person.id) ? true : (seen.add(r.person.id), false)));
   if (twice) return `${twice.person.name} is picked for more than one seat.`;
-  if (allowance && rows.length > allowance.left) return `You can book for ${allowance.left} more colleague${allowance.left === 1 ? '' : 's'} on this day.`;
+  if (allowance && allowance.left !== null && rows.length > allowance.left) return `You can book for ${allowance.left} more colleague${allowance.left === 1 ? '' : 's'} on this day.`;
   return '';
 }
 

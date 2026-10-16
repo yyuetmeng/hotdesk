@@ -111,8 +111,8 @@ def colleagues(viewer, at):
     used = service.allowance_used(viewer, day)
     return jsonify(items=[{"id": str(u.id), "name": u.full_name, "initials": service.initials(u.full_name)}
                           for u in people],
-                   allowance={"limit": viewer.booking_allowance, "used": used,
-                              "left": max(viewer.booking_allowance - used, 0)})
+                   allowance={"limit": None, "used": used, "left": None} if service.is_admin(viewer)   # admins: no limit
+                   else {"limit": viewer.booking_allowance, "used": used, "left": max(viewer.booking_allowance - used, 0)})
 
 
 @desk_bp.get("/seats/<seat_id>")

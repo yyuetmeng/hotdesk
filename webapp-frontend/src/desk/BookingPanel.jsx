@@ -107,6 +107,7 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
         {r.seat.id !== seat.id && <button type="button" className="bk-x" aria-label={`Remove ${r.seat.label}`} onClick={() => onRemovePicked(r.seat.id)}>✕</button>}
       </div>)}
       {skipped && <p className="bk-hint warn">{skipped}</p>}
+      {allowance && allowance.limit === null && <p className="bk-hint">As an admin you can book for anyone, with no daily limit. Each person can be picked once.</p>}
       {allowance && allowance.limit > 0 && <p className="bk-hint">Allowance: {allowance.limit} colleague{allowance.limit === 1 ? '' : 's'} per day, {allowance.used} used. Each person can be picked once.</p>}
     </div>}
 

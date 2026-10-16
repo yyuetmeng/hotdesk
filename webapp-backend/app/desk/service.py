@@ -171,9 +171,16 @@ def may_use_seat(user: User, el: FloorPlanVersionElement) -> bool:
     return el.department_id is not None and el.department_id in department_ids(user)
 
 
+def is_admin(user: User) -> bool:
+    return user.role is not None and user.role.name == "admin"
+
+
 def colleagues(viewer: User, q: str, day: date) -> list[User]:
-    shared = select(UserDepartment.user_id).where(UserDepartment.department_id.in_(department_ids(viewer)))
-    stmt = select(User).where(User.id.in_(shared), User.id != viewer.id)
+    """People `viewer` may book for: colleagues sharing a project team, or anyone for an admin (owner 2026-10-16)."""
+    stmt = select(User).where(User.id != viewer.id)
+    if not is_admin(viewer):
+        shared = select(UserDepartment.user_id).where(UserDepartment.department_id.in_(department_ids(viewer)))
+        stmt = stmt.where(User.id.in_(shared))
     if q:
         stmt = stmt.where(or_(User.full_name.ilike(f"%{q}%"), User.username.ilike(f"%{q}%")))
     found = orm_session().scalars(stmt.order_by(User.full_name)).unique().all()
@@ -333,15 +340,18 @@ def create_booking(viewer: User, plan_id, seat_id, day_text, preset, for_user_id
             raise DeskError("colleague not found", 404)
         if not is_usable(target, day):
             raise DeskError(f"{target.full_name}'s account is not active on that day")
-        if not (department_ids(target) & department_ids(viewer)):
+        if is_admin(viewer):
+            pass                                  # admins book for anyone, with no allowance (owner 2026-10-16)
+        elif not (department_ids(target) & department_ids(viewer)):
             raise DeskError("you can only book for colleagues in your project teams", 403)
-        if viewer.booking_allowance <= 0:
+        elif viewer.booking_allowance <= 0:
             raise DeskError("you are not allowed to book for others", 403)
-        already = session.scalar(select(func.count()).select_from(SeatBooking).where(
-            SeatBooking.booked_by == viewer.id, SeatBooking.booked_for == target.id, SeatBooking.booking_date == day,
-            or_(SeatBooking.end_reason.is_(None), SeatBooking.end_reason.not_in(("cancelled", "plan_changed")))))
-        if not already and allowance_used(viewer, day) >= viewer.booking_allowance:
-            raise DeskError(f"booking allowance used: {viewer.booking_allowance} colleague(s) per day", 403)
+        else:
+            already = session.scalar(select(func.count()).select_from(SeatBooking).where(
+                SeatBooking.booked_by == viewer.id, SeatBooking.booked_for == target.id, SeatBooking.booking_date == day,
+                or_(SeatBooking.end_reason.is_(None), SeatBooking.end_reason.not_in(("cancelled", "plan_changed")))))
+            if not already and allowance_used(viewer, day) >= viewer.booking_allowance:
+                raise DeskError(f"booking allowance used: {viewer.booking_allowance} colleague(s) per day", 403)
     elif not is_usable(viewer, day):
         raise DeskError("your account is not active on that day")
 

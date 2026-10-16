@@ -28,6 +28,8 @@ assert.equal(bookingProblem({ forWho: 'other', rows: [{ seat: s1, person: tan },
 assert.equal(bookingProblem({ forWho: 'other', rows: [{ seat: s1, person: tan }], allowance: { limit: 0, left: 0 } }), 'You are not allowed to book for colleagues.');
 assert.equal(bookingProblem({ forWho: 'other', rows: [{ seat: s1, person: tan }, { seat: s2, person: priya }], allowance: { limit: 3, left: 2 } }), '');
 assert.equal(bookingProblem({ forWho: 'other', rows: [{ seat: s1, person: tan }], allowance: null }), '');   // allowance not loaded yet: server checks
+// Admins have no limit (allowance limit/left null): never blocked by the allowance.
+assert.equal(bookingProblem({ forWho: 'other', rows: [{ seat: s1, person: tan }, { seat: s2, person: priya }], allowance: { limit: null, used: 4, left: null } }), '');
 
 // Several seats: only free-for-all seats bookable for the slot, never the same seat twice.
 const free = { id: 's3', open_to_all: true, can_book: { am: true } };

@@ -122,3 +122,15 @@ def test_floor_view_query_count_does_not_grow_with_seats(client, world):
     assert client.post(f"/api/admin/floor-plans/{world['plan']}/publish", headers=hdr(root)).status_code == 200
     large = _queries_for(client, url, tok)
     assert large == small, (small, large)
+
+
+def test_admins_can_book_for_anyone(client, world):
+    """Owner 2026-10-16: an admin books for anyone - no shared project team, no allowance limit."""
+    assert book(client, world, "root", "F1", for_user="bob").status_code == 201        # Ops: no shared team, allowance 0
+    assert book(client, world, "root", "F2", for_user="jane").status_code == 201
+    assert book(client, world, "root", "F1", "pm", for_user="carl").status_code == 201  # third colleague, same day
+    assert book(client, world, "root", "F2", "pm", for_user="dave").status_code == 400  # still not for inactive accounts
+    found = client.get("/api/desk/colleagues?q=&date=" + DAY.isoformat(), headers=hdr(world["tok"]["root"])).get_json()
+    assert {"Bob Ong", "Jane Tan", "Carl Lim", "Ali Rahman"} <= {c["name"] for c in found["items"]}
+    assert "Root Admin" not in {c["name"] for c in found["items"]} and "Dave Inactive" not in {c["name"] for c in found["items"]}
+    assert found["allowance"]["limit"] is None and found["allowance"]["left"] is None    # no limit
