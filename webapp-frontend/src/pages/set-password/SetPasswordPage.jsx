@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PasswordStrength, usePasswordCheck } from '../../PasswordStrength.jsx';
 import { Link } from 'react-router-dom';
 import { flaskRequest } from '../../api.js';
 import { AuthLayout } from '../../auth.jsx';
@@ -84,6 +85,7 @@ export function SetPasswordPage() {
 
 function PasswordForm({ token, copy, onDone, onInvalid }) {
   const [password, setPassword] = useState('');
+  const check = usePasswordCheck(password);
   const [confirm, setConfirm] = useState('');
   const [visible, setVisible] = useState(false);
   const [pending, setPending] = useState(false);
@@ -92,7 +94,7 @@ function PasswordForm({ token, copy, onDone, onInvalid }) {
   async function submit(event) {
     event.preventDefault();
     if (pending) return;
-    if (password.length < MIN_LENGTH) { setError(`Use at least ${MIN_LENGTH} characters.`); return; }
+    if (!check.ok) { setError('The password does not meet the rules below.'); return; }
     if (password !== confirm) { setError('The two passwords do not match.'); return; }
     setPending(true);
     setError('');
@@ -108,7 +110,7 @@ function PasswordForm({ token, copy, onDone, onInvalid }) {
 
   return <>
     <p className="auth-eyebrow">{copy.eyebrow}</p><h1>{copy.title}</h1>
-    <p className="auth-description">Use at least {MIN_LENGTH} characters.</p>
+    <p className="auth-description">At least {MIN_LENGTH} characters, with letters and numbers, and not a well-known password.</p>
     <form onSubmit={submit} aria-busy={pending}>
       <label htmlFor="new-password">New password</label>
       <div className="auth-password">
@@ -117,6 +119,7 @@ function PasswordForm({ token, copy, onDone, onInvalid }) {
         <button type="button" aria-label={visible ? 'Hide passwords' : 'Show passwords'} aria-pressed={visible}
           onClick={() => setVisible(!visible)}>{visible ? 'Hide' : 'Show'}</button>
       </div>
+      <PasswordStrength check={check} />
       <label htmlFor="confirm-password">Confirm password</label>
       <input id="confirm-password" type={visible ? 'text' : 'password'} autoComplete="new-password" required
         value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={pending} />

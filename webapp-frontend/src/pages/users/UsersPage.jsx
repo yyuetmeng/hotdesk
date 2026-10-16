@@ -1,3 +1,4 @@
+import { PasswordStrength, usePasswordCheck } from '../../PasswordStrength.jsx';
 import ImportPanel from './ImportPanel.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -163,6 +164,7 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState('');
+  const passwordCheck = usePasswordCheck(password, { username: user?.username, email: user?.email });
   const [tab, setTab] = useState('details');
 
   const set = (key, value) => setForm((old) => ({ ...old, [key]: value }));
@@ -284,8 +286,9 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
       <h3>Account actions</h3>
       <div className="inline-form">
         <label>New password <input type="password" minLength={8} autoComplete="new-password" value={password}
-          onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" />{err('password')}</label>
-        <button type="button" className="button" disabled={busy || password.length < 8} onClick={setUserPassword}>Set password</button>
+          onChange={(e) => setPassword(e.target.value)} placeholder="8+ characters, letters and numbers" />{err('password')}</label>
+        <button type="button" className="button" disabled={busy || !passwordCheck.ok} onClick={setUserPassword}>Set password</button>
+        {password && <PasswordStrength check={passwordCheck} />}
       </div>
       {user.status === 'pending_activation' &&
         <button type="button" className="button" disabled={busy} onClick={resend}>Resend invitation</button>}

@@ -70,3 +70,9 @@ a.auth-submit { display:flex; align-items:center; justify-content:center; text-d
 .auth-illus-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
 @media (prefers-reduced-motion: reduce) { .auth-illus-seat, .auth-illus-toast { animation: none; } }
 @media (max-width: 760px) { .auth-illus { display: none; } }
+
+/* My account: change password (AccountPage.jsx). */
+.account-password { margin: 14px 0; }
+.account-password h2 { font-size: 17px; margin: 0 0 8px; }
+.account-password form { display: grid; gap: 6px; }
+.auth-success { color: #146c36; background: #e5f8e9; border: 1px solid #a8dfb4; border-radius: 8px; padding: 8px 10px; }

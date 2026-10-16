@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { apiUrl, readFlaskToken } from '../../api.js';
 import { Notice } from '../../components.jsx';
 import { downloadFile } from '../../download.js';
+import { PasswordStrength, usePasswordCheck } from '../../PasswordStrength.jsx';
 import { importLabel, resultText, statusLabel } from './importLogic.js';
 
 const UPLOAD_URL = '/api/admin/users/import';
@@ -30,7 +31,8 @@ export default function ImportPanel({ onClose, onDone }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState(null);
   const options = { create_teams: createTeams, send_invitations: invite, default_password: usePassword ? password : '' };
-  const passwordProblem = usePassword && password.length < 8 ? 'The default password must be at least 8 characters.' : '';
+  const passwordCheck = usePasswordCheck(password);
+  const passwordProblem = usePassword && !passwordCheck.ok ? 'The default password does not meet the password rules.' : '';
 
   const run = async (label, fn) => { setBusy(label); setError(null); try { await fn(); } catch (err) { setError(err.message); } finally { setBusy(''); } };
   const check = () => run('check', async () => setPreview(await upload(file, { ...options, dry_run: true })));
@@ -53,9 +55,10 @@ export default function ImportPanel({ onClose, onDone }) {
         <label><input type="checkbox" checked={invite} onChange={changed((e) => setInvite(e.target.checked))} />Send invitation emails to new users</label>
         <label><input type="checkbox" checked={usePassword} onChange={changed((e) => setUsePassword(e.target.checked))} />Set a default password</label>
         {usePassword && <label className="users-import-password">Default password
-          <input type="text" value={password} autoComplete="new-password" placeholder="At least 8 characters"
+          <input type="text" value={password} autoComplete="new-password" placeholder="8+ characters, letters and numbers"
             onChange={changed((e) => setPassword(e.target.value))} /></label>}
-        {usePassword && <small className="muted">Every new user can sign in with this password straight away; ask them to change it.</small>}
+        {usePassword && <PasswordStrength check={passwordCheck} />}
+        {usePassword && <small className="muted">Every new user can sign in with this password straight away; ask them to change it in My account.</small>}
       </li>
       <li><button type="button" className="button primary" disabled={!file || Boolean(busy) || Boolean(passwordProblem)} onClick={check}>{busy === 'check' ? 'Checking…' : 'Check file'}</button>
         <span className="muted"> Shows what will happen; nothing is saved yet.</span>
