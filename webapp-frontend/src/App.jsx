@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { DashboardPage } from './pages/dashboard/DashboardPage.jsx';
+import { AuditLogPage } from './pages/audit/AuditLogPage.jsx';
 import { ColleagueFinderPage } from './pages/finder/ColleagueFinderPage.jsx';
 import { CheckInPage } from './desk/CheckInPage.jsx';
 import { DeskLabelsPage } from './qr/DeskLabelsPage.jsx';
@@ -23,7 +24,7 @@ import { readCollapsed, saveCollapsed, shellClass } from './layout.js';
 
 const workspaceLinks = [['/', 'Dashboard', 'dashboard'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin'], ['/finder', 'Colleague Finder', 'finder']];
 const analyticsLinks = [['/insights', 'Insights', 'insights']];
-const adminLinks = [['/desk-labels', 'Print Desk Labels', 'labels'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users']];
+const adminLinks = [['/desk-labels', 'Print Desk Labels', 'labels'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users'], ['/audit', 'Audit Log', 'audit']];
 
 function NavIcon({ name }) {
   const paths = {
@@ -37,6 +38,7 @@ function NavIcon({ name }) {
     account: <><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></>,
     signout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M9 12h12m-4-4 4 4-4 4"/></>,
     menu: <path d="M4 6h16M4 12h16M4 18h16"/>,
+    audit: <><path d="M9 4h9a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9"/><path d="M4 4l5 5M9 4v5H4"/><path d="M9 13h7M9 17h5"/></>,
     finder: <><circle cx="10" cy="8" r="3.5"/><path d="M3.5 20v-1a6.5 6.5 0 0 1 9.5-5.8"/><circle cx="17" cy="16" r="3"/><path d="m19.2 18.2 2.3 2.3"/></>,
     labels: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></>,
     close: <path d="M6 6l12 12M18 6 6 18"/>,
@@ -133,6 +135,7 @@ function Workspace() {
       <Route path="/floor-plans/:id/qr" element={<AdminOnly><OldQrLink /></AdminOnly>} />
       <Route path="/desk-labels" element={<AdminOnly><DeskLabelsPage /></AdminOnly>} />
       <Route path="/users" element={<AdminOnly><UsersPage /></AdminOnly>} />
+      <Route path="/audit" element={<AdminOnly><AuditLogPage /></AdminOnly>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></div>
   </div>;

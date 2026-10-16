@@ -1,22 +1,14 @@
 // Insights "Project teams": who is in now, and today's check-ins and check-outs per project team,
 // with an Excel export built on the server (sheet 1: this table; sheet 2: one line per check-in).
 import { useEffect, useState } from 'react';
-import { apiUrl, flaskRequest, readFlaskToken } from '../../api.js';
+import { flaskRequest } from '../../api.js';
+import { downloadFile } from '../../download.js';
 import { Notice } from '../../components.jsx';
 import TeamLinesModal from './TeamLinesModal.jsx';
 
 const REFRESH_MS = 30000;
 
-async function downloadExcel() {
-  const res = await fetch(apiUrl('/api/admin/insights/teams.xlsx'), { headers: { authorization: `Bearer ${readFlaskToken()}` } });
-  if (!res.ok) throw new Error(res.status === 403 ? 'Administrators only.' : 'The export could not be made.');
-  const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'project-teams.xlsx';
-  const url = URL.createObjectURL(await res.blob());
-  const a = document.createElement('a');
-  a.href = url; a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+const downloadExcel = () => downloadFile('/api/admin/insights/teams.xlsx', 'project-teams.xlsx');
 
 export default function TeamsCard() {
   const [data, setData] = useState(null);

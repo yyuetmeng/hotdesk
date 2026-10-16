@@ -1,0 +1,28 @@
+/* Audit views (spec 2026-10-16-audit-views). Tones: red security, blue configuration, green desks, grey exports. */
+.tone-red { --tone: #dc2626; } .tone-blue { --tone: #2563eb; } .tone-green { --tone: #16a34a; } .tone-grey { --tone: #64748b; }
+.audit-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.audit-chips button { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; }
+.audit-chips button b { font-variant-numeric: tabular-nums; color: var(--muted); }
+.audit-chips button[class*="tone-"]::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.audit-chips button.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.audit-filters { align-items: end; }
+.audit-table td small { display: block; color: var(--muted); font-size: 11px; }
+.audit-table tr.alert td { background: color-mix(in srgb, #dc2626 7%, transparent); }
+.audit-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.audit-pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.audit-details td { background: var(--surface-2); }
+.audit-details dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; margin: 0; }
+.audit-details dt { color: var(--muted); font-size: 11px; text-transform: capitalize; }
+.audit-details dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.audit-pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; color: var(--muted); font-size: 13px; }
+
+.audit-timeline { list-style: none; margin: 0; padding: 0 0 0 6px; }
+.audit-timeline li { position: relative; display: flex; gap: 12px; padding: 0 0 14px 14px; border-left: 2px solid var(--border); }
+.audit-timeline li:last-child { border-left-color: transparent; }
+.audit-dot { position: absolute; left: -7px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--tone, var(--muted));
+  box-shadow: 0 0 0 3px var(--surface); }
+.audit-timeline p { margin: 0; font-size: 14px; }
+.audit-timeline time { color: var(--muted); font-size: 12px; }
+.audit-timeline li.alert p { color: #b91c1c; }
+:root[data-theme="dark"] .audit-timeline li.alert p { color: #fca5a5; }
