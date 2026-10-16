@@ -8,3 +8,14 @@ export function seatFromCode(text) {
   const match = SEAT.exec(String(text ?? '').trim());
   return match ? match[1].toLowerCase() : null;
 }
+
+/** Which result screen the check-in page shows (owner 2026-10-16): { kind: 'ok' | 'bad' | 'done', ... } or null.
+ * `result` is what just happened here: { kind: 'checked_in', checkin, warning } | { kind: 'gave_up' } | { kind: 'error', text }. */
+export function checkInOutcome({ seat, result }) {
+  if (result?.kind === 'checked_in') return { kind: 'ok', title: "You're checked in", checkin: result.checkin, note: result.warning ?? null };
+  if (result?.kind === 'gave_up') return { kind: 'done', title: 'Seat given up', note: 'Thanks for freeing it up.' };
+  if (result?.kind === 'error') return { kind: 'bad', title: 'Could not check in', reason: result.text };
+  if (seat?.my_checkin) return { kind: 'ok', title: "You're checked in here", checkin: seat.my_checkin, note: null };
+  if (seat && !seat.can_check_in && !seat.can_give_up && seat.reason) return { kind: 'bad', title: 'Could not check in', reason: seat.reason };
+  return null;
+}

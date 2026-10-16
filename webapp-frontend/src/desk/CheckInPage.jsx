@@ -9,6 +9,7 @@ import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatTime } from '../format.js';
 import { checkInWindow, myBookingsToday, presetLabel, sgToday, stateLabel } from './deskLogic.js';
 import { checkInLocation } from './location.js';
+import { checkInOutcome } from './scanLogic.js';
 import './desk.css';
 
 const CheckInTitle = () => <PageTitle title="Desk check-in"><p>Scan the QR code on a desk to check in there, and give the seat up when you leave.</p></PageTitle>;
@@ -20,7 +21,7 @@ export function CheckInPage() {
 
 function SeatCheckIn({ seatId }) {
   const [seat, setSeat] = useState(null);
-  const [result, setResult] = useState(null);   // { kind, text }
+  const [result, setResult] = useState(null);   // { kind: 'checked_in', checkin, warning } | { kind: 'gave_up' } | { kind: 'error', text }
   const [busy, setBusy] = useState(false);
   const attempted = useRef(false);                // StrictMode runs effects twice in development
 
@@ -34,8 +35,7 @@ function SeatCheckIn({ seatId }) {
         if (info.can_check_in && !attempted.current) {
           attempted.current = true;
           const c = await flaskRequest(`/api/desk/seats/${seatId}/check-in`, { method: 'POST', body: await checkInLocation() });
-          setResult({ kind: 'success', text: `You're checked in at ${c.seat_label} since ${formatTime(c.checked_in_at)}, `
-            + `until ${formatTime(c.ends_at).slice(0, 5)}.${c.warning ? ` ${c.warning}` : ''}` });
+          setResult({ kind: 'checked_in', checkin: c, warning: c.warning });
           await reload();
         }
       } catch (err) { setResult({ kind: 'error', text: err.message }); }
@@ -46,13 +46,15 @@ function SeatCheckIn({ seatId }) {
     setBusy(true);
     try {
       await flaskRequest(`/api/desk/seats/${seatId}/give-up`, { method: 'POST' });
-      setResult({ kind: 'success', text: 'Seat given up. Thanks!' });
+      setResult({ kind: 'gave_up' });
       await reload();
     } catch (err) { setResult({ kind: 'error', text: err.message }); }
     finally { setBusy(false); }
   };
 
   if (!seat && !result) return <main className="page"><CheckInTitle /><Loading label="Checking the seat..." /></main>;
+  const outcome = checkInOutcome({ seat, result });
+  if (outcome) return <main className="page desk-checkin"><CheckInResult outcome={outcome} seat={seat} busy={busy} onGiveUp={giveUp} /></main>;
   return <main className="page desk-checkin">
     <CheckInTitle />
     {seat && <>
@@ -66,6 +68,34 @@ function SeatCheckIn({ seatId }) {
     {seat && !seat.can_give_up && !seat.can_check_in && seat.reason && !result && <Notice kind="error">{seat.reason}</Notice>}
     <p><Link to="/book">Book a desk</Link> · <Link to="/checkin">My seat</Link></p>
   </main>;
+}
+
+// The result after scanning (owner 2026-10-16, preview scan-flow-v1): a big tick or cross, the seat, and what next.
+// Everything stays in the app; "Scan another desk" goes straight back to the camera.
+function CheckInResult({ outcome, seat, busy, onGiveUp }) {
+  const where = seat ? [seat.plan?.name, seat.zone].filter(Boolean).join(' · ') : '';
+  const c = outcome.checkin;
+  return <section className={`desk-result ${outcome.kind}`} role="status" aria-live="polite">
+    <div className="desk-result-badge" aria-hidden="true">{outcome.kind === 'bad' ? '✕' : '✓'}</div>
+    <h1>{outcome.title}</h1>
+    {seat && <p className="desk-result-seat">Seat <b>{seat.label}</b>{where && ` · ${where}`}</p>}
+    {outcome.kind === 'ok' && <div className="desk-result-card">
+      Since <b>{formatTime(c.checked_in_at).slice(0, 5)}</b>, until <b>{formatTime(c.ends_at).slice(0, 5)}</b>
+      <br />{c.method === 'walk_in' ? 'Walk-in (no booking)' : 'Your booked seat'}
+      {outcome.note && <><br /><span className="desk-result-warn">{outcome.note}</span></>}
+      <br /><span className="muted">Give the seat up when you leave.</span>
+    </div>}
+    {outcome.kind === 'bad' && <div className="desk-result-card"><b>{outcome.reason}</b>
+      <br /><span className="muted">Free-for-all seats and your own team's seats can be used without booking.</span></div>}
+    {outcome.kind === 'done' && <p className="muted">{outcome.note}</p>}
+    <div className="desk-result-actions">
+      {outcome.kind === 'ok' && <><Link className="button primary" to="/">Done</Link>
+        {seat?.can_give_up && <button className="button" disabled={busy} onClick={onGiveUp}>{busy ? 'Giving up…' : 'Give up seat'}</button>}</>}
+      {outcome.kind === 'bad' && <><Link className="button primary" to="/scan">Scan another desk</Link>
+        <Link className="button" to="/book">Find a free seat</Link></>}
+      {outcome.kind === 'done' && <><Link className="button primary" to="/">Done</Link><Link className="button" to="/scan">Scan another desk</Link></>}
+    </div>
+  </section>;
 }
 
 function MySeat() {

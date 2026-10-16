@@ -1,4 +1,5 @@
-// Scan QR code (owner 2026-10-16), the raised middle button of the mobile bottom bar: opens the back camera and
+// Scan to check in (owner 2026-10-16), the raised middle button of the mobile bottom bar: opens the back camera and
+// shows a small square frame with a laser bar sweeping up and down (option A of preview scan-styles-v3);
 // reads desk labels; a seat code goes straight to that seat's check-in (/checkin/<id>, which checks in).
 // Uses the browser's BarcodeDetector where it exists (Chrome, Android) and the jsQR library otherwise (Safari on
 // iPhone). Cameras only work on HTTPS (or localhost); without one the page says so and links to manual check-in.
@@ -74,7 +75,7 @@ export function ScanPage() {
     <PageTitle title="Scan to check in"><p>Scan the QR code on a desk to check in there.</p></PageTitle>
     <div className={`desk-scan-frame${state === 'scanning' ? ' live' : ''}`}>
       <video ref={video} muted playsInline aria-label="Camera" />
-      {state === 'scanning' && <span className="desk-scan-target" aria-hidden="true" />}
+      {state === 'scanning' && <span className="desk-scan-target" aria-hidden="true"><span className="desk-scan-bar" /></span>}
     </div>
     <p className={state === 'denied' || state === 'unsupported' ? 'desk-scan-msg bad' : 'desk-scan-msg'} role="status">{TEXT[state]}</p>
     {notice && state === 'scanning' && <p className="desk-scan-msg warn">{notice}</p>}
