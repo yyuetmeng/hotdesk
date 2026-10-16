@@ -1,9 +1,20 @@
+import { useEffect, useSyncExternalStore } from 'react';
 import PinLoader from './PinLoader.jsx';
+import { loader } from './loaderStore.js';
 
 export const STATUS_LABEL = { available: 'Available', occupied: 'Occupied', away: 'Away', reserved: 'Reserved', offline: 'Sensor offline' };
 
 // Loading state: a thin layer over the whole page with the pin loader in the middle.
-export function Loading({ label = 'Loading...' }) { return <div className="pin-loader-overlay"><PinLoader label={label} /></div>; }
+// Pages render <Loading/> while they wait; one shared overlay (<LoaderHost/>, mounted once in App) shows it for
+// at least 1 s, so quick loads do not flash and back-to-back loaders do not blink (loaderStore.js).
+export function Loading({ label = 'Loading...' }) {
+  useEffect(() => { loader.show(label); return () => loader.hide(); }, [label]);
+  return null;
+}
+export function LoaderHost() {
+  const label = useSyncExternalStore(loader.subscribe, loader.snapshot);
+  return label === null ? null : <div className="pin-loader-overlay"><PinLoader label={label} /></div>;
+}
 export function Notice({ children, kind = 'info' }) { return <p className={`notice ${kind}`}>{children}</p>; }
 export function Status({ value }) { return <span className={`status status-${value}`}>{STATUS_LABEL[value] ?? value}</span>; }
 

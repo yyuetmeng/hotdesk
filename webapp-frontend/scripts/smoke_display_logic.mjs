@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { initialDisplayState, nextFloorIndex, overall, overviewConfig, reduceRefresh, rotationKey, sgDateTime, sgTime, slugify, waitLeft } from '../src/display/displayLogic.js';
+import { initialDisplayState, nextFloorIndex, overall, overviewConfig, reduceRefresh, rotationKey, sgDateTime, sgTime, slugify } from '../src/display/displayLogic.js';
 
 assert.deepEqual(
   overall([{ bookable: 3, available: 1, booked: 1, occupied: 1 }, { bookable: 5, available: 2, booked: 0, occupied: 3 }]),
@@ -91,7 +91,3 @@ assert.deepEqual(overviewConfig([{ id: 'p1', name: 'L1' }, { id: 'p2', name: 'L2
   floors: [{ id: 'p1', name: 'L1', published: true }, { id: 'p2', name: 'L2', published: true }] });
 console.log('floor overview smoke OK');
 
-// The loader stays at least 1 s so it does not flash (owner 2026-10-16).
-assert.equal(waitLeft(1000, 1200, 1000), 800);
-assert.equal(waitLeft(1000, 2500, 1000), 0);
-console.log('loader wait smoke OK');

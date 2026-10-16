@@ -77,9 +77,6 @@ export const overviewConfig = (floors) => ({
   floors: floors.map((f) => ({ id: f.id, name: f.name, published: true })),
 });
 
-/** Milliseconds the loader must still show so it stays up at least `ms` (no flash when data is quick). */
-export const waitLeft = (startedAt, now, ms) => Math.max(startedAt + ms - now, 0);
-export const MIN_LOADER_MS = 1000;
 
 export function previewConfig(form, plans) {
   const byId = Object.fromEntries(plans.map((p) => [p.id, p]));

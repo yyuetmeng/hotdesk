@@ -5,6 +5,7 @@ import { AuditLogPage } from './pages/audit/AuditLogPage.jsx';
 import { ColleagueFinderPage } from './pages/finder/ColleagueFinderPage.jsx';
 import { CheckInPage } from './desk/CheckInPage.jsx';
 import { DeskLabelsPage } from './qr/DeskLabelsPage.jsx';
+import { LoaderHost } from './components.jsx';
 import { DisplayPage } from './display/DisplayPage.jsx';
 import { BookDeskPage } from './desk/BookDeskPage.jsx';
 import { DisplaysPage } from './pages/displays/DisplaysPage.jsx';
@@ -82,7 +83,7 @@ function Sidebar({ collapsed, onToggleCollapsed, onClose }) {
 }
 
 export default function App() {
-  return <AuthProvider><Routes>
+  return <AuthProvider><LoaderHost /><Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route path="/set-password" element={<SetPasswordPage />} />
     <Route path="/display/:slug" element={<DisplayPage />} />

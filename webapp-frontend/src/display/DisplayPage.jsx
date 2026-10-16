@@ -7,9 +7,9 @@ import { flaskRequest } from '../api.js';
 import CapacityBar from './CapacityBar.jsx';
 import FloorDrawing from './FloorDrawing.jsx';
 import SeatPopover from './SeatPopover.jsx';
-import { MIN_LOADER_MS, initialDisplayState, nextFloorIndex, overall, reduceRefresh, rotationKey, sgDateTime, sgTime, waitLeft } from './displayLogic.js';
+import { initialDisplayState, nextFloorIndex, overall, reduceRefresh, rotationKey, sgDateTime, sgTime } from './displayLogic.js';
 import './display.css';
-import PinLoader from '../PinLoader.jsx';
+import { Loading } from '../components.jsx';
 
 const REFRESH_MS = 30000;
 
@@ -26,14 +26,7 @@ export function DisplayView({ loadConfig }) {
   const [index, setIndex] = useState(0);
   const [seat, setSeat] = useState(null);
   const [now, setNow] = useState(() => new Date());
-  const [waited, setWaited] = useState(false);   // the loader stays at least 1 s, so it does not flash
   const { display, floors, updatedAt, offline } = view;
-
-  useEffect(() => {
-    const started = Date.now();
-    const timer = setTimeout(() => setWaited(true), waitLeft(started, Date.now(), MIN_LOADER_MS));
-    return () => clearTimeout(timer);
-  }, []);
 
   const refresh = useCallback(async () => {
     let d;
@@ -71,8 +64,8 @@ export function DisplayView({ loadConfig }) {
   const closeSeat = useCallback(() => setSeat(null), []);
 
   if (view.missing) return <main className="disp disp-message"><p>Display not found</p></main>;
-  if (!view.loaded || !waited) return <main className="disp disp-message">
-    <PinLoader label={view.unreachable ? 'Cannot reach the server. Retrying…' : 'Loading the floor display…'} /></main>;
+  if (!view.loaded) return <main className="disp disp-message">
+    <Loading label={view.unreachable ? 'Cannot reach the server. Retrying…' : 'Loading the floor display…'} /></main>;
 
   const shown = display.layout === 'rotate' ? floors.slice(index % Math.max(floors.length, 1), (index % Math.max(floors.length, 1)) + 1) : floors;
   return <main className="disp">
