@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, nextDayName, sgToday } from '../src/desk/deskLogic.js';
+import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, nextDayName, sgToday, seatAction } from '../src/desk/deskLogic.js';
 
 assert.equal(initials('Jane Tan'), 'JT');
 assert.equal(initials('Prince'), 'P');
@@ -31,4 +31,9 @@ assert.equal(nextDayName('2026-10-16', '2026-10-15'), 'Tomorrow');
 assert.equal(nextDayName('2026-10-19', '2026-10-16'), 'Monday');
 assert.equal(nextDayName('2026-10-19', '2026-10-17'), 'Monday');      // Saturday
 assert.equal(sgToday(new Date('2026-10-16T17:00:00Z')), '2026-10-17'); // 01:00 Saturday in Singapore
+// Seat panel: check in without a booking (free-for-all or your team's seat), today only; give up your own seat.
+assert.equal(seatAction({ can_check_in: true }, true), 'check_in');
+assert.equal(seatAction({ can_check_in: true }, false), null);          // the next working day: book instead
+assert.equal(seatAction({ can_give_up: true }, true), 'give_up');
+assert.equal(seatAction({}, true), null);
 console.log('desk logic smoke OK');

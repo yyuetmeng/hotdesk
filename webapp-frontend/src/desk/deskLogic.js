@@ -34,4 +34,8 @@ export const nextDayName = (dayIso, todayIso) => (dayNumber(dayIso) - dayNumber(
 /** Today's date in Singapore as YYYY-MM-DD. */
 export const sgToday = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(now);
 
+/** The seat panel's check-in button: 'check_in' (no booking needed on a free-for-all or own-team seat; the
+ * server decides via can_check_in), 'give_up' (your own seat), or null. Today only. */
+export const seatAction = (seat, isToday) => (!isToday ? null : seat.can_give_up ? 'give_up' : seat.can_check_in ? 'check_in' : null);
+
 export const firstLoad = ({ floors, floor, error }) => !error && (!floors || (floors.length > 0 && !floor));
