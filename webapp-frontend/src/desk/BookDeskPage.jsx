@@ -9,7 +9,7 @@ import FloorDrawing from '../display/FloorDrawing.jsx';
 import '../display/display.css';
 import SeatPanel from './SeatPanel.jsx';
 import { canAddSeat } from './bookingLogic.js';
-import { PRESETS, firstLoad, floorLoading, nextDayName, presetLabel } from './deskLogic.js';
+import { PRESETS, dayActive, firstLoad, floorLoading, latestOnly, nextDayName, presetLabel } from './deskLogic.js';
 
 const STATE_TEXT = { active: 'Booked', checked_in: 'Checked in', released: 'Released (no check-in)',
   cancelled: 'Cancelled', plan_changed: 'Cancelled (floor plan changed)' };
@@ -21,6 +21,7 @@ export function BookDeskPage() {
   const [planId, setPlanId] = useState('');
   const [days, setDays] = useState(null);   // [today, next working day] from the server
   const [dayOffset, setDayOffset] = useState(0);
+  const [bothDays, setBothDays] = useState(false);   // the panel's Day = Both; the floor then shows `dayOffset`
   const [preset, setPreset] = useState('am');
   const [floor, setFloor] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -29,6 +30,7 @@ export function BookDeskPage() {
   const [skipped, setSkipped] = useState(null);
   const [mine, setMine] = useState([]);
   const [error, setError] = useState(null);
+  const latest = useRef(latestOnly()).current;   // changing day/slot fast must not let an old answer win
 
   useEffect(() => {
     flaskRequest('/api/desk/floors').then((d) => {
@@ -42,18 +44,22 @@ export function BookDeskPage() {
   const date = days ? days[dayOffset] : null;
   const load = useCallback(async () => {
     if (!planId) return;
+    const token = latest.start();
     try {
       const query = date ? `?date=${date}&preset=${preset}` : `?preset=${preset}`;
       const data = await flaskRequest(`/api/desk/floors/${planId}${query}`);
+      if (!latest.current(token)) return;
       setFloor(data);
       const wanted = wantSeat.current ? data.seats.find((s) => s.id === wantSeat.current) : null;   // ?seat=, once
       if (wanted) wantSeat.current = null;
       setSelected((old) => wanted ?? (old ? data.seats.find((s) => s.id === old.id) ?? null : null));
       setPicked((old) => old.map((p) => data.seats.find((s) => s.id === p.id)).filter((s) => s && canAddSeat(s, preset, [])));
-      setMine((await flaskRequest('/api/desk/bookings/mine')).items);
+      const list = (await flaskRequest('/api/desk/bookings/mine')).items;
+      if (!latest.current(token)) return;
+      setMine(list);
       setError(null);
-    } catch (err) { setError(err.message); }
-  }, [planId, date, preset]);
+    } catch (err) { if (latest.current(token)) setError(err.message); }
+  }, [planId, date, preset]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [load]);
 
   const clickSeat = (seat) => {
@@ -82,8 +88,8 @@ export function BookDeskPage() {
     {error && <Notice kind="error">{error}</Notice>}
     <div className="desk-controls">
       <div className="desk-segment" role="group" aria-label="Day">
-        {['Today', days ? nextDayName(days[1], days[0]) : 'Tomorrow'].map((label, i) => <button key={i} className={dayOffset === i ? 'active' : ''}
-          onClick={() => setDayOffset(i)}>{label}{days ? ` · ${formatDate(days[i])}` : ''}</button>)}
+        {['Today', days ? nextDayName(days[1], days[0]) : 'Tomorrow'].map((label, i) => <button key={i} className={dayActive(i, dayOffset, bothDays) ? 'active' : ''}
+          aria-pressed={dayActive(i, dayOffset, bothDays)} onClick={() => { setDayOffset(i); setBothDays(false); }}>{label}{days ? ` · ${formatDate(days[i])}` : ''}</button>)}
       </div>
       <div className="desk-segment" role="group" aria-label="Time">
         {PRESETS.map((p) => <button key={p} className={preset === p ? 'active' : ''} onClick={() => setPreset(p)}>{presetLabel(p)}</button>)}
@@ -94,7 +100,8 @@ export function BookDeskPage() {
     </div>
     {floorLoading(floor, planId) && !error && <Loading label={`Looking for a free desk on ${floors.find((f) => f.id === planId)?.name ?? 'this floor'}…`} />}
     {floor && <div className="desk-layout">
-      <section className="card"><h2>{floor.name}</h2>
+      <section className="card"><h2>{floor.name} <small className="desk-showing">
+        · {floor.date === days?.[0] ? 'Today' : nextDayName(floor.date, days?.[0] ?? floor.date)} {formatDate(floor.date)} · {presetLabel(preset)}</small></h2>
         <div className="desk-drawing"><FloorDrawing floor={floor} selectedId={selected?.id} selectedIds={picked.map((p) => p.id)} onSeatClick={clickSeat} /></div>
         <ul className="desk-legend">
           <li><span className="available" />Available</li><li><span className="booked" />Booked</li>
@@ -104,7 +111,7 @@ export function BookDeskPage() {
       {selected
         ? <SeatPanel planId={planId} seat={selected} isToday={dayOffset === 0} onChanged={load}
           booking={{ picked, multi, setMulti: chooseMulti, onRemovePicked: (id) => setPicked((ps) => ps.filter((p) => p.id !== id)),
-            days: days ?? [floor.date, floor.date], dayOffset, setDayOffset, preset, setPreset, skipped }} />
+            days: days ?? [floor.date, floor.date], dayOffset, setDayOffset, bothDays, setBothDays, preset, setPreset, skipped }} />
         : <aside className="card desk-panel"><p className="muted">Click a seat to see who is there, today's activity, and to book a free-for-all seat.</p></aside>}
     </div>}
 

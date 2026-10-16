@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, nextDayName, sgToday, seatAction, myBookingsToday, checkInWindow, untaggedNote } from '../src/desk/deskLogic.js';
+import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, nextDayName, sgToday, seatAction, myBookingsToday, checkInWindow, untaggedNote, latestOnly, dayActive } from '../src/desk/deskLogic.js';
 
 assert.equal(initials('Jane Tan'), 'JT');
 assert.equal(initials('Prince'), 'P');
@@ -53,4 +53,15 @@ assert.equal(checkInWindow(mineToday[0], '2026-10-16T13:00:00+08:00').open, fals
 assert.match(untaggedNote({ open_to_all: false, department_id: null }), /Free for all/);
 assert.equal(untaggedNote({ open_to_all: true, department_id: null }), '');
 assert.equal(untaggedNote({ open_to_all: false, department_id: 'd1' }), '');
+// Book a desk: only the latest floor request may update the page (a slow older one must not overwrite it).
+{
+  const latest = latestOnly();
+  const first = latest.start(), second = latest.start();
+  assert.equal(latest.current(first), false);
+  assert.equal(latest.current(second), true);
+}
+// Top day buttons and the panel's Day stay in step: "Both" lights up both day buttons.
+assert.equal(dayActive(0, 0, false), true);
+assert.equal(dayActive(1, 0, false), false);
+assert.equal(dayActive(1, 0, true), true);
 console.log('desk logic smoke OK');

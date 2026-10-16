@@ -53,4 +53,13 @@ export function checkInWindow(booking, nowIso) {
 export const untaggedNote = (seat) => (seat.open_to_all || seat.department_id ? ''
   : 'This seat is not set up yet, so it cannot be booked or checked in to. An admin can tag it Free for all, or give it a project team, in Manage Floor Plan and publish again.');
 
+/** Request tokens: only the latest started request may update the page (a slow older one is ignored). */
+export function latestOnly() {
+  let n = 0;
+  return { start: () => (n += 1), current: (token) => token === n };
+}
+
+/** Whether a top day button (0 today, 1 next working day) is lit: its own day, or both when "Both" is chosen. */
+export const dayActive = (index, dayOffset, bothDays) => bothDays || dayOffset === index;
+
 export const firstLoad = ({ floors, floor, error }) => !error && (!floors || (floors.length > 0 && !floor));

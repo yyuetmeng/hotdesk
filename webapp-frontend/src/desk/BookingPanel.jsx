@@ -43,9 +43,8 @@ function PersonPicker({ date, person, taken, onPick }) {
 }
 
 export default function BookingPanel({ planId, seat, picked, multi, setMulti, onRemovePicked, days, dayOffset, setDayOffset,
-  preset, setPreset, skipped, onChanged }) {
+  bothDays: both, setBothDays: setBoth, preset, setPreset, skipped, onChanged }) {
   const [forWho, setForWho] = useState('me');
-  const [both, setBoth] = useState(false);
   const [people, setPeople] = useState({});
   const [allowance, setAllowance] = useState(null);
   const [busy, setBusy] = useState(false);

@@ -1,4 +1,5 @@
 """Booking rules over the API (spec 2026-10-15-seat-booking-and-checkin §2.3-2.4)."""
+from datetime import timedelta
 import pytest
 
 from app.core.db import run_one, run_write
@@ -134,3 +135,18 @@ def test_admins_can_book_for_anyone(client, world):
     assert {"Bob Ong", "Jane Tan", "Carl Lim", "Ali Rahman"} <= {c["name"] for c in found["items"]}
     assert "Root Admin" not in {c["name"] for c in found["items"]} and "Dave Inactive" not in {c["name"] for c in found["items"]}
     assert found["allowance"]["limit"] is None and found["allowance"]["left"] is None    # no limit
+
+
+def test_a_cancelled_booking_frees_the_seat_on_the_floor_and_can_be_booked_again(client, world, monkeypatch):
+    """Owner 2026-10-16: after cancelling, the seat shows free again and the same person can book it again."""
+    set_now(monkeypatch, sg(DAY, 16, 30))                       # Friday afternoon; the next working day is Monday
+    monday = (DAY + timedelta(days=3)).isoformat()
+    jane = hdr(world["tok"]["jane"])
+    floor = lambda: {s["label"]: s for s in client.get(f"/api/desk/floors/{world['plan']}?date={monday}&preset=full", headers=jane).get_json()["seats"]}   # noqa: E731
+    b = book(client, world, "jane", "F1", "full", day=DAY + timedelta(days=3))
+    assert b.status_code == 201
+    assert floor()["F1"]["state"] == "booked" and floor()["F1"]["can_book"]["full"] is False
+    assert client.delete(f"/api/desk/bookings/{b.get_json()['id']}", headers=jane).status_code in (200, 204)
+    f1 = floor()["F1"]
+    assert f1["state"] == "available" and f1["can_book"]["full"] is True and f1["booking"] is None
+    assert book(client, world, "jane", "F1", "full", day=DAY + timedelta(days=3)).status_code == 201

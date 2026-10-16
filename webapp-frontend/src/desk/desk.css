@@ -69,3 +69,6 @@
 .desk-mybookings li:last-child { border-bottom: 0; }
 .desk-mybookings small { display: block; color: var(--muted); }
 .desk-checkin .desk-mybookings .button { min-width: 0; padding: 9px 16px; font-size: 14px; }
+
+/* Which day and slot the floor shows, next to the floor name. */
+.desk-showing { color: var(--muted); font-size: 14px; font-weight: 500; }
