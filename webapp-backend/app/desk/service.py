@@ -7,12 +7,14 @@ import logging
 import uuid
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, event, func, or_, select
+from sqlalchemy.orm import Session
+from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.core.auth_models import Department, User, UserDepartment
 from app.core.desk_models import SeatBooking, SeatBookingBlock, SeatCheckin
-from app.core.floorplan_models import FloorPlan, FloorPlanVersionElement
+from app.core.floorplan_models import FloorPlan, FloorPlanVersion, FloorPlanVersionElement
 from app.core.audit import audit_row
 from app.core.orm import orm_session
 
@@ -75,6 +77,12 @@ def settle(at: datetime) -> None:
     failing the request — settle is idempotent, so the next request finishes the job.
     """
     session = orm_session()
+    # One round trip when nothing is due (the usual case): skip the two locking queries.
+    anything_due = session.scalar(select(
+        select(SeatBooking.id).where(SeatBooking.end_reason.is_(None), SeatBooking.release_at <= at).exists()
+        | select(SeatCheckin.id).where(SeatCheckin.checked_out_at.is_(None), SeatCheckin.ends_at <= at).exists()))
+    if not anything_due:
+        return
     try:
         due = session.scalars(select(SeatBooking).where(
             SeatBooking.end_reason.is_(None), SeatBooking.release_at <= at)
@@ -103,17 +111,29 @@ def _free_booking_blocks(booking_id) -> None:
 
 # --- published floors ---------------------------------------------------------------------
 
+def _with_live_version(query):
+    """Load each plan's published version (joined) and its elements (one extra query) with the plans."""
+    return query.options(joinedload(FloorPlan.published_version).selectinload(FloorPlanVersion.elements))
+
+
 def published_plan(plan_id) -> FloorPlan:
     pid = _uuid(plan_id)
-    plan = orm_session().get(FloorPlan, pid) if pid else None
+    plan = orm_session().scalars(_with_live_version(select(FloorPlan).where(FloorPlan.id == pid))).unique().first() if pid else None
     if plan is None or plan.published_version is None:
         raise DeskError("floor not found", 404)
     return plan
 
 
 def published_floors() -> list[FloorPlan]:
-    return orm_session().scalars(select(FloorPlan).where(FloorPlan.published_version_id.is_not(None))
-                                 .order_by(FloorPlan.name)).all()
+    """Published floors with their live version and elements; loaded once per database session (one per
+    request). Kept on the session, so it ends with the request and is dropped after a commit."""
+    session = orm_session()
+    cached = session.info.get("published_floors")
+    if cached is None:
+        cached = session.scalars(_with_live_version(
+            select(FloorPlan).where(FloorPlan.published_version_id.is_not(None)).order_by(FloorPlan.name))).unique().all()
+        session.info["published_floors"] = cached
+    return cached
 
 
 def seat_element(seat_id) -> tuple[FloorPlan, FloorPlanVersionElement]:
@@ -208,17 +228,26 @@ def floor_context(seat_ids, day: date, at: datetime, viewer: User | None = None)
     day_start, day_end = _day_bounds(day)
     blocks = _blocks_in(seat_ids, day_start, day_end)
     held_ids = {b.booking_id for b in blocks}
-    held = {b.id: b for b in session.scalars(select(SeatBooking).where(SeatBooking.id.in_(held_ids)))} if held_ids else {}
     active_by_seat: dict = {}
+    held: dict = {}
     for b in session.scalars(select(SeatBooking).where(
             SeatBooking.seat_id.in_(seat_ids), SeatBooking.booking_date == day,
             SeatBooking.end_reason.is_(None)).order_by(SeatBooking.starts_at)):
         active_by_seat.setdefault(b.seat_id, []).append(b)
+        if b.id in held_ids:
+            held[b.id] = b
+    missing = held_ids - set(held)   # blocks of a booking dated another day (not expected): fetch them
+    if missing:
+        held.update({b.id: b for b in session.scalars(select(SeatBooking).where(SeatBooking.id.in_(missing)))})
     blocks_by_seat: dict = {}
     for block in blocks:
         blocks_by_seat.setdefault(block.seat_id, []).append(block)
+    who = [SeatCheckin.seat_id.in_(seat_ids)] + ([SeatCheckin.user_id == viewer.id] if viewer is not None else [])
+    open_now = session.scalars(select(SeatCheckin).where(SeatCheckin.checked_out_at.is_(None), or_(*who))).all()
+    seats = set(seat_ids)
     return {"blocks_by_seat": blocks_by_seat, "held": held, "active_by_seat": active_by_seat,
-            "open": open_checkins(seat_ids), "mine": open_checkin_of(viewer) if viewer is not None else None}
+            "open": {c.seat_id: c for c in open_now if c.seat_id in seats},
+            "mine": next((c for c in open_now if viewer is not None and c.user_id == viewer.id), None)}
 
 
 def _overlaps(checkin: SeatCheckin | None, starts: datetime, ends: datetime) -> bool:
@@ -556,3 +585,9 @@ def cancel_for_plan_change(plan: FloorPlan, at: datetime, removed: bool = False,
             changed += 1
     session.commit()
     return changed
+
+
+@event.listens_for(Session, "after_commit")
+def _forget_published_floors(session):
+    """A commit may have published or unpublished a floor: load them again next time."""
+    session.info.pop("published_floors", None)
