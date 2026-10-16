@@ -43,3 +43,21 @@
 .users-tabs button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0/.15); }
 .users-history { max-height: 60vh; overflow-y: auto; padding-top: 6px; }
 .users-team-changes { margin-top: 14px; } .users-team-changes summary { cursor: pointer; color: var(--muted); margin-bottom: 10px; }
+
+/* Bulk import from Excel (ImportPanel.jsx). */
+.users-import { margin-bottom: 16px; }
+.users-import-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.users-import-head h2 { margin: 0; }
+.users-import-steps { margin: 12px 0; padding-left: 20px; display: grid; gap: 10px; }
+.users-import-steps .muted { color: var(--muted); font-size: 13px; }
+.users-import-options { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.users-import-options label { display: inline-flex; align-items: center; gap: 6px; }
+.users-import-summary { margin: 8px 0; }
+.users-import-bad { color: #dc2626; }
+.users-import-table td { font-size: 13px; vertical-align: top; }
+.users-import-pill { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.users-import-pill.imp-create { background: #dcfce7; color: #166534; }
+.users-import-pill.imp-update { background: #dbeafe; color: #1e40af; }
+.users-import-pill.imp-skip { background: #f1f5f9; color: #475569; }
+.users-import-pill.imp-error { background: #fee2e2; color: #991b1b; }
+.users-import-table tr.imp-error td { background: color-mix(in srgb, #dc2626 6%, transparent); }
