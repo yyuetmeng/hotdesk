@@ -15,7 +15,8 @@
 .zone-util-legend span { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
 
 /* Insights: Utilisation by zone and Occupancy side by side (stacked on narrow screens). */
-.insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr)); gap: 16px; align-items: start; }
+.insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr)); gap: 16px; align-items: stretch; }
+.insights-grid > .card { display: flex; flex-direction: column; }   /* side by side: both widgets the same height */
 .insights-grid .zone-util { margin-bottom: 0; }
 .occ-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .occ-head h2 { margin: 0 0 4px; } .occ-sub { margin: 0; color: var(--muted); font-size: 13px; max-width: 420px; }
