@@ -1,13 +1,13 @@
-"""Bulk loading of users and project teams from Excel templates (owner 2026-10-16), for the initial mass load.
+"""Bulk loading of users from an Excel template (owner 2026-10-16), for the initial mass load.
 
-GET  /api/admin/users/import-template.xlsx   Users sheet (headers) + Instructions sheet (rules, existing teams)
-GET  /api/admin/departments/import-template.xlsx   Project teams sheet + Instructions
-POST /api/admin/users/import         multipart: file (.xlsx or .csv); form: dry_run, create_teams, send_invitations
-POST /api/admin/departments/import   multipart: file; form: dry_run
+GET  /api/admin/users/import-template.xlsx   Users sheet (headers + one reference record: an existing user, if any)
+                                             and an Instructions sheet (rules, existing project teams)
+POST /api/admin/users/import         multipart: file (.xlsx or .csv); form: dry_run, create_teams, send_invitations,
+                                     default_password (optional: every new user's starting password, 8+ characters)
 
-Each row gets a status: create / update (teams) / skip (email already exists) / error (with messages). A dry run
-changes nothing; an import creates the valid rows and leaves the rest, so re-uploading a fixed file is safe.
-Users are tagged to project teams from their "Project teams" column; the teams file adds members (never removes).
+Each row gets a status: create / skip (email already exists, incl. the template's reference record) / error (with
+messages). A dry run changes nothing; an import creates the valid rows and leaves the rest, so re-uploading a fixed
+file is safe. Users are tagged to project teams from their "Project teams" column.
 """
 import csv
 import datetime as dt
@@ -22,7 +22,7 @@ from app.core.audit import audit_row
 from app.core.auth_models import Department, Role, User
 from app.core.errors import error
 from app.core.orm import orm_session
-from app.core.security import admin_required
+from app.core.security import admin_required, hash_password
 from app.core.xlsx import write_xlsx
 from app.core.xlsx_read import read_xlsx
 
@@ -33,7 +33,6 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MAX_BYTES = 5 * 1024 * 1024
 MAX_ROWS = 2000
 USER_COLUMNS = ["Full name", "Email", "Username", "Role", "Project teams", "Booking allowance", "Access from", "Access until"]
-TEAM_COLUMNS = ["Project team", "Description", "Members"]
 SPLIT = re.compile(r"[;,\n]")
 EXCEL_EPOCH = dt.date(1899, 12, 30)
 
@@ -94,14 +93,26 @@ def _read_upload(columns: list[str]) -> list[tuple[int, dict]]:
 
 
 def _summary(rows: list[dict]) -> dict:
-    keys = ("create", "update", "skip", "error") if any(r["status"] == "update" for r in rows) else ("create", "skip", "error")
-    return {k: sum(1 for r in rows if r["status"] == k) for k in keys}
+    return {k: sum(1 for r in rows if r["status"] == k) for k in ("create", "skip", "error")}
 
 
-def _template(sheet: str, columns: list[str], instructions: list[list]) -> Response:
+def _reference_user():
+    """An existing, active user to show filled in as row 2 of the template: one in a project team if possible."""
+    users = orm_session().scalars(select(User).where(User.is_active.is_(True)).order_by(User.full_name)).unique().all()
+    people = [u for u in users if u.role is None or u.role.name != "admin"] or users
+    return next((u for u in people if u.departments), people[0] if people else None)
+
+
+def _reference_row(user) -> list:
+    return [user.full_name, user.email, user.username, user.role.name if user.role else "user",
+            "; ".join(d.name for d in user.departments), user.booking_allowance,
+            user.start_date.isoformat() if user.start_date else None, user.end_date.isoformat() if user.end_date else None]
+
+
+def _template(sheet: str, columns: list[str], instructions: list[list], example: list | None) -> Response:
     stamp = dt.date.today().isoformat()
-    name = "users-template" if sheet == "Users" else "project-teams-template"
-    data = write_xlsx([(sheet, [columns]), ("Instructions", instructions)])
+    data = write_xlsx([(sheet, [columns] + ([example] if example else [])), ("Instructions", instructions)])
+    name = "users-template"
     return Response(data, mimetype=XLSX, headers={"Content-Disposition": f'attachment; filename="{name}-{stamp}.xlsx"'})
 
 
@@ -122,20 +133,11 @@ def users_template():
              ["Booking allowance", "No", "How many colleagues they may book for per day (0 if empty)"],
              ["Access from", "No", "First day they can sign in, YYYY-MM-DD (empty = straight away)"],
              ["Access until", "No", "Last day they can sign in, YYYY-MM-DD (empty = no end)"],
+             [], ["Row 2 of the Users sheet is a reference record: an existing user, filled in as an example. "
+                  "You can leave it or delete it; it is ignored when you upload."],
              [], ["Existing project teams"]] + [[n] for n in _team_names()]
-    return _template("Users", USER_COLUMNS, rules)
-
-
-@admin_bp.get("/departments/import-template.xlsx")
-@admin_required
-def teams_template():
-    g.jwt_uid = get_jwt_identity()
-    rules = [["Column", "Required", "What to enter"],
-             ["Project team", "Yes", "The team's name. A new name creates the team; an existing name adds to that team."],
-             ["Description", "No", "A short description (replaces the current one when filled in)"],
-             ["Members", "No", "Emails or usernames of existing users, separated by ; . They are added to the team (no one is removed)."],
-             [], ["Existing project teams"]] + [[n] for n in _team_names()]
-    return _template("Project teams", TEAM_COLUMNS, rules)
+    ref = _reference_user()
+    return _template("Users", USER_COLUMNS, rules, _reference_row(ref) if ref else None)
 
 
 def _username_from(email: str) -> str:
@@ -148,6 +150,8 @@ def _check_users(rows, create_teams: bool) -> list[dict]:
     emails = set(session.scalars(select(func.lower(User.email))))
     usernames = set(session.scalars(select(func.lower(User.username))))
     teams = {n.lower(): n for n in _team_names()}
+    ref = _reference_user()
+    ref_email = ref.email.lower() if ref else None
     seen_emails, out = {}, []
     for number, r in rows:
         problems, notes = [], []
@@ -195,7 +199,9 @@ def _check_users(rows, create_teams: bool) -> list[dict]:
             problems.append("Dates must be YYYY-MM-DD.")
         exists = _valid_email(email) and email in emails and email not in seen_emails
         if exists:                                   # already loaded (e.g. a re-upload): skip, whatever else the row says
-            status, problems, notes = "skip", [f"A user with email {email} already exists; skipped."], []
+            note = ("This is the template's reference record (an existing user): ignored." if email == ref_email
+                    else f"A user with email {email} already exists; skipped.")
+            status, problems, notes = "skip", [note], []
         else:
             status = "error" if problems else "create"
         if _valid_email(email):
@@ -217,6 +223,9 @@ def _public(rows):
 def import_users():
     actor = get_jwt_identity()
     g.jwt_uid = actor
+    password = request.form.get("default_password") or ""
+    if password and len(password) < 8:
+        return error("the default password must be at least 8 characters", 400)
     try:
         rows = _check_users(_read_upload(USER_COLUMNS), _flag("create_teams"))
     except ImportFileError as exc:
@@ -226,6 +235,7 @@ def import_users():
     session = orm_session()
     teams = {d.name.lower(): d for d in session.scalars(select(Department))}
     roles = dict(session.execute(select(Role.name, Role.id)).all())
+    password_hash = hash_password(password) if password else None   # hashed once; the same start for everyone
     created = []
     for r in (r for r in rows if r["status"] == "create"):
         for name in r["teams"]:
@@ -235,77 +245,15 @@ def import_users():
                 session.flush()
                 audit_row(actor, "department.create", None, {"name": name, "department_id": str(teams[name.lower()].id), "source": "import"})
         user = User(email=r["email"], username=r["username"], full_name=r["full_name"], role_id=roles[r["role"]],
-                    booking_allowance=r["_allowance"], start_date=r["_start"], end_date=r["_end"])
+                    booking_allowance=r["_allowance"], start_date=r["_start"], end_date=r["_end"], password_hash=password_hash)
         user.departments = [teams[n.lower()] for n in r["teams"]]
         session.add(user)
         session.flush()
-        audit_row(actor, "user.create", str(user.id), {"email": r["email"], "username": r["username"], "role": r["role"], "source": "import"})
+        audit_row(actor, "user.create", str(user.id), {"email": r["email"], "username": r["username"], "role": r["role"], "source": "import",
+                                                     "default_password": bool(password)})
         created.append((user, r))
     session.commit()
     if _flag("send_invitations"):
         for user, r in created:
             _send_invitation(str(user.id), r["email"], r["full_name"], r["username"])
     return jsonify(rows=_public(rows), summary=_summary(rows), imported=len(created))
-
-
-def _check_teams(rows) -> list[dict]:
-    session = orm_session()
-    teams = {n.lower() for n in _team_names()}
-    people = {}
-    for u in session.scalars(select(User)).unique():
-        people[u.email.lower()] = u
-        people[u.username.lower()] = u
-    seen, out = {}, []
-    for number, r in rows:
-        problems, members = [], []
-        team, description = _text(r["Project team"]), _text(r["Description"])
-        if not team:
-            problems.append("Project team is required.")
-        elif team.lower() in seen:
-            problems.append(f"Same project team as row {seen[team.lower()]}.")
-        for part in (p.strip() for p in SPLIT.split(_text(r["Members"]))):
-            if part and part.lower() in people:
-                members.append(people[part.lower()])
-            elif part:
-                problems.append(f"Unknown member: {part}.")
-        if team:
-            seen.setdefault(team.lower(), number)
-        status = "error" if problems else "update" if team.lower() in teams else "create"
-        out.append({"row": number, "status": status, "team": team, "description": description,
-                    "members": [m.full_name for m in dict.fromkeys(members)], "messages": problems, "_members": list(dict.fromkeys(members))})
-    return out
-
-
-@admin_bp.post("/departments/import")
-@admin_required
-def import_teams():
-    actor = get_jwt_identity()
-    g.jwt_uid = actor
-    try:
-        rows = _check_teams(_read_upload(TEAM_COLUMNS))
-    except ImportFileError as exc:
-        return error(str(exc), 400)
-    if _flag("dry_run"):
-        return jsonify(rows=_public(rows), summary=_summary(rows), imported=0)
-    session = orm_session()
-    teams = {d.name.lower(): d for d in session.scalars(select(Department))}
-    done = 0
-    for r in (r for r in rows if r["status"] in ("create", "update")):
-        dept = teams.get(r["team"].lower())
-        if dept is None:
-            dept = Department(name=r["team"], description=r["description"] or None)
-            session.add(dept)
-            session.flush()
-            audit_row(actor, "department.create", None, {"name": dept.name, "department_id": str(dept.id), "source": "import"})
-        elif r["description"]:
-            dept.description = r["description"]
-        added = 0
-        for user in r["_members"]:
-            if dept not in user.departments:
-                user.departments.append(dept)
-                added += 1
-        if r["status"] == "update":
-            audit_row(actor, "department.update", None, {"name": dept.name, "department_id": str(dept.id), "added": added, "source": "import"})
-        done += 1
-    session.commit()
-    return jsonify(rows=_public(rows), summary=_summary(rows), imported=done)

@@ -65,7 +65,7 @@ export function UsersPage() {
 
   const setFilter = (key, value) => { setFilters((old) => ({ ...old, [key]: value })); setPage(1); };
   const [changes, setChanges] = useState(0);   // bumps after every change so the health strip reloads too
-  const [importing, setImporting] = useState(null);   // 'users' | 'teams' | null: the bulk import panel
+  const [importing, setImporting] = useState(false);   // the Upload Users panel
   const afterChange = async (message, kind = 'success') => {
     setNotice({ kind, message });
     await Promise.all([loadUsers(), loadDepartments()]);
@@ -82,7 +82,7 @@ export function UsersPage() {
     {error && <Notice kind="error">{error}</Notice>}
     {notice && <Notice kind={notice.kind}>{notice.message}</Notice>}
     <SecurityStrip refreshKey={changes} onFilter={(status) => setFilter('status', status)} />
-    {importing && <ImportPanel key={importing} kind={importing} onClose={() => setImporting(null)} onDone={(message) => afterChange(message)} />}
+    {importing && <ImportPanel onClose={() => setImporting(false)} onDone={(message) => afterChange(message)} />}
 
     <div className="content-split users-layout">
       <section className="card">
@@ -101,7 +101,7 @@ export function UsersPage() {
             {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select></label>
           <button className="button primary" onClick={() => { setNotice(null); setEditing('new'); }}>New user</button>
-          <button className="button" onClick={() => { setNotice(null); setImporting('users'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Import from Excel…</button>
+          <button className="button" onClick={() => { setNotice(null); setImporting(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Upload Users</button>
         </div>
 
         <div className="users-table-wrap">
@@ -147,8 +147,7 @@ export function UsersPage() {
       </aside>
     </div>
 
-    <DepartmentsSection departments={departments} onChanged={afterChange} refreshKey={changes}
-      onImport={() => { setNotice(null); setImporting('teams'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
+    <DepartmentsSection departments={departments} onChanged={afterChange} refreshKey={changes} />
   </main>;
 }
 
@@ -295,7 +294,7 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
   </form>;
 }
 
-function DepartmentsSection({ departments, onChanged, refreshKey, onImport }) {
+function DepartmentsSection({ departments, onChanged, refreshKey }) {
   const [name, setName] = useState('');
   const [message, setMessage] = useState(null);
 
@@ -334,7 +333,6 @@ function DepartmentsSection({ departments, onChanged, refreshKey, onImport }) {
     <form className="inline-form" onSubmit={add}>
       <label>Name <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. eWorkplace or SAP" required /></label>
       <button className="button primary">Add</button>
-      <button type="button" className="button" onClick={onImport}>Import from Excel…</button>
     </form>
     {departments.length
       ? <table><thead><tr><th>Project team</th><th>Users</th><th /></tr></thead>

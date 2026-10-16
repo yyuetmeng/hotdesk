@@ -1,4 +1,4 @@
-"""Bulk loading of users and project teams from Excel templates (owner 2026-10-16).
+"""Bulk loading of users from an Excel template (owner 2026-10-16); project teams come from each user's row.
 
 Template download -> fill in Excel -> upload for a preview (dry run, per-row status) -> import. Valid rows are
 created, invalid ones are reported and skipped; existing emails are skipped, so re-uploading a fixed file is safe.
@@ -14,7 +14,6 @@ from app.core.xlsx_read import read_xlsx
 from desk_helpers import build_world, hdr
 
 USERS = "/api/admin/users/import"
-TEAMS = "/api/admin/departments/import"
 HEAD = ["Full name", "Email", "Username", "Role", "Project teams", "Booking allowance", "Access from", "Access until"]
 
 
@@ -43,8 +42,7 @@ def test_templates_download_as_excel_with_the_expected_columns(client, world):
     sheets = zipfile.ZipFile(io.BytesIO(r.data)).namelist()
     assert "xl/worksheets/sheet2.xml" in sheets                                  # an Instructions sheet
     assert read_xlsx(r.data)[0] == HEAD
-    t = client.get("/api/admin/departments/import-template.xlsx", headers=root)
-    assert t.status_code == 200 and read_xlsx(t.data)[0] == ["Project team", "Description", "Members"]
+    assert client.get("/api/admin/departments/import-template.xlsx", headers=root).status_code == 404   # teams go via users
     assert client.get("/api/admin/users/import-template.xlsx", headers=hdr(world["tok"]["jane"])).status_code == 403
 
 
@@ -110,26 +108,6 @@ def test_a_file_that_is_not_the_template_is_refused(client, world):
     assert client.post(USERS, data={}, content_type="multipart/form-data", headers=hdr(world["tok"]["root"])).status_code == 400
 
 
-def test_teams_file_creates_teams_and_adds_members_by_email_or_username(client, world):
-    head = ["Project team", "Description", "Members"]
-    rows = [["AI Lab", "Machine learning", "jane@x.com; carl"],
-            ["Engineering", "", "bob"],                                            # existing team: add Bob
-            ["Ghosts", "", "nobody@x.com"],                                        # unknown member
-            ["", "", "jane"]]
-    preview = _upload(client, world, TEAMS, rows, head=head, dry_run="1").get_json()
-    assert [(r["team"], r["status"]) for r in preview["rows"]] == [("AI Lab", "create"), ("Engineering", "update"),
-                                                                     ("Ghosts", "error"), ("", "error")]
-    assert preview["rows"][0]["members"] == ["Jane Tan", "Carl Lim"]
-    body = _upload(client, world, TEAMS, rows, head=head).get_json()
-    assert body["imported"] == 2
-    members = {(r["name"], r["full_name"]) for r in run_query(
-        "select d.name, u.full_name from user_departments ud join users u on u.id = ud.user_id "
-        "join departments d on d.id = ud.department_id where d.name in ('AI Lab', 'Engineering')")}
-    assert {("AI Lab", "Jane Tan"), ("AI Lab", "Carl Lim"), ("Engineering", "Bob Ong"), ("Engineering", "Jane Tan")} <= members
-    [lab] = run_query("select description from departments where name = 'AI Lab'")
-    assert lab["description"] == "Machine learning"
-
-
 def test_reader_handles_shared_strings_numbers_and_dates_as_excel_saves_them():
     """Excel itself writes shared strings and date serials (write_xlsx writes inline strings)."""
     buf = io.BytesIO()
@@ -147,3 +125,28 @@ def test_reader_handles_shared_strings_numbers_and_dates_as_excel_saves_them():
                    '</sheetData></worksheet>')
     rows = read_xlsx(buf.getvalue())
     assert rows == [["Name", None, "When"], ["Mei Ling", 2.0, 46296.0]]          # blank row 2 dropped, gaps kept
+
+
+def test_template_has_a_reference_record_from_an_existing_user_which_upload_skips(client, world):
+    """Row 2 shows a real, existing user filled in, as an example; uploading it unchanged just skips it."""
+    root = hdr(world["tok"]["root"])
+    rows = read_xlsx(client.get("/api/admin/users/import-template.xlsx", headers=root).data)
+    assert len(rows) == 2
+    ref = dict(zip(HEAD, rows[1]))
+    assert ref["Email"] == "ali@x.com" and ref["Full name"] == "Ali Rahman"          # a user in a project team
+    assert ref["Project teams"] == "Engineering" and ref["Role"] == "user" and ref["Booking allowance"] == 1.0
+    body = _upload(client, world, USERS, [rows[1], ["Mei Ling", "mei@x.com", "", "", "", "", "", ""]]).get_json()
+    assert [r["status"] for r in body["rows"]] == ["skip", "create"] and body["imported"] == 1
+    assert "reference record" in body["rows"][0]["messages"][0]                       # said plainly, and ignored
+
+
+def test_a_default_password_lets_new_users_sign_in_straight_away(client, world):
+    """Owner 2026-10-16: optionally give every uploaded user the same starting password (at least 8 characters)."""
+    rows = [["Mei Ling", "mei@x.com", "", "", "", "", "", ""]]
+    assert _upload(client, world, USERS, rows, default_password="short").status_code == 400
+    assert "Mei Ling" not in _names()
+    assert _upload(client, world, USERS, rows, default_password="Welcome#2026").get_json()["imported"] == 1
+    r = client.post("/api/auth/login", json={"email_or_username": "mei", "password": "Welcome#2026"})
+    assert r.status_code == 200
+    [entry] = run_query("select details from audit_logs where action = 'user.create' and details->>'email' = 'mei@x.com'")
+    assert entry["details"]["default_password"] is True and "Welcome" not in str(entry["details"])

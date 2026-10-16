@@ -57,7 +57,8 @@
 .users-import-table td { font-size: 13px; vertical-align: top; }
 .users-import-pill { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 650; white-space: nowrap; }
 .users-import-pill.imp-create { background: #dcfce7; color: #166534; }
-.users-import-pill.imp-update { background: #dbeafe; color: #1e40af; }
 .users-import-pill.imp-skip { background: #f1f5f9; color: #475569; }
 .users-import-pill.imp-error { background: #fee2e2; color: #991b1b; }
 .users-import-table tr.imp-error td { background: color-mix(in srgb, #dc2626 6%, transparent); }
+.users-import-password { display: inline-flex; align-items: center; gap: 8px; }
+.users-import-password input { width: 220px; }

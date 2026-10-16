@@ -1,18 +1,14 @@
-// Bulk import of users / project teams (owner 2026-10-16): wording for the preview and the result.
-const STATUS = { create: 'New', update: 'Add to team', skip: 'Skipped', error: 'Error' };
+// Upload Users (owner 2026-10-16): wording for the preview and the result.
+const STATUS = { create: 'New', skip: 'Skipped', error: 'Error' };
 export const statusLabel = (status) => STATUS[status] ?? status;
 
-const noun = (kind, n) => (kind === 'users' ? `user${n === 1 ? '' : 's'}` : `project team${n === 1 ? '' : 's'}`);
-const toImport = (summary) => (summary.create ?? 0) + (summary.update ?? 0);
+const users = (n) => `user${n === 1 ? '' : 's'}`;
 
-export function importLabel(kind, summary) {
-  const n = toImport(summary);
-  return n ? `Import ${n} ${noun(kind, n)}` : 'Nothing to import';
-}
+export const importLabel = (summary) => (summary.create ? `Upload ${summary.create} ${users(summary.create)}` : 'Nothing to upload');
 
-export function resultText(kind, imported, summary) {
-  const parts = [`Imported ${imported} ${noun(kind, imported)}.`];
+export function resultText(uploaded, summary) {
+  const parts = [`Uploaded ${uploaded} ${users(uploaded)}.`];
   if (summary.skip) parts.push(`${summary.skip} skipped (already there)${summary.error ? ',' : '.'}`);
-  if (summary.error) parts.push(`${summary.error} with errors not imported.`);
+  if (summary.error) parts.push(`${summary.error} with errors not uploaded.`);
   return parts.join(' ');
 }
