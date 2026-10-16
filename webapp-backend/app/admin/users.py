@@ -16,6 +16,7 @@ from app.core.auth_models import AuditLog, Department, Role, User, UserDepartmen
 from app.core.email import invitation_email, send_email
 from app.core.errors import error
 from app.core.orm import orm_session
+from app.core.passwords import password_problem
 from app.core.security import admin_required, hash_password
 from app.core.users import email_exists, fetch_user, public_user, username_exists
 from app.desk.dashboard import seat_places
@@ -368,13 +369,13 @@ def admin_set_password(user_id):
     user_id = str(user_id)
     body = request.get_json(silent=True) or {}
     password = body.get("password") or ""
-    if len(password) < 8:
-        return error("validation failed", 400,
-                     fields={"password": "password must be at least 8 characters"})
     session = orm_session()
     user = session.get(User, user_id)
     if user is None:
         return error("user not found", 404)
+    problem = password_problem(password, username=user.username, email=user.email)
+    if problem:
+        return error("validation failed", 400, fields={"password": problem})
     user.password_hash = hash_password(password)
     user.failed_attempts = 0
     user.is_active = True

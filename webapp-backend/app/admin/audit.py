@@ -163,6 +163,7 @@ def _describe(e: AuditLog, target: str | None, places) -> str:
         "auth.login_failed": f"Failed sign-in for “{d.get('identifier', '?')}”",
         "account.locked": f"{target} was locked after {d.get('failed_attempts', 'several')} failed sign-ins",
         "account.activated": f"{target} activated their account",
+        "account.password_changed": f"{target} changed their password",
         "password_reset.requested": f"{target} asked for a password reset",
         "password_reset.completed": f"{target} reset their password",
         "user.create": f"{who} created user {target}",

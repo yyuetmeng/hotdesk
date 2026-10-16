@@ -11,6 +11,7 @@ from app.core.auth_models import User
 from app.core.email import send_email
 from app.core.errors import error
 from app.core.orm import orm_session
+from app.core.passwords import common_hashes, password_problem
 from app.core.security import hash_password, verify_password
 from app.core.users import fetch_user, find_user_by_identity, public_user
 
@@ -117,6 +118,36 @@ def me():
     return jsonify(user)
 
 
+@auth_bp.get("/common-password-hashes")
+def common_password_hashes():
+    """SHA-256 hashes of well-known passwords, so the browser can warn while you type without sending the password."""
+    return jsonify(hashes=common_hashes())
+
+
+@auth_bp.post("/change-password")
+@auth_required
+def change_password():
+    """Change your own password (My account): the current one must be right; the new one follows the policy."""
+    body = request.get_json(silent=True) or {}
+    current, new = body.get("current_password") or "", body.get("new_password") or ""
+    session = orm_session()
+    user = session.get(User, get_jwt_identity())
+    if user is None:
+        return error("user not found", 401)
+    if not (user.password_hash and verify_password(current, user.password_hash)):
+        return error("validation failed", 400, fields={"current_password": "Your current password is not right."})
+    problem = password_problem(new, username=user.username, email=user.email)
+    if not problem and new == current:
+        problem = "Choose a password you have not used just now."
+    if problem:
+        return error("validation failed", 400, fields={"new_password": problem})
+    user.password_hash = hash_password(new)
+    user.updated_at = func.now()
+    session.commit()
+    write_audit(str(user.id), "account.password_changed", str(user.id), {})
+    return ("", 204)
+
+
 @auth_bp.post("/forgot-password")
 def forgot_password():
     body = request.get_json(silent=True) or {}
@@ -153,9 +184,9 @@ def verify_set_password():
 def set_password():
     body = request.get_json(silent=True) or {}
     raw, password = body.get("token", ""), body.get("password") or ""
-    if len(password) < 8:
-        return error("validation failed", 400,
-                     fields={"password": "password must be at least 8 characters"})
+    problem = password_problem(password)
+    if problem:
+        return error("validation failed", 400, fields={"password": problem})
     rec = validate_token(raw, "activate") or validate_token(raw, "reset")
     if rec is None:
         log.warning("invalid or expired set-password token used")

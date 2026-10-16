@@ -226,10 +226,10 @@ def test_email_change_on_pending_resends_invitation(client, db, admin_token, stu
 def test_admin_sets_password_and_user_can_login(client, db, admin_token):
     uid = _mk_plain(client, admin_token, "ps@x.com", "ps")["id"]
     r = client.post(f"/api/admin/users/{uid}/password", headers=hdr(admin_token),
-                    json={"password": "set-by-adm"})
+                    json={"password": "set-by-adm1"})
     assert r.status_code == 204
     assert client.post("/api/auth/login",
-                       json={"email_or_username": "ps@x.com", "password": "set-by-adm"}).status_code == 200
+                       json={"email_or_username": "ps@x.com", "password": "set-by-adm1"}).status_code == 200
     assert run_one("select action from audit_logs where action = 'user.password_reset'")
 
 

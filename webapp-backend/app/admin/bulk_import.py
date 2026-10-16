@@ -3,7 +3,7 @@
 GET  /api/admin/users/import-template.xlsx   Users sheet (headers + a sample row: Andy Lau, which upload ignores)
                                              and an Instructions sheet (rules, existing project teams)
 POST /api/admin/users/import         multipart: file (.xlsx or .csv); form: dry_run, create_teams, send_invitations,
-                                     default_password (optional: every new user's starting password, 8+ characters)
+                                     default_password (optional: every new user's starting password; the password policy applies)
 
 Each row gets a status: create / skip (email already exists, or the template's sample row) / error (with
 messages). A dry run changes nothing; an import creates the valid rows and leaves the rest, so re-uploading a fixed
@@ -23,6 +23,7 @@ from app.core.audit import audit_row
 from app.core.auth_models import Department, Role, User
 from app.core.errors import error
 from app.core.orm import orm_session
+from app.core.passwords import password_problem
 from app.core.security import admin_required, hash_password
 from app.core.xlsx import write_xlsx
 from app.core.xlsx_read import read_xlsx
@@ -216,8 +217,9 @@ def import_users():
     actor = get_jwt_identity()
     g.jwt_uid = actor
     password = request.form.get("default_password") or ""
-    if password and len(password) < 8:
-        return error("the default password must be at least 8 characters", 400)
+    problem = password_problem(password) if password else None
+    if problem:
+        return error(f"Default password: {problem}", 400)
     try:
         rows = _check_users(_read_upload(USER_COLUMNS), _flag("create_teams"))
     except ImportFileError as exc:
