@@ -53,8 +53,10 @@ def teams_today(at) -> dict:
     ins, open_now, outs = _today(at)
 
     def of(team_id, rows):
-        return [c for c in rows if (team_id in (c.user_department_ids or [])) if team_id] if team_id else \
-               [c for c in rows if not c.user_department_ids]
+        """Check-ins of a team (team_id None: people with no project team)."""
+        if team_id is None:
+            return [c for c in rows if not c.user_department_ids]
+        return [c for c in rows if team_id in (c.user_department_ids or [])]
 
     def row(team_id, name):
         today_ins = of(team_id, ins)
