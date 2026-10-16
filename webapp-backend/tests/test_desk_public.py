@@ -84,9 +84,9 @@ def test_retagging_seat_away_from_free_for_all_ends_its_check_ins(client, world,
 
 
 def test_seat_held_for_its_last_half_hour_shows_booked(client, world, monkeypatch):
-    set_now(monkeypatch, sg(DAY, 17, 25))
-    assert book(client, world, "jane", "F1", "pm").status_code == 201        # 17:30-18:00, release 17:55
-    set_now(monkeypatch, sg(DAY, 17, 40))
+    set_now(monkeypatch, sg(DAY, 18, 25))
+    assert book(client, world, "jane", "F1", "pm").status_code == 201        # 18:30-19:00, release 18:55
+    set_now(monkeypatch, sg(DAY, 18, 40))
     seat = next(s for s in client.get(f"/api/public/floors/{world['plan']}").get_json()["seats"]
                 if s["id"] == world["seats"]["F1"])
     assert seat["state"] == "booked"
@@ -143,7 +143,7 @@ def test_settle_logs_when_it_rolls_back(client, world, monkeypatch, caplog):
     book(client, world, "jane", "F1")
     set_now(monkeypatch, sg(DAY, 13, 30))
     client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["jane"]))
-    set_now(monkeypatch, sg(DAY, 18, 30))                                       # check-in due to end -> boom
+    set_now(monkeypatch, sg(DAY, 19, 30))                                       # check-in due to end -> boom
     with caplog.at_level(logging.WARNING):
         assert client.get(f"/api/public/floors/{world['plan']}").status_code == 200
     assert any("settle rolled back" in r.getMessage() for r in caplog.records)
@@ -155,4 +155,4 @@ def test_occupied_seat_says_since_and_until_for_the_floor_tooltip(client, world,
     assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["carl"])).status_code == 201
     seat = next(s for s in client.get(f"/api/public/floors/{world['plan']}").get_json()["seats"] if s["id"] == world["seats"]["E1"])
     assert seat["state"] == "occupied" and seat["occupant"]["name"] == "Carl Lim"
-    assert seat["occupant"]["since"].startswith(f"{DAY.isoformat()}T09:00") and seat["occupant"]["until"].startswith(f"{DAY.isoformat()}T18:00")
+    assert seat["occupant"]["since"].startswith(f"{DAY.isoformat()}T09:00") and seat["occupant"]["until"].startswith(f"{DAY.isoformat()}T19:00")

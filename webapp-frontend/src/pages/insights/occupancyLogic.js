@@ -33,6 +33,6 @@ const SPAN = { '1h': 'last hour', '6h': 'last 6 hours', '24h': 'last 24 hours', 
 
 export function rangeSubtitle({ range, since }) {
   if (range === '7d') return `Seats in use, ${SPAN[range]} (hourly average; dashed line: peak) · since ${monthDay(since)}, ${time(since)}`;
-  if (range === '30d') return `Seats in use, ${SPAN[range]} (daily average 08:00–18:00; dashed line: peak) · since ${monthDay(since)}`;
+  if (range === '30d') return `Seats in use, ${SPAN[range]} (daily average 08:00–19:00; dashed line: peak) · since ${monthDay(since)}`;
   return `Seats in use, ${SPAN[range]} · since ${time(since)}`;
 }

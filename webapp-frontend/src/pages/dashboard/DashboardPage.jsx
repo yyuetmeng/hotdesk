@@ -82,7 +82,7 @@ function Trend({ trend }) {
       <div><b>{trend.usual_leave ?? '—'}</b><small>usual leave</small></div>
     </div>
     <div className="dash-trend" role="img" aria-label={`Check-in and check-out times over the last ${trend.days.length} working days`}>
-      <div className="dash-axis"><span>08:00</span><span>11:00</span><span>14:00</span><span>18:00</span></div>
+      <div className="dash-axis"><span>08:00</span><span>11:40</span><span>15:20</span><span>19:00</span></div>
       {trend.days.map((d) => { const bar = trendBar(d.check_in, d.check_out);
         return <div key={d.date} className="dash-col" title={bar ? `${d.weekday} ${d.date}: ${d.check_in}–${d.check_out}` : `${d.weekday} ${d.date}: not in`}>
           {bar && <span className="dash-bar" style={bar} />}</div>; })}

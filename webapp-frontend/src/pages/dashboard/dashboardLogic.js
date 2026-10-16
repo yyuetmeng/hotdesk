@@ -2,7 +2,7 @@
 import { presetLabel } from '../../desk/deskLogic.js';
 
 const TZ = 'Asia/Singapore';
-const DAY_START = 8 * 60, DAY_SPAN = 10 * 60;   // trend chart shows 08:00–18:00
+const DAY_START = 8 * 60, DAY_SPAN = 11 * 60;   // trend chart shows 08:00–19:00 (the bookable day)
 
 /** "Good morning" / "Good afternoon" / "Good evening" by the hour in Singapore. */
 export function greeting(nowIso) {
@@ -21,7 +21,7 @@ export const outcomeText = (outcome) => OUTCOME[outcome] ?? outcome;
 const minutes = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
 const pct = (n) => `${Math.round(n * 100) / 100}%`;
 
-/** Position of a day's bar (check-in to check-out) on the 08:00–18:00 axis, clamped; null if no check-in. */
+/** Position of a day's bar (check-in to check-out) on the 08:00–19:00 axis, clamped; null if no check-in. */
 export function trendBar(checkIn, checkOut) {
   if (!checkIn) return null;
   const clamp = (m) => Math.min(Math.max(m - DAY_START, 0), DAY_SPAN);

@@ -14,5 +14,5 @@ assert.equal(rangeSubtitle({ range: '24h', since: '2026-10-15T16:16:00+08:00' })
 assert.equal(rangeSubtitle({ range: '7d', since: '2026-10-09T16:00:00+08:00' }),
   'Seats in use, last 7 days (hourly average; dashed line: peak) · since Oct 9, 04:00 PM');
 assert.equal(rangeSubtitle({ range: '30d', since: '2026-09-17T00:00:00+08:00' }),
-  'Seats in use, last 30 days (daily average 08:00–18:00; dashed line: peak) · since Sep 17');
+  'Seats in use, last 30 days (daily average 08:00–19:00; dashed line: peak) · since Sep 17');
 console.log('occupancy logic smoke OK');

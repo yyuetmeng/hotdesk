@@ -12,9 +12,9 @@ assert.equal(slotText(null), '');
 assert.equal(outcomeText('released'), 'Released (no check-in)');
 assert.equal(outcomeText('plan_changed'), 'Cancelled (floor plan changed)');
 assert.equal(outcomeText('active'), 'Booked');
-// Trend bars over 08:00–18:00 (600 minutes); outside times are clamped; no check-in = no bar.
-assert.deepEqual(trendBar('09:00', '17:30'), { top: '10%', height: '85%' });
-assert.deepEqual(trendBar('07:30', '19:00'), { top: '0%', height: '100%' });
+// Trend bars over 08:00–19:00 (660 minutes); outside times are clamped; no check-in = no bar.
+assert.deepEqual(trendBar('08:00', '13:30'), { top: '0%', height: '50%' });
+assert.deepEqual(trendBar('07:30', '19:30'), { top: '0%', height: '100%' });
 assert.equal(trendBar(null, null), null);
 assert.equal(teamCount({ size: 9, members: [{ today: { state: 'checked_in' } }, { today: { state: 'booked' } }, { today: null }] }), '1 of 9 in');
 console.log('dashboard logic smoke OK');

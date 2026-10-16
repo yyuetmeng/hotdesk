@@ -12,8 +12,8 @@ assert.equal(locationText({ status: 'checked_in', seat }), 'E1 · Level 1 · AI 
 assert.equal(locationText({ status: 'booked', seat: { ...seat, zone: null } }), 'E1 · Level 1');
 assert.equal(locationText({ status: 'away', seat: null }), 'No seat booked for today or the next working day');
 assert.equal(timeText({ status: 'checked_in', since: '09:00', until: '18:00' }), 'Since 09:00, until 18:00');
-assert.equal(timeText({ status: 'booked', preset: 'pm' }), 'PM (13:00–18:00)');
-assert.equal(timeText({ status: 'tomorrow', preset: 'full', date: '2026-10-16' }, '2026-10-15'), 'Tomorrow · Full day (08:00–18:00)');
+assert.equal(timeText({ status: 'booked', preset: 'pm' }), 'PM (13:00–19:00)');
+assert.equal(timeText({ status: 'tomorrow', preset: 'full', date: '2026-10-16' }, '2026-10-15'), 'Tomorrow · Full day (08:00–19:00)');
 assert.equal(timeText({ status: 'tomorrow', preset: 'am', date: '2026-10-19' }, '2026-10-16'), 'Monday · AM (08:00–13:00)');
 assert.equal(timeText({ status: 'away' }), '');
 console.log('finder logic smoke OK');

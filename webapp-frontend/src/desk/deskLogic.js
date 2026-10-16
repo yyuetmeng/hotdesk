@@ -1,7 +1,7 @@
 // Pure helpers for the booking and check-in pages (spec 2026-10-15-seat-booking-and-checkin).
 
 export const PRESETS = ['am', 'pm', 'full'];
-const PRESET_TEXT = { am: 'AM (08:00–13:00)', pm: 'PM (13:00–18:00)', full: 'Full day (08:00–18:00)' };
+const PRESET_TEXT = { am: 'AM (08:00–13:00)', pm: 'PM (13:00–19:00)', full: 'Full day (08:00–19:00)' };
 const STATE_TEXT = { available: 'Available', booked: 'Booked', occupied: 'Occupied', not_bookable: 'Not bookable' };
 
 export const presetLabel = (preset) => PRESET_TEXT[preset] ?? preset;

@@ -2,7 +2,7 @@
 
 Occupancy at a moment = seats with a check-in covering that moment / usable seats on published floors
 (tagged with a project team or free for all), as a percentage. Short ranges are plain samples; 7d is an
-hourly average with the hour's peak; 30d is a daily average over office hours (08:00-18:00) with the peak.
+hourly average with the hour's peak; 30d is a daily average over office hours (08:00-19:00) with the peak.
 """
 from datetime import datetime, timedelta
 
@@ -21,7 +21,7 @@ from . import admin_bp
 SAMPLES = {"1h": (timedelta(hours=1), timedelta(minutes=5)), "6h": (timedelta(hours=6), timedelta(minutes=15)),
            "24h": (timedelta(hours=24), timedelta(minutes=30))}
 HOURS_7D, DAYS_30D = 168, 30
-OFFICE_START, OFFICE_END = 8, 18
+OFFICE_START, OFFICE_END = 8, 19
 
 
 def capacity() -> int:

@@ -16,11 +16,11 @@ def sg(day, hh, mm=0):
 
 def test_presets_map_to_blocks():
     before = sg(DAY - timedelta(days=1), 15)
-    for preset, count in (("am", 10), ("pm", 10), ("full", 20)):
+    for preset, count in (("am", 10), ("pm", 12), ("full", 22)):   # the day ends at 19:00
         starts, ends = rules.preset_range(DAY, preset, before)
         assert len(rules.blocks(starts, ends)) == count
     assert rules.preset_range(DAY, "am", before) == (sg(DAY, 8), sg(DAY, 13))
-    assert rules.preset_range(DAY, "pm", before) == (sg(DAY, 13), sg(DAY, 18))
+    assert rules.preset_range(DAY, "pm", before) == (sg(DAY, 13), sg(DAY, 19))
 
 
 def test_release_times_spec_examples():
@@ -68,8 +68,8 @@ def test_singapore_midnight_boundary():
 
 def test_walk_in_end():
     assert rules.walk_in_ends_at(sg(DAY, 9), sg(DAY, 13)) == sg(DAY, 13)
-    assert rules.walk_in_ends_at(sg(DAY, 9), None) == sg(DAY, 18)
-    assert rules.walk_in_ends_at(sg(DAY, 9), sg(DAY, 20)) == sg(DAY, 18)
+    assert rules.walk_in_ends_at(sg(DAY, 9), None) == sg(DAY, 19)
+    assert rules.walk_in_ends_at(sg(DAY, 9), sg(DAY, 20)) == sg(DAY, 19)
     assert rules.walk_in_ends_at(sg(DAY, 19), None) == sg(DAY + timedelta(days=1), 0)
 
 

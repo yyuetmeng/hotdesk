@@ -24,7 +24,7 @@ def test_walk_in_rules_by_tag(client, world, monkeypatch):
     assert check_in(client, world, "bob", "U1").status_code == 403        # untagged
     r = check_in(client, world, "jane", "E1")
     assert r.status_code == 201, r.get_json()
-    assert r.get_json()["ends_at"] == sg(DAY, 18).isoformat() and r.get_json()["method"] == "walk_in"
+    assert r.get_json()["ends_at"] == sg(DAY, 19).isoformat() and r.get_json()["method"] == "walk_in"
     row = run_one("select seat_department_id::text as d, user_department_ids from seat_checkins")
     assert row["d"] == world["eng"] and [str(x) for x in row["user_department_ids"]] == [world["eng"]]
 
@@ -80,7 +80,7 @@ def test_me_and_auto_end(client, world, monkeypatch):
     me = client.get("/api/desk/me", headers=hdr(world["tok"]["jane"])).get_json()
     assert me["checkin"]["seat_label"] == "E1"
     assert me["user_id"] == world["users"]["jane"]      # the Desk check-in page picks out bookings for me
-    set_now(monkeypatch, sg(DAY, 18, 5))
+    set_now(monkeypatch, sg(DAY, 19, 5))
     assert client.get("/api/desk/me", headers=hdr(world["tok"]["jane"])).get_json()["checkin"] is None
     assert run_one("select end_reason from seat_checkins")["end_reason"] == "auto"
 

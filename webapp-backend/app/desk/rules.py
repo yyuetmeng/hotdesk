@@ -13,9 +13,9 @@ TZ = ZoneInfo(Config.BOOKING_TIMEZONE)
 BLOCK = timedelta(minutes=30)
 GRACE = timedelta(minutes=30)            # no-show grace and minimum bookable remainder
 EARLY_CHECKIN = timedelta(minutes=30)
-DAY_END = time(18, 0)
+DAY_END = time(19, 0)                    # the bookable day ends at 19:00 (owner 2026-10-16; was 18:00)
 FULL_DAY_RELEASE = time(10, 0)
-PRESETS = {"am": (time(8, 0), time(13, 0)), "pm": (time(13, 0), time(18, 0)), "full": (time(8, 0), time(18, 0))}
+PRESETS = {"am": (time(8, 0), time(13, 0)), "pm": (time(13, 0), DAY_END), "full": (time(8, 0), DAY_END)}
 PRESET_LABELS = {"am": "AM", "pm": "PM", "full": "Full day"}
 
 
@@ -94,7 +94,7 @@ def checkin_window_opens(starts_at: datetime) -> datetime:
 
 
 def walk_in_ends_at(at: datetime, next_booked_block: datetime | None) -> datetime:
-    """A walk-in ends at the next booked block on the seat, else 18:00; after 18:00, at midnight."""
+    """A walk-in ends at the next booked block on the seat, else 19:00; after 19:00, at midnight."""
     day = local_today(at)
     day_end = at_local(day, DAY_END)
     if at >= day_end:
