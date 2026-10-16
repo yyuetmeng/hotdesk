@@ -1,4 +1,4 @@
-// Book a desk: today/tomorrow, AM/PM/full day, published floors, seat panel, my bookings.
+// Book a desk: today / next working day, AM/PM/full day, published floors, seat panel, my bookings.
 // Spec: docs/superpowers/specs/2026-10-15-seat-booking-and-checkin-design.md §6.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -8,13 +8,8 @@ import { formatDate, formatTime } from '../format.js';
 import FloorDrawing from '../display/FloorDrawing.jsx';
 import '../display/display.css';
 import SeatPanel from './SeatPanel.jsx';
-import { PRESETS, firstLoad, floorLoading, presetLabel } from './deskLogic.js';
+import { PRESETS, firstLoad, floorLoading, nextDayName, presetLabel } from './deskLogic.js';
 
-const addDays = (isoDay, days) => {
-  const [y, m, d] = isoDay.split('-').map(Number);
-  const next = new Date(Date.UTC(y, m - 1, d + days));
-  return next.toISOString().slice(0, 10);
-};
 const STATE_TEXT = { active: 'Booked', checked_in: 'Checked in', released: 'Released (no check-in)',
   cancelled: 'Cancelled', plan_changed: 'Cancelled (floor plan changed)' };
 
@@ -23,7 +18,7 @@ export function BookDeskPage() {
   const wantSeat = useRef(params.get('seat'));
   const [floors, setFloors] = useState(null);
   const [planId, setPlanId] = useState('');
-  const [today, setToday] = useState(null);
+  const [days, setDays] = useState(null);   // [today, next working day] from the server
   const [dayOffset, setDayOffset] = useState(0);
   const [preset, setPreset] = useState('am');
   const [floor, setFloor] = useState(null);
@@ -34,18 +29,18 @@ export function BookDeskPage() {
   useEffect(() => {
     flaskRequest('/api/desk/floors').then((d) => {
       setFloors(d.items);
+      setDays(d.days);
       // ?plan= (from the dashboard's Book again) picks the floor when it is still published.
       if (d.items.length) setPlanId(d.items.find((f) => f.id === params.get('plan'))?.id ?? d.items[0].id);
     }).catch((err) => setError(err.message));
   }, []);
 
-  const date = today ? addDays(today, dayOffset) : null;
+  const date = days ? days[dayOffset] : null;
   const load = useCallback(async () => {
     if (!planId) return;
     try {
       const query = date ? `?date=${date}&preset=${preset}` : `?preset=${preset}`;
       const data = await flaskRequest(`/api/desk/floors/${planId}${query}`);
-      if (!today) setToday(data.date);
       setFloor(data);
       const wanted = wantSeat.current ? data.seats.find((s) => s.id === wantSeat.current) : null;   // ?seat=, once
       if (wanted) wantSeat.current = null;
@@ -53,7 +48,7 @@ export function BookDeskPage() {
       setMine((await flaskRequest('/api/desk/bookings/mine')).items);
       setError(null);
     } catch (err) { setError(err.message); }
-  }, [planId, date, preset, today]);
+  }, [planId, date, preset]);
   useEffect(() => { load(); }, [load]);
 
   const cancel = async (b) => {
@@ -61,7 +56,7 @@ export function BookDeskPage() {
     catch (err) { setError(err.message); }
   };
 
-  const title = <PageTitle title="Book a desk"><p>Book a free-for-all seat for today or tomorrow, for yourself or a colleague.</p></PageTitle>;
+  const title = <PageTitle title="Book a desk"><p>Book a free-for-all seat for today or the next working day, for yourself or a colleague.</p></PageTitle>;
   if (firstLoad({ floors, floor, error })) return <main className="page">{title}<Loading label="Looking for a free desk…" /></main>;
   if (!floors) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
   if (!floors.length) return <main className="page">{title}<Notice>No floor plan has been published yet.</Notice></main>;
@@ -71,8 +66,8 @@ export function BookDeskPage() {
     {error && <Notice kind="error">{error}</Notice>}
     <div className="desk-controls">
       <div className="desk-segment" role="group" aria-label="Day">
-        {['Today', 'Tomorrow'].map((label, i) => <button key={label} className={dayOffset === i ? 'active' : ''}
-          onClick={() => setDayOffset(i)}>{label}{today ? ` · ${formatDate(addDays(today, i))}` : ''}</button>)}
+        {['Today', days ? nextDayName(days[1], days[0]) : 'Tomorrow'].map((label, i) => <button key={i} className={dayOffset === i ? 'active' : ''}
+          onClick={() => setDayOffset(i)}>{label}{days ? ` · ${formatDate(days[i])}` : ''}</button>)}
       </div>
       <div className="desk-segment" role="group" aria-label="Time">
         {PRESETS.map((p) => <button key={p} className={preset === p ? 'active' : ''} onClick={() => setPreset(p)}>{presetLabel(p)}</button>)}
@@ -105,7 +100,7 @@ export function BookDeskPage() {
           <td>{STATE_TEXT[b.state] ?? b.state}</td>
           <td>{b.state === 'active' && <button className="button" onClick={() => cancel(b)}>Cancel</button>}</td>
         </tr>)}</tbody></table>
-        : <p className="muted">No bookings for today or tomorrow.</p>}
+        : <p className="muted">No bookings for today or the next working day.</p>}
     </section>
   </main>;
 }

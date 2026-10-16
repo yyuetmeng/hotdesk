@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { flaskRequest } from '../../api.js';
 import { Loading, Notice, PageTitle } from '../../components.jsx';
+import { nextDayName } from '../../desk/deskLogic.js';
 import { firstName, greeting, outcomeText, slotText, teamCount, trendBar } from './dashboardLogic.js';
 import './dashboard.css';
 
@@ -37,7 +38,7 @@ function RightNow({ data }) {
 
 function Upcoming({ items, today, onCancel }) {
   return <section className="card"><h2 className="dash-h">My upcoming bookings <Link to="/book">Book a desk →</Link></h2>
-    {!items.length ? <p className="state">No bookings for today or tomorrow.</p> : <ul className="dash-list">
+    {!items.length ? <p className="state">No bookings for today or the next working day.</p> : <ul className="dash-list">
       {items.map((b) => <li key={b.id}>
         <div className="dash-grow"><b>{dayText(b.date, today)} · {slotText(b.preset)}</b>
           <small>{b.seat_label} · {where(b)}{b.booked_by_name ? ` · booked by ${b.booked_by_name}` : ''}</small></div>
@@ -47,7 +48,7 @@ function Upcoming({ items, today, onCancel }) {
   </section>;
 }
 
-function Team({ teams }) {
+function Team({ teams, nextDay }) {
   const [pick, setPick] = useState(0);
   if (!teams.length) return <section className="card"><h2 className="dash-h">My team today</h2>
     <p className="state">You&apos;re not in a project team yet.</p></section>;
@@ -58,16 +59,16 @@ function Team({ teams }) {
         {teams.map((t, i) => <option key={t.team_id} value={i}>{t.team_name}</option>)}</select>
       : <span>{team.team_name}</span>}</h2>
     <p className="dash-sub">{teamCount(team)}</p>
-    {!team.members.length ? <p className="state">Nobody else from {team.team_name} has a seat today or tomorrow.</p> : <ul className="dash-list">
+    {!team.members.length ? <p className="state">Nobody else from {team.team_name} has a seat today or {nextDay.toLowerCase() === 'tomorrow' ? 'tomorrow' : `on ${nextDay}`}.</p> : <ul className="dash-list">
       {team.members.map((m, i) => {
         const today = m.today, tomorrow = m.tomorrow;
         const place = today ?? tomorrow;
         const detail = today
           ? `${today.seat_label} · ${where(today)} · ${today.state === 'checked_in' ? `since ${today.since}` : slotText(today.preset)}`
-          : `Tomorrow · ${tomorrow.seat_label} · ${where(tomorrow)} · ${slotText(tomorrow.preset)}`;
+          : `${nextDay} · ${tomorrow.seat_label} · ${where(tomorrow)} · ${slotText(tomorrow.preset)}`;
         return <li key={i}><span className="dash-av" aria-hidden="true">{m.initials}</span>
           <div className="dash-grow"><b>{m.name}</b><small>{place ? detail : ''}</small></div>
-          <span className={`dash-pill ${today ? PILL[today.state] : 'tm'}`}>{today ? (today.state === 'checked_in' ? 'Checked in' : 'Booked') : 'Tomorrow'}</span>
+          <span className={`dash-pill ${today ? PILL[today.state] : 'tm'}`}>{today ? (today.state === 'checked_in' ? 'Checked in' : 'Booked') : nextDay}</span>
         </li>;
       })}</ul>}
   </section>;
@@ -151,7 +152,7 @@ export function DashboardPage() {
     <RightNow data={data} />
     <div className="dash-row">
       <Upcoming items={data.upcoming} today={today} onCancel={cancel} />
-      <Team teams={data.team} />
+      <Team teams={data.team} nextDay={data.next_day ? nextDayName(data.next_day, today) : 'Tomorrow'} />
     </div>
     <div className="dash-row">
       <Trend trend={data.trend} />

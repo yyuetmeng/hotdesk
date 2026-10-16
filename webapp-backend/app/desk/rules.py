@@ -1,6 +1,7 @@
 """Booking time rules: 30-minute blocks, AM/PM/full-day presets, releases and automatic ends.
 
 Pure functions (no database). All "today"/"tomorrow" and clock times are in BOOKING_TIMEZONE.
+"Tomorrow" means the next working day: on a Friday (or at the weekend) it is Monday (owner 2026-10-16).
 Spec: docs/superpowers/specs/2026-10-15-seat-booking-and-checkin-design.md §2.2-2.6.
 """
 from datetime import date, datetime, time, timedelta, timezone
@@ -31,9 +32,18 @@ def local_today(at: datetime) -> date:
     return at.astimezone(TZ).date()
 
 
+def next_working_day(day: date) -> date:
+    """The next Monday-Friday after `day` (no public holiday calendar)."""
+    day += timedelta(days=1)
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return day
+
+
 def bookable_days(at: datetime) -> tuple[date, date]:
+    """Today and the next working day."""
     today = local_today(at)
-    return today, today + timedelta(days=1)
+    return today, next_working_day(today)
 
 
 def at_local(day: date, clock: time) -> datetime:
@@ -53,7 +63,7 @@ def preset_range(day: date, preset: str, at: datetime) -> tuple[datetime, dateti
     if preset not in PRESETS:
         raise BookingRuleError(f"unknown booking slot '{preset}'")
     if day not in bookable_days(at):
-        raise BookingRuleError("bookings are for today or tomorrow")
+        raise BookingRuleError("bookings are for today or the next working day")
     start, end = (at_local(day, clock) for clock in PRESETS[preset])
     begin = max(start, next_boundary(at))
     if end - begin < GRACE:

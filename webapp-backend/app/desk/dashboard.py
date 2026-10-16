@@ -178,13 +178,12 @@ def _favourites(viewer, places, at):
 
 
 def dashboard(viewer: User, at: datetime) -> dict:
-    today = rules.local_today(at)
-    tomorrow = today + timedelta(days=1)
+    today, tomorrow = rules.bookable_days(at)     # "tomorrow" is the next working day
     places = seat_places()
     from .autobook import run_auto_book, usual_seat   # local import: autobook uses this module's seat_places
     auto = run_auto_book(viewer, at, places)            # before reading bookings, so new ones show at once
     teams = _teams(viewer)
-    return {"now": at.isoformat(), "today": today.isoformat(),
+    return {"now": at.isoformat(), "today": today.isoformat(), "next_day": tomorrow.isoformat(),
             "me": {"name": viewer.full_name, "teams": [{"id": str(t_id), "name": name} for t_id, name in teams]},
             "current": _current(viewer, places),
             "upcoming": _upcoming(viewer, places, today, tomorrow, at),

@@ -41,10 +41,17 @@ def test_in_progress_preset_starts_at_next_boundary_and_closes_30_minutes_before
         rules.preset_range(DAY, "full", sg(DAY, 19))
 
 
-def test_only_today_or_tomorrow():
-    with pytest.raises(rules.BookingRuleError, match="today or tomorrow"):
-        rules.preset_range(DAY + timedelta(days=2), "am", sg(DAY, 9))
-    with pytest.raises(rules.BookingRuleError, match="today or tomorrow"):
+def test_next_working_day_skips_the_weekend():
+    thu, fri, sat, sun, mon = (DAY + timedelta(days=n) for n in (-1, 0, 1, 2, 3))   # DAY is Friday 16 Oct 2026
+    assert [rules.next_working_day(d) for d in (thu, fri, sat, sun)] == [fri, mon, mon, mon]
+
+
+def test_only_today_or_the_next_working_day():
+    monday = DAY + timedelta(days=3)
+    assert rules.preset_range(monday, "am", sg(DAY, 9)) == (sg(monday, 8), sg(monday, 13))   # Friday books Monday
+    with pytest.raises(rules.BookingRuleError, match="today or the next working day"):
+        rules.preset_range(DAY + timedelta(days=1), "am", sg(DAY, 9))                       # not Saturday
+    with pytest.raises(rules.BookingRuleError, match="today or the next working day"):
         rules.preset_range(DAY - timedelta(days=1), "am", sg(DAY, 9))
     with pytest.raises(rules.BookingRuleError, match="unknown"):
         rules.preset_range(DAY, "night", sg(DAY, 9))
@@ -52,7 +59,8 @@ def test_only_today_or_tomorrow():
 
 def test_singapore_midnight_boundary():
     late = sg(DAY, 23, 59)
-    assert rules.bookable_days(late) == (DAY, DAY + timedelta(days=1))
+    assert rules.bookable_days(late) == (DAY, DAY + timedelta(days=3))     # Friday: next is Monday
+    assert rules.bookable_days(sg(DAY - timedelta(days=1), 23, 59)) == (DAY - timedelta(days=1), DAY)
     assert rules.local_today(sg(DAY + timedelta(days=1), 0, 1)) == DAY + timedelta(days=1)
     # 23:59 SG is 15:59 UTC the same calendar day: the local date must still be used.
     assert rules.local_today(late.astimezone(ZoneInfo("UTC"))) == DAY

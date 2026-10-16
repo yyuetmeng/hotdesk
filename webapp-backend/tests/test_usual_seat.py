@@ -100,8 +100,9 @@ def test_auto_book_reports_a_taken_seat(client, world):
 def test_auto_book_skips_weekends(client, world, monkeypatch):
     _set_usual(client, world, "jane", "F1")
     _auto_on(client, world, "jane")
-    set_now(monkeypatch, sg(DAY + timedelta(days=1), 9))                                 # Saturday: today Sat, tomorrow Sun
-    assert _dash(client, world, "jane")["auto_book"] == []
+    set_now(monkeypatch, sg(DAY + timedelta(days=1), 9))                                 # Saturday: next working day is Monday
+    notes = _dash(client, world, "jane")["auto_book"]
+    assert [(n["date"], n["ok"]) for n in notes] == [((DAY + timedelta(days=3)).isoformat(), True)]
 
 
 def test_auto_book_on_sign_in(client, world):

@@ -4,7 +4,7 @@ With auto-booking on, signing in and opening the dashboard book the user's usual
 today and tomorrow when those are working days and the user has nothing booked yet. Normal booking rules
 apply; a refusal (seat taken, too late today) is reported, never raised.
 """
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import func, select
 
@@ -43,7 +43,7 @@ def run_auto_book(user: User, at: datetime, places: dict) -> list[dict]:
         return []
     today = rules.local_today(at)
     notes = []
-    for day in (today, today + timedelta(days=1)):
+    for day in rules.bookable_days(at):
         if day.weekday() >= 5 or _has_booking(user, day) or (day == today and _checked_in_today(user, day)):
             continue
         try:

@@ -43,7 +43,7 @@ def test_teams_list_for_everyone(client, world):
 def test_statuses(client, world, monkeypatch):
     assert book(client, world, "ali", "F2", "pm").status_code == 201                                   # today PM
     set_now(monkeypatch, sg(DAY, 9))
-    assert book(client, world, "bob", "F1", "full", day=DAY + timedelta(days=1)).status_code == 201    # tomorrow
+    assert book(client, world, "bob", "F1", "full", day=DAY + timedelta(days=3)).status_code == 201    # Monday: next working day
     assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["carl"])).status_code == 201
     [carl] = _find(client, world, "carl")
     assert (carl["name"], carl["status"], carl["seat"]["seat_label"], carl["seat"]["plan_name"], carl["since"]) == \
@@ -53,7 +53,7 @@ def test_statuses(client, world, monkeypatch):
     [ali] = _find(client, world, "ali")
     assert (ali["status"], ali["seat"]["seat_label"], ali["preset"]) == ("booked", "F2", "pm")
     [bob] = _find(client, world, "bob")
-    assert (bob["status"], bob["seat"]["seat_label"], bob["date"]) == ("tomorrow", "F1", (DAY + timedelta(days=1)).isoformat())
+    assert (bob["status"], bob["seat"]["seat_label"], bob["date"]) == ("tomorrow", "F1", (DAY + timedelta(days=3)).isoformat())
     [jane] = _find(client, world, "jane")
     assert (jane["status"], jane["seat"]) == ("away", None)
 

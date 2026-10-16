@@ -92,7 +92,7 @@ export function AuthLayout({ children }) {
       <h1>Find a desk.<br />Check in with a scan.</h1>
       <AuthIllustration />
       <ol className="auth-steps">
-        <li>Book a seat for today or tomorrow</li>
+        <li>Book a seat for today or the next working day</li>
         <li>Scan the desk&apos;s QR code to check in</li>
         <li>Give it up when you leave</li>
       </ol>

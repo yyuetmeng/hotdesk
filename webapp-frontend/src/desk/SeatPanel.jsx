@@ -68,7 +68,7 @@ export default function SeatPanel({ planId, seat, date, preset, isToday, onChang
     {!seat.open_to_all && seat.department_id && <p className="muted">Project team seat: walk in and scan its QR code to check in.</p>}
 
     <h3>Today's activity</h3>
-    {!isToday && <p className="muted">Shows today; booking above is for tomorrow.</p>}
+    {!isToday && <p className="muted">Shows today; booking above is for the next working day.</p>}
     {activity.length
       ? <ul className="desk-activity">{activity.map((a, i) => <li key={i}><time>{formatTime(a.at)}</time>{a.text}</li>)}</ul>
       : <p className="muted">Nothing yet today.</p>}

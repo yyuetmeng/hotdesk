@@ -53,7 +53,8 @@ def _day_arg(at):
 @desk_endpoint
 def floors(viewer, at):
     return jsonify(items=[{"id": str(p.id), "name": p.published_version.name, "version": p.published_version.version}
-                          for p in service.published_floors()])
+                          for p in service.published_floors()],
+                   days=[d.isoformat() for d in rules.bookable_days(at)])
 
 
 @desk_bp.get("/floors/<plan_id>")
@@ -62,7 +63,7 @@ def floor(viewer, at, plan_id):
     plan = service.published_plan(plan_id)
     day = _day_arg(at)
     if day not in rules.bookable_days(at):
-        raise service.DeskError("only today or tomorrow can be shown")
+        raise service.DeskError("only today or the next working day can be shown")
     preset = request.args.get("preset") or None
     if preset is not None and preset not in rules.PRESETS:
         raise service.DeskError(f"unknown booking slot '{preset}'")

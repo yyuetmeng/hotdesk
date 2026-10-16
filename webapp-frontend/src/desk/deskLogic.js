@@ -27,4 +27,11 @@ export const zoneCaption = (zone) => (zone.total ? `${zone.free} of ${zone.total
 export const floorLoading = (floor, planId) => Boolean(planId) && floor?.id !== planId;
 
 /** Book a desk: the first load (floor list, then the first floor) shows one loader, not two in a row. */
+// The second bookable day is the next working day (owner 2026-10-16): "Tomorrow", or its weekday on a Friday.
+const dayNumber = (iso) => Date.UTC(...iso.split('-').map((n, i) => Number(n) - (i === 1 ? 1 : 0))) / 86400000;
+export const nextDayName = (dayIso, todayIso) => (dayNumber(dayIso) - dayNumber(todayIso) === 1 ? 'Tomorrow'
+  : new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${dayIso}T00:00:00Z`)));
+/** Today's date in Singapore as YYYY-MM-DD. */
+export const sgToday = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(now);
+
 export const firstLoad = ({ floors, floor, error }) => !error && (!floors || (floors.length > 0 && !floor));

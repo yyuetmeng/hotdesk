@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad } from '../src/desk/deskLogic.js';
+import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, nextDayName, sgToday } from '../src/desk/deskLogic.js';
 
 assert.equal(initials('Jane Tan'), 'JT');
 assert.equal(initials('Prince'), 'P');
@@ -26,4 +26,9 @@ assert.equal(firstLoad({ floors: [{ id: 'p1' }], floor: null, error: null }), tr
 assert.equal(firstLoad({ floors: [{ id: 'p1' }], floor: { id: 'p1' }, error: null }), false);
 assert.equal(firstLoad({ floors: [], floor: null, error: null }), false);          // nothing published
 assert.equal(firstLoad({ floors: [{ id: 'p1' }], floor: null, error: 'boom' }), false); // show the error
+// The second bookable day is the next working day: on a Friday it is Monday (owner 2026-10-16).
+assert.equal(nextDayName('2026-10-16', '2026-10-15'), 'Tomorrow');
+assert.equal(nextDayName('2026-10-19', '2026-10-16'), 'Monday');
+assert.equal(nextDayName('2026-10-19', '2026-10-17'), 'Monday');      // Saturday
+assert.equal(sgToday(new Date('2026-10-16T17:00:00Z')), '2026-10-17'); // 01:00 Saturday in Singapore
 console.log('desk logic smoke OK');

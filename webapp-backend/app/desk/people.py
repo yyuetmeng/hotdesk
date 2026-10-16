@@ -2,7 +2,7 @@
 
 Any signed-in user may search all active colleagues by name or username (product decision 2026-10-16).
 """
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import or_, select
 
@@ -26,8 +26,7 @@ def find_people(q: str, at: datetime, team_id=None) -> list[dict]:
     At most MAX_RESULTS, by name."""
     q = (q or "").strip()
     session = orm_session()
-    today = rules.local_today(at)
-    tomorrow = today + timedelta(days=1)
+    today, tomorrow = rules.bookable_days(at)     # "tomorrow" is the next working day
     like = f"%{q}%"
     # Administrators are not listed: Colleague Finder is for finding colleagues (owner decision 2026-10-16).
     query = (select(User).join(Role, Role.id == User.role_id)

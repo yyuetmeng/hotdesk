@@ -58,7 +58,7 @@ def test_team_today_and_tomorrow(client, world, monkeypatch):
     assert book(client, world, "bob", "F1", "pm").status_code == 201                       # bob is in Ops: not shown
     set_now(monkeypatch, sg(DAY, 9))
     _check_in(client, world, "carl", "E1")
-    assert book(client, world, "root", "F1", "full", day=DAY + timedelta(days=1)).status_code == 201  # root: tomorrow
+    assert book(client, world, "root", "F1", "full", day=DAY + timedelta(days=3)).status_code == 201  # root: Monday (next working day)
     [team] = _dash(client, world, "jane")["team"]
     assert (team["team_name"], team["size"]) == ("Engineering", 4)                         # dave is inactive
     assert [(m["name"], (m["today"] or {}).get("state"), bool(m["tomorrow"])) for m in team["members"]] == [
