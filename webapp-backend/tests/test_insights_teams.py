@@ -75,3 +75,18 @@ def test_recent_activity_is_capped_at_five(client, world, monkeypatch):
         assert client.post(f"/api/desk/seats/{world['seats']['E1']}/give-up", headers=hdr(world["tok"]["carl"])).status_code in (200, 204)
     items = client.get("/api/admin/insights/activity", headers=hdr(world["tok"]["root"])).get_json()["items"]
     assert len(items) == 5 and items[0]["kind"] == "check_out"
+
+
+def test_line_data_per_team(client, world, monkeypatch):
+    _day(client, world, monkeypatch)
+    url = "/api/admin/insights/teams/lines"
+    root = hdr(world["tok"]["root"])
+    lines = client.get(url, headers=root).get_json()["items"]                              # all teams
+    assert [(l["person"], l["seat"], l["method"], l["checked_in"], l["checked_out"], l["ended"]) for l in lines] == [
+        ("Jane Tan", "F1", "booking", "08:10", "08:40", "checked out"), ("Carl Lim", "E1", "walk-in", "09:00", "", "still in")]
+    assert lines[0]["username"] == "jane" and lines[0]["teams"] == "Engineering" and lines[0]["floor"] == "Level 1"
+    assert len(client.get(url, query_string={"team": world["eng"]}, headers=root).get_json()["items"]) == 2
+    assert client.get(url, query_string={"team": world["ops"]}, headers=root).get_json()["items"] == []
+    assert client.get(url, query_string={"team": "none"}, headers=root).get_json()["items"] == []
+    assert client.get(url, query_string={"team": "nope"}, headers=root).status_code == 400
+    assert client.get(url, headers=hdr(world["tok"]["jane"])).status_code == 403

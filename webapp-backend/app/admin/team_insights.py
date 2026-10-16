@@ -5,12 +5,13 @@ A check-in counts for the project teams the person was in when they checked in (
 """
 from datetime import datetime, timedelta
 
-from flask import Response, g, jsonify
+from flask import Response, g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import select
 
 from app.core.auth_models import Department, User
 from app.core.desk_models import SeatCheckin
+from app.core.errors import error
 from app.core.orm import orm_session
 from app.core.security import admin_required
 from app.core.xlsx import write_xlsx
@@ -94,6 +95,44 @@ def insights_teams():
     return jsonify(teams_today(at))
 
 
+LINE_HEADERS = ("Date", "Person", "Username", "Project teams", "Seat", "Floor", "Zone", "Method", "Checked in", "Checked out", "Ended")
+
+
+def check_in_lines(at, team=None) -> list[dict]:
+    """Today's check-ins, one line each (Excel sheet 2 and the View pop-up). team: None (all), "none"
+    (people with no project team) or a project team id."""
+    names, places = _team_names(), seat_places()
+    ins, _, _ = _today(at)
+    if team == "none":
+        ins = [c for c in ins if not c.user_department_ids]
+    elif team is not None:
+        ins = [c for c in ins if team in (c.user_department_ids or [])]
+    users = dict(orm_session().execute(select(User.id, User.username).where(User.id.in_([c.user_id for c in ins if c.user_id]))).all()) if ins else {}
+    out = []
+    for c in ins:
+        place = places.get(c.seat_id) or {}
+        out.append({"date": rules.local_today(at).isoformat(), "person": c.user_name, "username": users.get(c.user_id, ""),
+                    "teams": ", ".join(sorted((names.get(d, "") for d in (c.user_department_ids or [])), key=str.casefold)) or NO_TEAM,
+                    "seat": place.get("seat_label") or c.seat_label, "floor": place.get("plan_name") or "", "zone": place.get("zone") or "",
+                    "method": "walk-in" if c.method == "walk_in" else "booking", "checked_in": _hhmm(c.checked_in_at),
+                    "checked_out": _hhmm(c.checked_out_at) or "", "ended": ENDED.get(c.end_reason, c.end_reason or "still in")})
+    return out
+
+
+@admin_bp.get("/insights/teams/lines")
+@admin_required
+def insights_team_lines():
+    g.jwt_uid = get_jwt_identity()
+    team = request.args.get("team") or None
+    if team not in (None, "none"):
+        team = service._uuid(team)
+        if team is None:
+            return error("validation failed", 400, fields={"team": "unknown project team"})
+    at = rules.now()
+    service.settle(at)
+    return jsonify(items=check_in_lines(at, team))
+
+
 @admin_bp.get("/insights/teams.xlsx")
 @admin_required
 def insights_teams_xlsx():
@@ -106,17 +145,8 @@ def insights_teams_xlsx():
     t = data["total"]
     summary.append(["Total", t["seats"], t["in_now"], t["check_ins"], t["check_outs"], f"{t['people']} people"])
 
-    names, places = _team_names(), seat_places()
-    ins, _, _ = _today(at)
-    users = dict(orm_session().execute(select(User.id, User.username).where(User.id.in_([c.user_id for c in ins if c.user_id]))).all()) if ins else {}
-    lines = [["Date", "Person", "Username", "Project teams", "Seat", "Floor", "Zone", "Method", "Checked in", "Checked out", "Ended"]]
-    for c in ins:
-        place = places.get(c.seat_id) or {}
-        lines.append([data["date"], c.user_name, users.get(c.user_id, ""),
-                      ", ".join(sorted((names.get(d, "") for d in (c.user_department_ids or [])), key=str.casefold)) or NO_TEAM,
-                      place.get("seat_label") or c.seat_label, place.get("plan_name") or "", place.get("zone") or "",
-                      "walk-in" if c.method == "walk_in" else "booking", _hhmm(c.checked_in_at), _hhmm(c.checked_out_at) or "",
-                      ENDED.get(c.end_reason, c.end_reason or "still in")])
+    keys = ("date", "person", "username", "teams", "seat", "floor", "zone", "method", "checked_in", "checked_out", "ended")
+    lines = [list(LINE_HEADERS)] + [[line[k] for k in keys] for line in check_in_lines(at)]
     body = write_xlsx([("Project teams", summary), ("Check-ins", lines)])
     return Response(body, mimetype=XLSX,
                     headers={"Content-Disposition": f'attachment; filename="project-teams-{data["date"]}.xlsx"'})
