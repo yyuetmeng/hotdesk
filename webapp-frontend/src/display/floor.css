@@ -1,0 +1,45 @@
+/* Floor drawing palette (FloorDrawing.jsx). Light by default; the dark palette follows the owner's reference. */
+.fd {
+  --fd-bg: #f8fafc; --fd-wall: #475569; --fd-window: #60a5fa; --fd-door: #475569; --fd-corridor: #eef2f7;
+  --fd-table: #d9c3a5; --fd-table-edge: #a8875f; --fd-monitor: #5b4a37;
+  --fd-chair: #cbd5e1; --fd-chair-edge: #94a3b8; --fd-chair-back: #64748b;
+  --fd-text: #0f172a; --fd-muted: #64748b; --fd-plant: #16a34a; --fd-tile: #e2e8f0; --fd-tile-edge: #94a3b8;
+  --fd-person: #475569; --fd-plate: rgb(248 250 252/.85); --fd-furniture: #ffffff;
+}
+:root[data-theme="dark"] .fd {
+  --fd-bg: #11161d; --fd-wall: #c3cad4; --fd-window: #3b6ea5; --fd-door: #c3cad4; --fd-corridor: #161c25;
+  --fd-table: #3b3530; --fd-table-edge: #5b5047; --fd-monitor: #1c1a18;
+  --fd-chair: #4b5563; --fd-chair-edge: #6b7280; --fd-chair-back: #9ca3af;
+  --fd-text: #e5e7eb; --fd-muted: #94a3b8; --fd-plant: #4ade80; --fd-tile: #3a414d; --fd-tile-edge: #6b7280;
+  --fd-person: #d1d5db; --fd-plate: rgb(17 22 29/.85); --fd-furniture: #1f2630;
+}
+.fd .fd-bg { fill: var(--fd-bg); }
+.fd .fd-wall { fill: var(--fd-wall); }
+.fd .fd-window { fill: var(--fd-window); }
+.fd .fd-door { stroke: var(--fd-door); }
+.fd .fd-corridor { fill: var(--fd-corridor); }
+.fd .fd-table { fill: var(--fd-table); stroke: var(--fd-table-edge); stroke-width: 1; }
+.fd .fd-monitor, .fd .fd-monitor rect { fill: var(--fd-monitor); }
+.fd .fd-plant ellipse, .fd .fd-plant circle { fill: var(--fd-plant); }
+.fd .fd-stairs { stroke: var(--fd-muted); }
+.fd .fd-stairs-label { fill: var(--fd-muted); stroke: none; }
+.fd .fd-tile { fill: var(--fd-tile); stroke: var(--fd-tile-edge); stroke-width: 1.5; }
+.fd .fd-person circle, .fd .fd-person rect, .fd .fd-person path { fill: var(--fd-person); }
+.fd .fd-room-label { fill: var(--fd-text); }
+.fd .fd-furniture { fill: var(--fd-furniture); stroke: var(--fd-chair-edge); stroke-width: 1.5; }
+.fd .fd-icon { stroke: var(--fd-muted); }
+.fd .fd-label-plate { fill: var(--fd-plate); }
+.fd .fd-zone-name { fill: var(--fd-text); }
+
+/* Chairs by state */
+.fd .fd-chair { fill: var(--fd-chair); stroke: var(--fd-chair-edge); stroke-width: 1.5; }
+.fd .fd-chair.state-booked { fill: #f59e0b; stroke: #fde68a; }
+.fd .fd-chair.state-occupied { fill: #ef4444; stroke: #fecaca; }
+.fd .fd-chair.state-not_bookable { opacity: .45; stroke-dasharray: 3 2; }
+.fd .fd-chair-back { stroke: var(--fd-chair-back); stroke-width: 1.2; }
+.fd .fd-dot { fill: #16a34a; stroke: var(--fd-bg); stroke-width: 1.5; }
+.fd .fd-initials { fill: #fff; }
+.fd .fd-selected { stroke: #2563eb; }
+.fd .fd-found { stroke: #2563eb; }
+.fd .disp-seat { cursor: pointer; }
+.fd .disp-seat:focus-visible .fd-chair { stroke: #2563eb; stroke-width: 3; }

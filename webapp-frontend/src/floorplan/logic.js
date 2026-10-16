@@ -115,7 +115,7 @@ export function previewFloor(plan, elements, catalog, departments = {}) {
     const entry = byType[el.type];
     return { id: el.id, type: el.type, x: el.x, y: el.y,
       w: entry.resizable === false ? entry.w : (el.w ?? entry.w), h: entry.resizable === false ? entry.h : (el.h ?? entry.h),
-      rotation: el.rotation || 0, label: el.label ?? null, color: el.color ?? null };
+      rotation: el.rotation || 0, label: el.label ?? null, color: el.color ?? null, config: el.config ?? {} };
   });
   const seats = elements.filter(isSeat).map((el) => {
     const tagged = Boolean(el.open_to_all || el.department_id);

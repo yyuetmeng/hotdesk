@@ -86,3 +86,19 @@ export function previewConfig(form, plans) {
 export function thinBar(x, y, W, H, t) {
   return W >= H ? { x, y: y + (H - t) / 2, width: W, height: t } : { x: x + (W - t) / 2, y, width: t, height: H };
 }
+
+/** Monitor marks on a table: one per grid cell along its long side (offsets from the table's start). */
+export function monitorMarks(x, y, W, H, cell) {
+  const vertical = H > W;
+  const count = Math.max(Math.round((vertical ? H : W) / cell), 1);
+  return { vertical, at: Array.from({ length: count }, (_, i) => i * cell + cell / 2) };
+}
+
+/** A plant's outer radius: 36% of its element's smaller side, so the flower never spills out of it. */
+export const plantRadius = (W, H) => Math.round(Math.min(W, H) * 0.36 * 100) / 100;
+
+/** A toilet's gender setting (editor: All-gender / Male / Female); anything else counts as all-gender. */
+export function toiletGender(el) {
+  const g = el?.config?.gender;
+  return g === 'male' || g === 'female' ? g : 'unisex';
+}

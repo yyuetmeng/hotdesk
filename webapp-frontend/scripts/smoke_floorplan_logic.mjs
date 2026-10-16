@@ -195,7 +195,7 @@ console.log('floorplan list actions smoke OK');
   ];
   const f = previewFloor(plan, elements, catalog, { d1: 'SAP' });
   assert.deepEqual([f.id, f.name, f.cols, f.rows], ['p1', 'Level 1', 10, 8]);
-  assert.deepEqual(f.elements.find((e) => e.id === 't'), { id: 't', type: 'table', x: 5, y: 5, w: 2, h: 1, rotation: 90, label: null, color: null });
+  assert.deepEqual(f.elements.find((e) => e.id === 't'), { id: 't', type: 'table', x: 5, y: 5, w: 2, h: 1, rotation: 90, label: null, color: null, config: {} });
   assert.deepEqual(f.seats.map((s) => [s.id, s.label, s.state, s.department]), [
     ['s1', 'A1', 'available', 'SAP'], ['s2', 'Seat 2,1', 'available', 'Free for all'], ['s3', 'Seat 3,1', 'not_bookable', null]]);
   assert.deepEqual(f.zones, [{ id: 'z', name: 'AI Lab', x: 0, y: 0, w: 4, h: 2, color: null, total: 2, free: 2 }]);

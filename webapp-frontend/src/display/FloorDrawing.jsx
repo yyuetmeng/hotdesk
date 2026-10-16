@@ -1,92 +1,149 @@
-// Style "E" floor drawing for the public display: architectural walls, door swings, glass windows,
-// furniture and rooms with icons, seats as state circles with a chair icon or the person's initials.
-// Spec: docs/superpowers/specs/2026-10-15-floor-dashboard-design.md §3.
+// Floor drawing used everywhere a floor is shown (TV display, Book a desk, Colleague Finder, previews).
+// Architectural style (owner's reference, 2026-10-16): thin pale walls, blue windows in the walls, thin doors,
+// wooden tables with monitor marks, rounded chairs coloured by state, plants that fit their cell, stairs with
+// treads, toilet tiles with a male / female / all-gender icon, zones with a coloured top edge.
+// Colours come from CSS variables (floor.css), so the drawing follows the light / dark theme.
 import { footprint, initials, zoneCaption } from '../desk/deskLogic.js';
 import { iconPath } from './icons.js';
-import { thinBar } from './displayLogic.js';
+import { monitorMarks, plantRadius, thinBar, toiletGender } from './displayLogic.js';
+import './floor.css';
 
 const C = 28;  // drawing units per grid cell
-const STATE_FILL = { available: '#16a34a', booked: '#f59e0b', occupied: '#dc2626', not_bookable: '#94a3b8' };
-const ROOMS = new Set(['toilet', 'stairs', 'elevator', 'pantry']);
+const ROOMS = new Set(['elevator', 'pantry']);
 
-function Icon({ name, cx, cy, size, color, width = 2 }) {
+function Icon({ name, cx, cy, size, className = 'fd-icon', width = 2 }) {
   const d = iconPath(name);
   if (!d) return null;
   const k = size / 24;
   return <g transform={`translate(${cx - size / 2} ${cy - size / 2}) scale(${k})`} pointerEvents="none">
-    <path d={d} fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
+    <path d={d} className={className} fill="none" strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
+  </g>;
+}
+
+// Toilet pictogram: head, body (a dress for female), legs; k scales a ~20-unit-tall figure.
+function Person({ cx, cy, k, female }) {
+  return <g className="fd-person">
+    <circle cx={cx} cy={cy - 9 * k} r={2.6 * k} />
+    {female
+      ? <path d={`M${cx - 2.4 * k} ${cy - 5.5 * k} L${cx + 2.4 * k} ${cy - 5.5 * k} L${cx + 5 * k} ${cy + 3 * k} L${cx - 5 * k} ${cy + 3 * k} Z`} />
+      : <rect x={cx - 3.4 * k} y={cy - 5.5 * k} width={6.8 * k} height={8.5 * k} rx={1.2 * k} />}
+    <rect x={cx - 2.6 * k} y={cy + 3 * k} width={1.8 * k} height={6 * k} />
+    <rect x={cx + 0.8 * k} y={cy + 3 * k} width={1.8 * k} height={6 * k} />
+  </g>;
+}
+
+function Plant({ cx, cy, r }) {
+  return <g className="fd-plant">
+    {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => <ellipse key={a} cx={cx} cy={cy - r * 0.5} rx={r * 0.26} ry={r * 0.5}
+      transform={`rotate(${a} ${cx} ${cy})`} />)}
+    <circle cx={cx} cy={cy} r={r * 0.28} opacity=".75" />
   </g>;
 }
 
 function Element({ el, catalog }) {
   const { w, h } = footprint(el);
   const x = el.x * C, y = el.y * C, W = w * C, H = h * C, cx = x + W / 2, cy = y + H / 2;
-  const color = el.color || catalog[el.type]?.color || '#64748b';
   switch (el.type) {
-    case 'wall':   // thin line along its run, not a filled block
-      return <rect {...thinBar(x, y, W, H, 6)} rx="1.5" fill="#334155" />;
-    case 'window': // thin glass pane: light fill with a blue edge
-      return <rect {...thinBar(x, y, W, H, 6)} rx="1.5" fill="#e0f2fe" stroke="#38bdf8" strokeWidth="1.5" />;
-    case 'door':
-      return <g fill="none" stroke="#b45309" strokeWidth="1.5">
-        <path d={`M ${x} ${y + H} A ${W} ${H} 0 0 1 ${x + W} ${y}`} />
-        <line x1={x + W} y1={y} x2={x + W} y2={y + H} strokeWidth="2.5" /></g>;
+    case 'wall':
+      return <rect {...thinBar(x, y, W, H, 5)} rx="1.5" className="fd-wall" />;
+    case 'window':
+      return <rect {...thinBar(x, y, W, H, 5)} rx="1.5" className="fd-window" />;
+    case 'door': {   // thin: a door leaf along one side and a light dashed swing arc
+      const r = Math.min(W, H);
+      return <g className="fd-door">
+        <line x1={x + 1} y1={y + H - 1} x2={x + 1} y2={y + H - r} strokeWidth="2.2" strokeLinecap="round" />
+        <path d={`M ${x + 1} ${y + H - r} A ${r} ${r} 0 0 1 ${x + r} ${y + H - 1}`} fill="none" strokeWidth="1" strokeDasharray="3 3" opacity=".7" />
+      </g>;
+    }
     case 'corridor':
-      return <rect x={x} y={y} width={W} height={H} fill="#f1f5f9" />;
-    case 'table':
-      return <rect x={x + 3} y={y + 3} width={W - 6} height={H - 6} rx="4" fill="#e7c9a0" stroke="#a16207" />;
+      return <rect x={x} y={y} width={W} height={H} className="fd-corridor" />;
+    case 'table': {
+      const marks = monitorMarks(x, y, W, H, C);
+      return <g>
+        <rect x={x + 4} y={y + 3} width={W - 8} height={H - 6} rx="3" className="fd-table" />
+        {marks.at.map((o) => (marks.vertical
+          ? <g key={o} className="fd-monitor"><rect x={cx - 4} y={y + o - 5} width="2.2" height="10" rx="1" /><rect x={cx + 1.8} y={y + o - 5} width="2.2" height="10" rx="1" /></g>
+          : <rect key={o} className="fd-monitor" x={x + o - 5} y={cy - 1.2} width="10" height="2.4" rx="1" />))}
+      </g>;
+    }
     case 'plant':
-      return <Icon name="plant" cx={cx} cy={cy} size={Math.min(W, H) * 0.8} color="#16a34a" />;
+      return <Plant cx={cx} cy={cy} r={plantRadius(W, H)} />;
+    case 'stairs': {
+      const treads = Math.max(Math.floor((H - 40) / 7), 0);
+      return <g className="fd-stairs">
+        <rect x={x + 3} y={y + 3} width={W - 6} height={H - 6} fill="none" strokeWidth="1.2" />
+        <text x={cx} y={y + 17} textAnchor="middle" fontSize="9" className="fd-stairs-label">{el.label || 'Stairs'}</text>
+        {Array.from({ length: treads }, (_, i) => <line key={i} x1={x + 6} x2={x + W - 6} y1={y + 30 + i * 7} y2={y + 30 + i * 7} strokeWidth=".6" opacity=".6" />)}
+        <line x1={cx} x2={cx} y1={y + H - 10} y2={y + 32} strokeWidth="1.2" />
+        <path d={`M${cx - 5} ${y + 38} L${cx} ${y + 31} L${cx + 5} ${y + 38}`} fill="none" strokeWidth="1.2" />
+      </g>;
+    }
+    case 'toilet': {
+      const gender = toiletGender(el);
+      const k = Math.min(W, H) / 40;
+      return <g>
+        <rect x={x + 1} y={y + 1} width={W - 2} height={H - 2} className="fd-tile" />
+        {gender === 'unisex'
+          ? <><Person cx={x + W * 0.33} cy={cy} k={k * 0.85} female={false} /><Person cx={x + W * 0.67} cy={cy} k={k * 0.85} female /></>
+          : <Person cx={cx} cy={cy} k={k} female={gender === 'female'} />}
+      </g>;
+    }
     case 'sofa': case 'locker':
-      return <g><rect x={x + 2} y={y + 2} width={W - 4} height={H - 4} rx="5" fill="#fff" stroke={color} strokeWidth="1.5" />
-        <Icon name={el.type} cx={cx} cy={cy} size={Math.min(W, H) * 0.7} color={color} /></g>;
+      return <g><rect x={x + 2} y={y + 2} width={W - 4} height={H - 4} rx="5" className="fd-furniture" />
+        <Icon name={el.type} cx={cx} cy={cy} size={Math.min(W, H) * 0.7} /></g>;
     default:
       if (ROOMS.has(el.type)) {
         const name = el.label || catalog[el.type]?.label || el.type;
-        return <g><rect x={x + 1} y={y + 1} width={W - 2} height={H - 2} rx="6" fill="#fff" stroke={color} strokeWidth="1.5" />
-          <Icon name={el.type} cx={cx} cy={cy - Math.min(H, 40) * 0.18} size={Math.min(W, H, 56) * 0.5} color={color} />
-          <text x={cx} y={cy + Math.min(H, 40) * 0.32} textAnchor="middle" fontSize="10" fontWeight="600" fill={color}>{name}</text></g>;
+        return <g><rect x={x + 1} y={y + 1} width={W - 2} height={H - 2} className="fd-tile" />
+          <Icon name={el.type} cx={cx} cy={cy - Math.min(H, 40) * 0.18} size={Math.min(W, H, 56) * 0.5} />
+          <text x={cx} y={cy + Math.min(H, 40) * 0.32} textAnchor="middle" fontSize="10" fontWeight="600" className="fd-room-label">{name}</text></g>;
       }
-      return <g><rect x={x + 2} y={y + 2} width={W - 4} height={H - 4} rx="4" fill="#fff" stroke={color} />
-        <Icon name={el.type} cx={cx} cy={cy} size={Math.min(W, H) * 0.6} color={color} /></g>;
+      return <g><rect x={x + 2} y={y + 2} width={W - 4} height={H - 4} rx="4" className="fd-furniture" />
+        <Icon name={el.type} cx={cx} cy={cy} size={Math.min(W, H) * 0.6} /></g>;
   }
 }
 
+// A seat as a rounded chair: available = chair with a green dot, booked = amber, occupied = red with initials,
+// not bookable = faded and dashed. Selection ring and the Colleague Finder pulse are kept.
 function Seat({ el, seat, onClick, selected, highlight }) {
   const { w, h } = footprint(el);
-  const cx = (el.x + w / 2) * C, cy = (el.y + h / 2) * C, r = Math.min(w, h) * C * 0.42;
+  const cx = (el.x + w / 2) * C, cy = (el.y + h / 2) * C, s = Math.min(w, h) * C * 0.66;
   const who = seat.occupant?.name ?? seat.booking?.booked_for?.name;
   const label = [seat.label, seat.department, who].filter(Boolean).join(' · ');
+  const ring = (cls, pad, extra = {}) => <rect className={cls} x={cx - s / 2 - pad} y={cy - s / 2 - pad} width={s + pad * 2} height={s + pad * 2}
+    rx={6 + pad / 2} fill="none" {...extra} />;
   return <g className={`disp-seat${highlight ? ' is-found' : ''}`} onClick={() => onClick?.(seat)} role="button" tabIndex={0} aria-label={label}
     onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(seat); }}>
     <title>{label}</title>
-    {selected && <circle cx={cx} cy={cy} r={r + 5} fill="none" stroke="#2563eb" strokeWidth="3" />}
-    {highlight && <>{/* Colleague Finder: pulsing rings so the seat stands out */}
-      <circle className="disp-found-ring" cx={cx} cy={cy} r={r + 4} fill="none" stroke="#2563eb" strokeWidth="4" />
-      <circle className="disp-found-ring late" cx={cx} cy={cy} r={r + 4} fill="none" stroke="#2563eb" strokeWidth="4" /></>}
-    <circle cx={cx} cy={cy} r={r} fill={STATE_FILL[seat.state] ?? '#94a3b8'} stroke={seat.open_to_all ? '#0f172a' : '#fff'} strokeWidth="2" />
+    {selected && ring('fd-selected', 4, { strokeWidth: 3 })}
+    {highlight && <>{ring('disp-found-ring fd-found', 3, { strokeWidth: 3.5 })}{ring('disp-found-ring late fd-found', 3, { strokeWidth: 3.5 })}</>}
+    <rect className={`fd-chair state-${seat.state}${seat.open_to_all ? ' ffa' : ''}`} x={cx - s / 2} y={cy - s / 2} width={s} height={s} rx="5" />
     {who
-      ? <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={r * 0.85} fontWeight="700" fill="#fff">{initials(who)}</text>
-      : <Icon name="seat" cx={cx} cy={cy} size={r * 1.15} color="#fff" width={2.4} />}
+      ? <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={s * 0.48} fontWeight="800" className="fd-initials">{initials(who)}</text>
+      : <rect className="fd-chair-back" x={cx - s * 0.28} y={cy - s * 0.28} width={s * 0.56} height={s * 0.56} rx="2.5" fill="none" />}
+    {seat.state === 'available' && <circle className="fd-dot" cx={cx + s / 2 - 1} cy={cy - s / 2 + 1} r={s * 0.2} />}
   </g>;
 }
 
-// Zone outline with its name and "N of M free" (spec 2026-10-15-floor-zones §5); drawn under everything else.
+// Zone: tinted area with a coloured top edge (drawn under everything else).
 function ZoneOutline({ zone }) {
   const color = zone.color || '#3b82f6';
-  return <rect x={zone.x * C + 2} y={zone.y * C + 2} width={zone.w * C - 4} height={zone.h * C - 4} rx="6"
-    fill={color} fillOpacity="0.06" stroke={color} strokeWidth="2" pointerEvents="none" />;
+  const x = zone.x * C + 2, y = zone.y * C + 2, W = zone.w * C - 4, H = zone.h * C - 4;
+  return <g pointerEvents="none">
+    <rect x={x} y={y} width={W} height={H} rx="5" fill={color} fillOpacity="0.07" stroke={color} strokeOpacity="0.35" />
+    <rect x={x} y={y} width={W} height="3" rx="1.5" fill={color} />
+  </g>;
 }
 
-// Drawn after the seats so a seat in the zone's corner cannot hide the name; taps pass through.
+// Zone name and "N of M free", drawn after the seats so a corner seat cannot hide them; taps pass through.
 function ZoneLabel({ zone }) {
   const x = zone.x * C, y = zone.y * C, color = zone.color || '#3b82f6';
   const caption = zoneCaption(zone);
-  const width = Math.min(zone.w * C - 8, Math.max(zone.name.length * 8.2, caption.length * 6.2) + 14);
+  const width = Math.min(zone.w * C - 10, Math.max(zone.name.length * 7.6, caption.length * 5.8) + 12);
   return <g pointerEvents="none">
-    <rect x={x + 4} y={y + 4} width={width} height={caption ? 36 : 22} rx="4" fill="#f8fafc" fillOpacity="0.9" />
-    <text x={x + 10} y={y + 19} fontSize="14" fontWeight="700" fill="#0f172a">{zone.name}</text>
-    {caption && <text x={x + 10} y={y + 34} fontSize="11" fontWeight="600" fill={color}>{caption}</text>}
+    <rect x={x + 6} y={y + 8} width={width} height={caption ? 32 : 20} rx="4" className="fd-label-plate" />
+    <text x={x + 12} y={y + 22} fontSize="12.5" fontWeight="700" className="fd-zone-name">{zone.name}</text>
+    {caption && <text x={x + 12} y={y + 35} fontSize="9.5" fontWeight="600" fill={color}>{caption}</text>}
   </g>;
 }
 
@@ -95,8 +152,8 @@ export default function FloorDrawing({ floor, onSeatClick, selectedId = null, hi
   const seats = Object.fromEntries(floor.seats.map((s) => [s.id, s]));
   const order = (el) => (el.type === 'corridor' ? 0 : el.type === 'seat' ? 3 : ['wall', 'window', 'door'].includes(el.type) ? 2 : 1);
   const elements = floor.elements.filter((el) => el.type !== 'zone').sort((a, b) => order(a) - order(b));
-  return <svg className="disp-floor" viewBox={`0 0 ${floor.cols * C} ${floor.rows * C}`} preserveAspectRatio="xMidYMid meet">
-    <rect width={floor.cols * C} height={floor.rows * C} fill="#f8fafc" />
+  return <svg className="disp-floor fd" viewBox={`0 0 ${floor.cols * C} ${floor.rows * C}`} preserveAspectRatio="xMidYMid meet">
+    <rect width={floor.cols * C} height={floor.rows * C} className="fd-bg" />
     {(floor.zones ?? []).map((z) => <ZoneOutline key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
       ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId} highlight={el.id === highlightId} />

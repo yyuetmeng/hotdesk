@@ -34,9 +34,8 @@
 .disp-floors.layout-grid { grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr)); }
 .disp-floor-card { display: flex; flex-direction: column; gap: .6vh; min-height: 0; }
 .disp-floor-name { margin: 0; font-size: .95em; font-weight: 700; color: #334155; }
-.disp-floor { display: block; width: 100%; flex: 1; min-height: 0; height: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; }
+.disp-floor { display: block; width: 100%; flex: 1; min-height: 0; height: 100%; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; }
 .disp-seat { cursor: pointer; }
-.disp-seat:focus-visible circle { stroke: #2563eb; stroke-width: 4; }
 .disp-dots { display: flex; justify-content: center; gap: .8vw; }
 .disp-dots button { width: .9em; height: .9em; border-radius: 50%; border: 0; background: #cbd5e1; cursor: pointer; padding: 0; }
 .disp-dots button.active { background: #0f1d3a; }
@@ -54,12 +53,20 @@
 .disp-close { margin-top: 1.4vh; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 8px; padding: .6em 1.2em; cursor: pointer; font: inherit; }
 
 /* Colleague Finder: the found seat blinks, with two rings pulsing outwards. */
-.disp-seat.is-found > circle:not(.disp-found-ring) { animation: disp-found-blink 1s ease-in-out infinite; }
+.disp-seat.is-found > .fd-chair { animation: disp-found-blink 1s ease-in-out infinite; }
 .disp-found-ring { transform-box: fill-box; transform-origin: center; pointer-events: none; animation: disp-found-pulse 1.6s ease-out infinite; }
 .disp-found-ring.late { animation-delay: .8s; }
 @keyframes disp-found-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @keyframes disp-found-pulse { from { transform: scale(.85); opacity: .9; } to { transform: scale(2.4); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .disp-seat.is-found > circle:not(.disp-found-ring), .disp-found-ring { animation: none; }
+  .disp-seat.is-found > .fd-chair, .disp-found-ring { animation: none; }
   .disp-found-ring.late { display: none; }
 }
+
+/* TV display in the dark theme (matches the dark floor drawing). */
+:root[data-theme="dark"] .disp { background: #0b0f15; color: #e5e7eb; }
+:root[data-theme="dark"] .disp-capacity { background: #151b23; border-color: #273140; }
+:root[data-theme="dark"] .disp-counts, :root[data-theme="dark"] .disp-legend, :root[data-theme="dark"] .disp-message { color: #94a3b8; }
+:root[data-theme="dark"] .disp-bar { background: #273140; }
+:root[data-theme="dark"] .disp-floor-name { color: #cbd5e1; }
+:root[data-theme="dark"] .disp-dots button { background: #334155; } :root[data-theme="dark"] .disp-dots button.active { background: #e5e7eb; }

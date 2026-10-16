@@ -69,3 +69,18 @@ console.log('display preview smoke OK');
   assert.deepEqual(thinBar(0, 0, 28, 28, 6), { x: 0, y: 11, width: 28, height: 6 });    // single cell: horizontal
 }
 console.log('display walls smoke OK');
+
+// New floor style: monitor marks along a table, plants that fit their cell, toilet gender.
+{
+  const { monitorMarks, plantRadius, toiletGender } = await import('../src/display/displayLogic.js');
+  assert.deepEqual(monitorMarks(0, 0, 28, 84, 28), { vertical: true, at: [14, 42, 70] });   // one per cell along a tall table
+  assert.deepEqual(monitorMarks(0, 0, 112, 28, 28), { vertical: false, at: [14, 42, 70, 98] });
+  assert.equal(plantRadius(28, 28), 10.08);                                                  // 36% of the smaller side
+  assert.ok(plantRadius(28, 25.2) * 2 < 25.2);                                               // always inside its element
+  assert.equal(toiletGender({ config: { gender: 'female' } }), 'female');
+  assert.equal(toiletGender({ config: { gender: 'male' } }), 'male');
+  assert.equal(toiletGender({ config: {} }), 'unisex');
+  assert.equal(toiletGender({ config: { gender: 'nonsense' } }), 'unisex');
+  assert.equal(toiletGender({}), 'unisex');
+}
+console.log('display floor style smoke OK');
