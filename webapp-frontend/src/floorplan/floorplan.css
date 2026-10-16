@@ -96,3 +96,19 @@
 .fp-grid-tools input[type="range"] { width: 110px; }
 .fp-grid-tools label { font-size: 12px; }
 .fp-grid-tools, .fp-grid-size, .fp-grid-view { gap: 6px; }
+
+/* Floor plan history pop-up and last-change lines (spec 2026-10-16-audit-views §3). */
+.fp-last-change, .displays-last-change { display: block; color: var(--muted); font-size: 11px; max-width: 340px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-history { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 4vh 3vw; background: rgb(2 6 23/.55); }
+.fp-history-frame { width: min(720px, 100%); max-height: 100%; overflow-y: auto; }
+.fp-history-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.fp-history-head h2 { margin: 0; }
+.fp-history h3 { margin: 16px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.fp-versions { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.fp-versions li { position: relative; display: flex; align-items: center; gap: 12px; padding: 0 0 12px; }
+.fp-versions li:not(:last-child)::after { content: ''; position: absolute; left: 21px; top: 36px; bottom: 0; width: 2px; background: var(--border); }
+.fp-version-dot { flex: none; display: grid; place-items: center; width: 44px; height: 36px; border-radius: 10px; font-weight: 700; font-size: 13px;
+  background: var(--surface-2); border: 1px solid var(--border); }
+.fp-versions li.latest .fp-version-dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+.fp-versions small { display: block; color: var(--muted); font-size: 12px; }

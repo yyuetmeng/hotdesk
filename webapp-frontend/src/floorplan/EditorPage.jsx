@@ -8,6 +8,7 @@ import { addElement, metaChanged, moveElement, placementError, previewFloor, rem
 import { countUntagged, ctrlClickSelection, departmentColor, isSeat, isZone, seatsInBox, setTag, sharedTag, tagOf } from './selection.js';
 import './floorplan.css';
 import FloorPreview from './FloorPreview.jsx';
+import PlanHistory from './PlanHistory.jsx';
 
 let localSeq = 0;
 const nextId = () => `local-${Date.now()}-${localSeq++}`;
@@ -91,6 +92,7 @@ export default function EditorPage() {
   const setSelectedId = (one) => setSelectedIds(one ? [one] : []);
   const [departments, setDepartments] = useState([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [box, setBox] = useState(null);
   const boxRef = useRef(null);
   const [preview, setPreview] = useState(null);
@@ -172,7 +174,7 @@ export default function EditorPage() {
 
   useEffect(() => {
     const onKey = (event) => {
-      if (!plan || showPreview || !selectedIds.length || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+      if (!plan || showPreview || showHistory || !selectedIds.length || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
       if (event.key === 'Escape') { setSelectedIds([]); return; }
       if ((event.key === 'r' || event.key === 'R') && selectedId) {
         const result = rotateElement(elements, selectedId, plan.cols, plan.rows);
@@ -184,7 +186,7 @@ export default function EditorPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [plan, showPreview, selectedId, selectedIds, elements, commit]);
+  }, [plan, showPreview, showHistory, selectedId, selectedIds, elements, commit]);
 
   // Box selection: press on an empty cell and drag; seats fully inside are selected.
   const onGridPointerDown = (event) => {
@@ -295,6 +297,7 @@ export default function EditorPage() {
     <header className="fp-toolbar">
       <input aria-label="Plan label" value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} />
       <span className="fp-spacer" />
+      <button className="button" onClick={() => setShowHistory(true)}>History</button>
       <button className="button" onClick={() => setShowPreview(true)}>Preview</button>
       <button className="button primary" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save *' : 'Saved'}</button>
       <button className="button primary" onClick={() => lifecycle('publish', { confirmText: untagged ? untaggedWarning(untagged) : undefined })}
@@ -309,6 +312,7 @@ export default function EditorPage() {
           confirmText: 'Unpublish this plan? Staff will no longer see it or be able to book it. The draft is kept.' })}>
         Unpublish</button>}
     </header>
+    {showHistory && <PlanHistory planId={id} name={plan.name} onClose={() => setShowHistory(false)} />}
     {showPreview && <FloorPreview onClose={() => setShowPreview(false)}
       note={dirty ? 'includes your unsaved changes; every seat with a project team shows as available' : 'every seat with a project team shows as available'}
       floor={previewFloor({ ...plan, name: meta.name.trim() || plan.name }, elements, CATALOG,

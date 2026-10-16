@@ -9,6 +9,7 @@ import { Loading, Notice, PageTitle } from '../components.jsx';
 import { filterRows, isNewLabel, labelFileNames, seatRows, teamOptions, withDownloaded, zoneOptions } from './qrLogic.js';
 import { makeZip } from './zip.js';
 import './qr.css';
+import { formatDateTime } from '../format.js';
 
 const seatLink = (id) => `${window.location.origin}/checkin/${id}`;
 
@@ -48,6 +49,7 @@ export function DeskLabelsPage() {
   const [busy, setBusy] = useState('');
   const [filters, setFilters] = useState({ floor: params.get('floor') || 'all', zone: 'all', team: 'all', label: 'all', q: '' });
   const [selected, setSelected] = useState(() => new Set());
+  const [downloadInfo, setDownloadInfo] = useState({});   // seat id -> { at, by } of the latest download
   const [downloaded, setDownloaded] = useState(null);   // seat ids whose label any admin has downloaded
 
   useEffect(() => {
@@ -57,7 +59,8 @@ export function DeskLabelsPage() {
         const loaded = await Promise.all(list.map((f) => flaskRequest(`/api/public/floors/${f.id}`)));
         setFloors(list);
         setRows(loaded.flatMap(seatRows));
-        flaskRequest('/api/admin/desk-labels/downloads').then((d) => setDownloaded(new Set(d.seat_ids))).catch(() => {});
+        flaskRequest('/api/admin/desk-labels/downloads')
+          .then((d) => { setDownloaded(new Set(d.seat_ids)); setDownloadInfo(d.details ?? {}); }).catch(() => {});
       } catch (err) { setError(err.message); }
     })();
   }, []);
@@ -151,7 +154,7 @@ export function DeskLabelsPage() {
           <label className="qr-check"><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)}
             aria-label={`Select ${r.label}`} /></label>
           {images[r.id] ? <img src={images[r.id]} alt={`QR code for ${r.label}`} /> : <div className="qr-placeholder" />}
-          <b>{r.label}</b><small>{r.floorName}{r.zone ? ` · ${r.zone}` : ''} · scan to check in</small>
+          <b title={downloadInfo[r.id] ? `Downloaded ${formatDateTime(downloadInfo[r.id].at)}${downloadInfo[r.id].by ? ` by ${downloadInfo[r.id].by}` : ''}` : 'Never downloaded'}>{r.label}</b><small>{r.floorName}{r.zone ? ` · ${r.zone}` : ''} · scan to check in</small>
           <button className="button subtle qr-download" disabled={busy === r.id} onClick={() => downloadOne(r)}>
             {busy === r.id ? 'Saving…' : 'Download PNG'}</button>
         </div>)}</div>}

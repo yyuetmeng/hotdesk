@@ -6,6 +6,7 @@ import { formatDateTime } from '../format.js';
 import './floorplan.css';
 import { planActions, previewFloor } from './logic.js';
 import FloorPreview from './FloorPreview.jsx';
+import { relativeTime } from '../pages/audit/auditLogic.js';
 
 const STATUS_LABEL = { draft: 'Draft', published: 'Published', changed: 'Unpublished changes', unpublished: 'Unpublished' };
 
@@ -101,7 +102,8 @@ export default function FloorPlansPage() {
             {item.published_version && <small>v{item.published_version} · {formatDateTime(item.published_at)}</small>}</td>
           <td>{item.cols}×{item.rows}</td>
           <td>{item.element_count}</td>
-          <td>{formatDateTime(item.updated_at)}</td>
+          <td>{formatDateTime(item.updated_at)}
+            {item.last_change && <small className="fp-last-change" title={item.last_change.summary}>{item.last_change.summary} · {relativeTime(item.last_change.at)}</small>}</td>
           <td><div className="row-actions">
             <button className="button" onClick={() => openPreview(item)}>Preview</button>
             {planActions(item.status).map((a) => <button key={a.action} className="button" onClick={() => lifecycle(item, a.action)}>{a.label}</button>)}

@@ -5,6 +5,7 @@ import { flaskRequest } from '../../api.js';
 import { Loading, Notice, PageTitle } from '../../components.jsx';
 import { previewConfig, slugify } from '../../display/displayLogic.js';
 import { DisplayView } from '../../display/DisplayPage.jsx';
+import { relativeTime } from '../audit/auditLogic.js';
 
 const EMPTY = { name: '', slug: '', plan_ids: [], show_overall: true, layout: 'rotate', rotate_seconds: 20 };
 const linkFor = (slug) => `${window.location.origin}/display/${slug}`;
@@ -47,7 +48,7 @@ export function DisplaysPage() {
           <button className="button primary" onClick={() => { setNotice(null); setEditing('new'); }}>New display</button></div>
         {items.length ? <table><thead><tr><th>Name</th><th>Link</th><th>Floors</th><th>Layout</th><th /></tr></thead>
           <tbody>{items.map((d) => <tr key={d.id}>
-            <td><b>{d.name}</b></td>
+            <td><b>{d.name}</b>{d.last_change && <small className="displays-last-change">{d.last_change.actor_name ? `Edited by ${d.last_change.actor_name}` : 'Last change'} · {relativeTime(d.last_change.at)}</small>}</td>
             <td><code>/display/{d.slug}</code></td>
             <td>{d.floors.map((f) => f.published ? f.name : `${f.name} (not published)`).join(', ') || '—'}</td>
             <td>{d.layout === 'rotate' ? `Rotate every ${d.rotate_seconds}s` : 'All floors'}</td>
