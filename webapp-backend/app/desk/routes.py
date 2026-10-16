@@ -169,7 +169,7 @@ def dashboard(viewer, at):
 @desk_endpoint
 def me(viewer, at):
     mine = service.open_checkin_of(viewer)
-    return jsonify(checkin=service.checkin_dto(mine) if mine else None,
+    return jsonify(user_id=str(viewer.id), checkin=service.checkin_dto(mine) if mine else None,
                    usual_seat=usual_seat(viewer, seat_places()), auto_book=viewer.auto_book)
 
 

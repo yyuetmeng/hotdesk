@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, nextDayName, sgToday, seatAction } from '../src/desk/deskLogic.js';
+import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, nextDayName, sgToday, seatAction, myBookingsToday, checkInWindow, untaggedNote } from '../src/desk/deskLogic.js';
 
 assert.equal(initials('Jane Tan'), 'JT');
 assert.equal(initials('Prince'), 'P');
@@ -36,4 +36,21 @@ assert.equal(seatAction({ can_check_in: true }, true), 'check_in');
 assert.equal(seatAction({ can_check_in: true }, false), null);          // the next working day: book instead
 assert.equal(seatAction({ can_give_up: true }, true), 'give_up');
 assert.equal(seatAction({}, true), null);
+// Desk check-in without a QR code: my active bookings today, and whether each can be checked in now.
+const bk = (id, forId, date, state, starts, ends) => ({ id, booked_for: { id: forId }, date, state, starts_at: starts, ends_at: ends });
+const mineToday = myBookingsToday([
+  bk('b2', 'me', '2026-10-16', 'active', '2026-10-16T13:00:00+08:00', '2026-10-16T18:00:00+08:00'),
+  bk('b1', 'me', '2026-10-16', 'active', '2026-10-16T08:00:00+08:00', '2026-10-16T13:00:00+08:00'),
+  bk('b3', 'other', '2026-10-16', 'active', '2026-10-16T08:00:00+08:00', '2026-10-16T13:00:00+08:00'),   // I booked it for someone
+  bk('b4', 'me', '2026-10-19', 'active', '2026-10-19T08:00:00+08:00', '2026-10-19T13:00:00+08:00'),     // Monday
+  bk('b5', 'me', '2026-10-16', 'released', '2026-10-16T08:00:00+08:00', '2026-10-16T13:00:00+08:00'),
+], 'me', '2026-10-16');
+assert.deepEqual(mineToday.map((b) => b.id), ['b1', 'b2']);
+assert.deepEqual(checkInWindow(mineToday[1], '2026-10-16T12:20:00+08:00'), { open: false, opensAt: '2026-10-16T04:30:00.000Z' });   // opens 12:30 SG
+assert.deepEqual(checkInWindow(mineToday[1], '2026-10-16T12:30:00+08:00'), { open: true, opensAt: '2026-10-16T04:30:00.000Z' });
+assert.equal(checkInWindow(mineToday[0], '2026-10-16T13:00:00+08:00').open, false);              // over
+// A seat with no tag cannot be booked or used; say how to fix it.
+assert.match(untaggedNote({ open_to_all: false, department_id: null }), /Free for all/);
+assert.equal(untaggedNote({ open_to_all: true, department_id: null }), '');
+assert.equal(untaggedNote({ open_to_all: false, department_id: 'd1' }), '');
 console.log('desk logic smoke OK');

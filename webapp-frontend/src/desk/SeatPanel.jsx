@@ -4,7 +4,7 @@ import { flaskRequest } from '../api.js';
 import { Notice } from '../components.jsx';
 import { formatTime } from '../format.js';
 import BookingPanel from './BookingPanel.jsx';
-import { seatAction, stateLabel } from './deskLogic.js';
+import { seatAction, stateLabel, untaggedNote } from './deskLogic.js';
 import { checkInLocation } from './location.js';
 
 export default function SeatPanel({ planId, seat, isToday, onChanged, booking }) {
@@ -49,6 +49,7 @@ export default function SeatPanel({ planId, seat, isToday, onChanged, booking })
         {busy ? 'Please wait…' : action === 'check_in' ? 'Check in now' : 'Give up seat'}</button>
       {action === 'check_in' && <p className="bk-hint">{seat.open_to_all ? 'Free for all' : "Your project team's seat"}: no booking needed. Your device location is recorded with the check-in.</p>}
     </div>}
+    {untaggedNote(seat) && <p className="muted">{untaggedNote(seat)}</p>}
     {seat.open_to_all && (seat.state === 'not_bookable'
       ? <p className="muted">This seat has no project team.</p>
       : <BookingPanel planId={planId} seat={seat} onChanged={onChanged} {...booking} />)}

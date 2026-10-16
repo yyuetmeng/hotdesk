@@ -38,4 +38,19 @@ export const sgToday = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { 
  * server decides via can_check_in), 'give_up' (your own seat), or null. Today only. */
 export const seatAction = (seat, isToday) => (!isToday ? null : seat.can_give_up ? 'give_up' : seat.can_check_in ? 'check_in' : null);
 
+/** Desk check-in without a QR code: my active bookings for `todayIso` (not ones I made for others), earliest first. */
+export const myBookingsToday = (bookings, userId, todayIso) => bookings
+  .filter((b) => b.booked_for?.id === userId && b.date === todayIso && b.state === 'active')
+  .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+
+/** Check-in opens 30 minutes before the booking starts and closes when it ends (as on the server). */
+export function checkInWindow(booking, nowIso) {
+  const opens = new Date(new Date(booking.starts_at).getTime() - 30 * 60000), now = new Date(nowIso);
+  return { open: opens <= now && now < new Date(booking.ends_at), opensAt: opens.toISOString() };
+}
+
+/** Why a seat with no tag cannot be booked or used, and how an admin fixes it ('' for tagged seats). */
+export const untaggedNote = (seat) => (seat.open_to_all || seat.department_id ? ''
+  : 'This seat is not set up yet, so it cannot be booked or checked in to. An admin can tag it Free for all, or give it a project team, in Manage Floor Plan and publish again.');
+
 export const firstLoad = ({ floors, floor, error }) => !error && (!floors || (floors.length > 0 && !floor));

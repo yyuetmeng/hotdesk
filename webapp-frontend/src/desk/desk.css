@@ -60,3 +60,12 @@
 .bk-chip.missing { border-color: #fdba74; background: color-mix(in srgb, #f97316 12%, transparent); }
 .bk-confirm { width: 100%; padding: 11px; font-weight: 650; }
 .bk-failed { margin: 6px 0 0; padding-left: 18px; }
+
+/* Desk check-in without a QR code: today's bookings with a Check in button. */
+.desk-mybookings { text-align: left; margin: 12px 0; }
+.desk-mybookings h2 { margin: 0 0 8px; font-size: 17px; }
+.desk-mybookings ul { list-style: none; margin: 0; padding: 0; }
+.desk-mybookings li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.desk-mybookings li:last-child { border-bottom: 0; }
+.desk-mybookings small { display: block; color: var(--muted); }
+.desk-checkin .desk-mybookings .button { min-width: 0; padding: 9px 16px; font-size: 14px; }

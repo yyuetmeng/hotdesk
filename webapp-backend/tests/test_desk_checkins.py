@@ -79,6 +79,7 @@ def test_me_and_auto_end(client, world, monkeypatch):
     check_in(client, world, "jane", "E1")
     me = client.get("/api/desk/me", headers=hdr(world["tok"]["jane"])).get_json()
     assert me["checkin"]["seat_label"] == "E1"
+    assert me["user_id"] == world["users"]["jane"]      # the Desk check-in page picks out bookings for me
     set_now(monkeypatch, sg(DAY, 18, 5))
     assert client.get("/api/desk/me", headers=hdr(world["tok"]["jane"])).get_json()["checkin"] is None
     assert run_one("select end_reason from seat_checkins")["end_reason"] == "auto"
