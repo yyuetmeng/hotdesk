@@ -9,6 +9,6 @@ assert.equal(parseCollapsed('yes'), false);
 assert.equal(shellClass({ collapsed: false, drawerOpen: false }), 'app-shell');
 assert.equal(shellClass({ collapsed: true, drawerOpen: false }), 'app-shell collapsed');
 assert.equal(shellClass({ collapsed: true, drawerOpen: true }), 'app-shell collapsed drawer-open');
-// Mobile bottom bar (owner 2026-10-16): Book a desk, Scan QR code (raised, centre, opens the camera), Check in.
-assert.deepEqual(BOTTOM_LINKS.map((l) => [l.to, l.label, l.main]), [['/book', 'Book a desk', false], ['/scan', 'Scan QR code', true], ['/checkin', 'Check in', false]]);
+// Mobile bottom bar (owner 2026-10-16): Book a desk, Scan QR code (raised, centre, opens the camera), Colleague Finder.
+assert.deepEqual(BOTTOM_LINKS.map((l) => [l.to, l.label, l.main]), [['/book', 'Book a desk', false], ['/scan', 'Scan QR code', true], ['/finder', 'Finder', false]]);
 console.log('layout logic smoke OK');

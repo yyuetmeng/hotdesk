@@ -14,11 +14,11 @@ export function saveCollapsed(collapsed) {
 }
 
 // Mobile bottom bar (owner 2026-10-16), shown where the sidebar becomes a drawer: Book a desk, Scan QR code (the
-// raised centre button, opens the camera) and Check in (the Desk check-in page: bookings, manual check-in).
+// raised centre button, opens the camera) and Colleague Finder. Desk check-in stays in the menu.
 export const BOTTOM_LINKS = [
   { to: '/book', label: 'Book a desk', icon: 'booking', main: false },
   { to: '/scan', label: 'Scan QR code', icon: 'scan', main: true },
-  { to: '/checkin', label: 'Check in', icon: 'checkin', main: false },
+  { to: '/finder', label: 'Finder', icon: 'finder', main: false },
 ];
 
 export const shellClass = ({ collapsed, drawerOpen }) =>
