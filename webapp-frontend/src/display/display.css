@@ -70,3 +70,13 @@
 :root[data-theme="dark"] .disp-bar { background: #273140; }
 :root[data-theme="dark"] .disp-floor-name { color: #cbd5e1; }
 :root[data-theme="dark"] .disp-dots button { background: #334155; } :root[data-theme="dark"] .disp-dots button.active { background: #e5e7eb; }
+/* Seat pop-up: its own colours in both themes, so text and the Close button stay readable (it used to keep a
+   white background while taking the dark theme's light text). */
+.disp-pop { color: #0f172a; }
+.disp-close { color: #0f172a; }
+:root[data-theme="dark"] .disp-pop { background: #151b23; color: #e5e7eb; border: 1px solid #273140; }
+:root[data-theme="dark"] .disp-pop h3 { color: #cbd5e1; }
+:root[data-theme="dark"] .disp-muted, :root[data-theme="dark"] .disp-activity time { color: #94a3b8; }
+:root[data-theme="dark"] .disp-activity li { border-bottom-color: #273140; }
+:root[data-theme="dark"] .disp-close { background: #1f2630; border-color: #334155; color: #e5e7eb; }
+:root[data-theme="dark"] .disp-close:hover { border-color: #64748b; }
