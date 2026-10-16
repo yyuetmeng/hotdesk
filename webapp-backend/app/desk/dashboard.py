@@ -42,7 +42,7 @@ def seat_places() -> dict:
                 continue
             zone = next((z for z in zones if z.x <= el.x < z.x + z.w and z.y <= el.y < z.y + z.h), None)
             places[el.element_id] = {"plan_id": str(plan.id), "plan_name": live.name, "seat_label": service.seat_label(el),
-                                     "zone": zone_name(zone.label) if zone else None}
+                                     "zone": zone_name(zone.label) if zone else None, "open_to_all": bool(el.open_to_all)}
     return places
 
 
@@ -181,6 +181,8 @@ def dashboard(viewer: User, at: datetime) -> dict:
     today = rules.local_today(at)
     tomorrow = today + timedelta(days=1)
     places = seat_places()
+    from .autobook import run_auto_book, usual_seat   # local import: autobook uses this module's seat_places
+    auto = run_auto_book(viewer, at, places)            # before reading bookings, so new ones show at once
     teams = _teams(viewer)
     return {"now": at.isoformat(), "today": today.isoformat(),
             "me": {"name": viewer.full_name, "teams": [{"id": str(t_id), "name": name} for t_id, name in teams]},
@@ -189,4 +191,5 @@ def dashboard(viewer: User, at: datetime) -> dict:
             "team": _team(viewer, teams, places, today, tomorrow, at),
             "trend": _trend(viewer, today),
             "history": _history(viewer, places),
-            "favourites": _favourites(viewer, places, at)}
+            "favourites": _favourites(viewer, places, at),
+            "usual_seat": usual_seat(viewer, places), "auto_book": auto}

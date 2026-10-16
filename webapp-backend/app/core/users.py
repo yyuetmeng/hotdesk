@@ -17,6 +17,7 @@ def public_user(user: User) -> dict:
         "departments": [{"id": str(d.id), "name": d.name} for d in user.departments],
         "status": "pending_activation" if user.password_hash is None else "active",
         "booking_allowance": user.booking_allowance,
+        "usual_seat_id": str(user.usual_seat_id) if user.usual_seat_id else None,
     }
 
 

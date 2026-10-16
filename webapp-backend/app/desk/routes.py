@@ -17,6 +17,8 @@ from . import desk_bp, rules, service
 from .zones import drawn_zones
 from .dashboard import dashboard as desk_dashboard
 from .people import find_people, project_teams
+from .autobook import usual_seat
+from .dashboard import seat_places
 
 
 def desk_endpoint(fn):
@@ -166,4 +168,17 @@ def dashboard(viewer, at):
 @desk_endpoint
 def me(viewer, at):
     mine = service.open_checkin_of(viewer)
-    return jsonify(checkin=service.checkin_dto(mine) if mine else None)
+    return jsonify(checkin=service.checkin_dto(mine) if mine else None,
+                   usual_seat=usual_seat(viewer, seat_places()), auto_book=viewer.auto_book)
+
+
+@desk_bp.patch("/me")
+@desk_endpoint
+def update_me(viewer, at):
+    body = request.get_json(silent=True) or {}
+    if type(body.get("auto_book")) is not bool:
+        raise service.DeskError("auto_book must be true or false")
+    viewer.auto_book = body["auto_book"]
+    orm_session().commit()
+    write_audit(str(viewer.id), "user.auto_book", str(viewer.id), {"auto_book": viewer.auto_book})
+    return jsonify(auto_book=viewer.auto_book)

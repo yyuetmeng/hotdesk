@@ -15,6 +15,7 @@ from app.core.errors import error
 from app.core.orm import orm_session
 from app.core.security import admin_required, hash_password
 from app.core.users import email_exists, fetch_user, public_user, username_exists
+from app.desk.dashboard import seat_places
 
 from . import admin_bp
 
@@ -198,7 +199,7 @@ def is_last_active_admin(user_id: str) -> bool:
 
 
 PATCHABLE = ("full_name", "username", "email", "role", "is_active",
-             "start_date", "end_date", "department_ids", "booking_allowance")
+             "start_date", "end_date", "department_ids", "booking_allowance", "usual_seat_id")
 
 
 @admin_bp.patch("/users/<uuid:user_id>")
@@ -243,6 +244,14 @@ def patch_user(user_id):
         e = end if "end_date" in body else user.end_date
         if s and e and s > e:
             fields["end_date"] = "end_date must be on or after start_date"
+    usual = None
+    if body.get("usual_seat_id"):
+        try:
+            usual = uuid.UUID(str(body["usual_seat_id"]))
+        except ValueError:
+            usual = None
+        if usual is None or usual not in seat_places():
+            fields["usual_seat_id"] = "choose a seat on a published floor plan"
     dept_ids = body.get("department_ids")
     if dept_ids is not None and not _departments_exist(dept_ids):
         fields["department_ids"] = "unknown department id"
@@ -281,6 +290,8 @@ def patch_user(user_id):
         user.end_date = end
     if "booking_allowance" in body:
         user.booking_allowance = body["booking_allowance"]
+    if "usual_seat_id" in body:
+        user.usual_seat_id = usual
     if set(body) - {"department_ids"}:
         user.updated_at = func.now()
     if dept_ids is not None:

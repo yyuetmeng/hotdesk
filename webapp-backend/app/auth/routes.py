@@ -88,7 +88,24 @@ def login():
     token = create_access_token(identity=uid, expires_delta=lifetime,
                                 additional_claims={"role": user.role.name, "email": user.email})
     g.jwt_uid = uid
+    _auto_book_after_sign_in(user)
     return jsonify(token=token, user=public_user(user), remember=remember)
+
+
+def _auto_book_after_sign_in(user):
+    """Auto-book the usual seat (spec 2026-10-16-usual-seat-and-auto-book §3). Never fails the sign-in."""
+    if not (user.auto_book and user.usual_seat_id):
+        return
+    try:
+        from app.desk import rules, service
+        from app.desk.autobook import run_auto_book
+        from app.desk.dashboard import seat_places
+        at = rules.now()
+        service.settle(at)
+        run_auto_book(user, at, seat_places())
+    except Exception:  # noqa: BLE001 - signing in must not break because of a booking problem
+        orm_session().rollback()
+        log.exception("auto-booking after sign-in failed for %s", user.id)
 
 
 @auth_bp.get("/me")

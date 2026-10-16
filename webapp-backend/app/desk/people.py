@@ -11,6 +11,7 @@ from app.core.desk_models import SeatBooking, SeatCheckin
 from app.core.orm import orm_session
 
 from . import rules, service
+from .autobook import usual_seat
 from .dashboard import seat_places
 
 MAX_RESULTS = 50
@@ -58,7 +59,8 @@ def find_people(q: str, at: datetime, team_id=None) -> list[dict]:
 
     out = []
     for u in users:
-        base = {"id": str(u.id), "name": u.full_name, "initials": service.initials(u.full_name), "teams": teams.get(u.id, [])}
+        base = {"id": str(u.id), "name": u.full_name, "initials": service.initials(u.full_name), "teams": teams.get(u.id, []),
+                "usual_seat": usual_seat(u, places)}
         c, b_today, b_tomorrow = checkins.get(u.id), bookings.get((u.id, today)), bookings.get((u.id, tomorrow))
         if c:
             out.append({**base, "status": "checked_in", "seat": seat(c.seat_id, c.seat_label), "date": today.isoformat(),

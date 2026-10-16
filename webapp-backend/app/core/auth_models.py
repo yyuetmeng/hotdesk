@@ -59,6 +59,8 @@ class User(Base):
     failed_attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0,
                                                  server_default=text("0"))
     # How many colleagues this user may book seats for per day (0-20; sql/0017).
+    usual_seat_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))   # sql/0022: a label only
+    auto_book: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     booking_allowance: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0,
                                                    server_default=text("0"))
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False,
