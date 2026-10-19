@@ -61,6 +61,10 @@ assert.equal(canAddSeat({ ...f1, open_to_all: false }, 'am', []), true);
 assert.equal(rowTeamHint({ seat: f1 }, { tier: 'team', seats: [e1s] }), e1s);
 assert.equal(rowTeamHint({ seat: f1 }, { tier: 'open', seats: [] }), null);
 assert.equal(rowTeamHint({ seat: { id: 'e1', open_to_all: true } }, { tier: 'team', seats: [e1s] }), null);
+const e2s = { ...e1s, seat_id: 'e2', seat_label: 'E2' };
+assert.equal(rowTeamHint({ seat: f1 }, { tier: 'team', seats: [e1s, e2s] }, ['e1']), e2s);   // another row holds E1
+assert.equal(rowTeamHint({ seat: f1 }, { tier: 'team', seats: [e1s] }, ['e1']), null);
+assert.equal(rowTeamHint({ seat: f1 }, { tier: 'team', seats: [e1s, e2s] }, ['f2']), e1s);
 assert.deepEqual(toRowSeat(e1s), { id: 'e1', label: 'E1', plan_id: 'p1', open_to_all: false });
 assert.equal(firstName('Jane Tan'), 'Jane');
 console.log('booking logic smoke OK');

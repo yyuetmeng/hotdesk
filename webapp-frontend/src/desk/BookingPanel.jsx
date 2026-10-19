@@ -61,6 +61,8 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
     flaskRequest(`/api/desk/colleagues?date=${dates[0]}&q=`).then((d) => setAllowance(d.allowance)).catch(() => setAllowance(null));
   }, [forWho, dates[0]]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setResults(null); setSwaps({}); }, [seat.id]);
+  // A new day or slot: drop seats and hints found for the previous one (declared before the fetch below).
+  useEffect(() => { setSwaps({}); setSuggested({}); }, [dates[0], preset]); // eslint-disable-line react-hooks/exhaustive-deps
   // Each picked colleague's best free seat for the day and slot (their team's first).
   const personIds = Object.values(people).filter(Boolean).map((p) => p.id).join(',');
   useEffect(() => {
@@ -91,7 +93,7 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
     setBusy(true);
     const out = [];
     for (const body of requests) {   // one at a time, so the allowance and seat checks see the earlier ones
-      const row = rows.find((r) => r.seat.id === body.seat_id);
+      const row = rows.find((r) => r.seat.id === body.seat_id && (forWho === 'me' || r.person.id === body.user_id));
       const who = forWho === 'me' ? 'You' : row.person.name;
       try {
         await flaskRequest('/api/desk/bookings', { method: 'POST', body });
@@ -122,7 +124,7 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
       {multi && <p className="bk-hint">Click more free seats on the floor to add them.</p>}
       {rows.map((r) => {
         const sug = r.person ? suggested[r.person.id] : null;
-        const hint = r.person ? rowTeamHint(r, sug) : null;
+        const hint = r.person ? rowTeamHint(r, sug, rows.filter((o) => o.key !== r.key).map((o) => o.seat.id)) : null;
         const find = !multi && !hint && sug && sug.tier !== 'none' && sug.seats[0].seat_id !== r.seat.id ? sug.seats[0] : null;
         return <div key={r.key} className="bk-field">
           <div className="bk-row">
@@ -158,7 +160,7 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
     <div className="bk-summary">
       <b>{requests.length || rows.length * dates.length} booking{(requests.length || rows.length * dates.length) === 1 ? '' : 's'}</b>
       {' · '}{dates.map(dayName).join(' and ')}, {presetLabel(preset)}
-      <div className="bk-chips">{rows.map((r) => <span key={r.seat.id} className={`bk-chip${forWho === 'other' && !r.person ? ' missing' : ''}`}>
+      <div className="bk-chips">{rows.map((r) => <span key={r.key} className={`bk-chip${forWho === 'other' && !r.person ? ' missing' : ''}`}>
         <b>{forWho === 'me' ? 'You' : r.person?.name ?? 'needs a person'}</b> {r.seat.label}</span>)}</div>
       {problem && <p className="bk-hint warn">{problem}</p>}
     </div>

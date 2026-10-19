@@ -41,10 +41,11 @@ export function bookBlock({ seat, preset, forWho, teamFirst }) {
   return seat.can_book?.[preset] ? null : { kind: 'not_free' };
 }
 
-/** The colleague's team seat to offer on a row whose seat is free for all (result of GET /api/desk/suggest), or null. */
-export function rowTeamHint(row, result) {
-  const first = result?.tier === 'team' ? result.seats[0] : null;
-  return first && row.seat.open_to_all && first.seat_id !== row.seat.id ? first : null;
+/** The colleague's team seat to offer on a row whose seat is free for all (result of GET /api/desk/suggest), or null.
+ * `takenIds`: seats other rows already hold, so two teammates are never offered the same seat (the next one instead). */
+export function rowTeamHint(row, result, takenIds = []) {
+  if (result?.tier !== 'team' || !row.seat.open_to_all) return null;
+  return result.seats.find((s) => s.seat_id !== row.seat.id && !takenIds.includes(s.seat_id)) ?? null;
 }
 
 /** A suggestion as a row seat. */

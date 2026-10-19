@@ -7,7 +7,7 @@ import { Link, useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatTime } from '../format.js';
-import { checkInWindow, myBookingsToday, presetLabel, sgToday, stateLabel, teamSeatText } from './deskLogic.js';
+import { checkInWindow, myBookingsToday, presetLabel, sgToday, stateLabel } from './deskLogic.js';
 import { checkInLocation } from './location.js';
 import { checkInOutcome } from './scanLogic.js';
 import './desk.css';
@@ -87,7 +87,6 @@ function CheckInResult({ outcome, seat, busy, onGiveUp }) {
       <br /><span className="muted">Give the seat up when you leave.</span>
     </div>}
     {outcome.kind === 'bad' && <div className="desk-result-card"><b>{outcome.reason}</b>
-      {s && <><br />{teamSeatText(s)}</>}
       <br /><span className="muted">Free-for-all seats and your own team's seats can be used without booking.</span></div>}
     {outcome.kind === 'done' && <p className="muted">{outcome.note}</p>}
     <div className="desk-result-actions">
