@@ -37,7 +37,7 @@ def desk_endpoint(fn):
         try:
             return fn(viewer, at, *args, **kwargs)
         except service.DeskError as exc:
-            return error(str(exc), exc.status)
+            return error(str(exc), exc.status, **exc.extra)
     return wrapper
 
 

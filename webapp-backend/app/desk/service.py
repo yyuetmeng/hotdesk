@@ -25,11 +25,12 @@ log = logging.getLogger("app.desk")
 
 
 class DeskError(Exception):
-    """A request the rules refuse; `status` is the HTTP status to return."""
+    """A request the rules refuse; `status` is the HTTP status to return, `extra` more keys for the error body."""
 
-    def __init__(self, message: str, status: int = 400):
+    def __init__(self, message: str, status: int = 400, **extra):
         super().__init__(message)
         self.status = status
+        self.extra = extra
 
 
 def initials(name: str | None) -> str:
@@ -186,6 +187,19 @@ def colleagues(viewer: User, q: str, day: date) -> list[User]:
         stmt = stmt.where(or_(User.full_name.ilike(f"%{q}%"), User.username.ilike(f"%{q}%")))
     found = orm_session().scalars(stmt.order_by(User.full_name)).unique().all()
     return [u for u in found if is_usable(u, day)]
+
+
+def colleague_for(viewer: User, user_id) -> User:
+    """The colleague `viewer` acts for: sharing a project team, or anyone for an admin (owner 2026-10-16)."""
+    uid = _uuid(user_id)
+    if uid == viewer.id:
+        return viewer
+    target = orm_session().get(User, uid) if uid else None
+    if target is None:
+        raise DeskError("colleague not found", 404)
+    if not is_admin(viewer) and not (department_ids(target) & department_ids(viewer)):
+        raise DeskError("you can only book for colleagues in your project teams", 403)
+    return target
 
 
 def allowance_used(viewer: User, day: date) -> int:
@@ -367,20 +381,41 @@ def free_to_book(seats: list[dict], day: date, preset: str, at: datetime, ctx: d
                                            ctx["open"].get(s["el"].element_id), r)]
 
 
-def suggest_seats(person: User, day: date, preset: str | None, at: datetime, purpose: str = "book",
-                  limit: int = 5) -> dict:
-    """Seats to offer `person`: free team seats, else free-for-all seats only when no team seat is free."""
+def _free_team_seats(person: User, purpose: str, at: datetime, day: date | None, preset: str | None,
+                     ctx: dict | None = None) -> tuple[list[dict], dict | None]:
+    """`person`'s free team seats on every published floor, ranked, with their usual seat (or None)."""
     if purpose != "book":
         raise ValueError(f"unknown purpose {purpose!r}")
     teams = department_ids(person)
     found = published_seats(teams, also=frozenset({person.usual_seat_id}))
     usual = next((s for s in found if s["el"].element_id == person.usual_seat_id), None)
-    tier, free = "team", free_to_book([s for s in found if s["el"].department_id in teams], day, preset, at)
+    free = free_to_book([s for s in found if s["el"].department_id in teams], day, preset, at, ctx)
+    return rank_seats(free, usual), usual
+
+
+def team_first_seat(person: User, purpose: str, at: datetime, day: date | None = None, preset: str | None = None,
+                    ctx: dict | None = None) -> dict | None:
+    """The best free team seat for `person` as a suggestion, or None when no team seat is free."""
+    free, _ = _free_team_seats(person, purpose, at, day, preset, ctx)
+    return suggestion(free[0]) if free else None
+
+
+def team_first_message(person: User, viewer: User, s: dict, purpose: str) -> str:
+    whose = "Your" if person.id == viewer.id else f"{person.full_name}'s"
+    then = "Check in there instead." if purpose == "checkin" else "Book that one instead."
+    return f"{whose} project team has a free seat: {s['seat_label']} on {s['plan_name']}. {then}"
+
+
+def suggest_seats(person: User, day: date, preset: str | None, at: datetime, purpose: str = "book",
+                  limit: int = 5) -> dict:
+    """Seats to offer `person`: free team seats, else free-for-all seats only when no team seat is free."""
+    free, usual = _free_team_seats(person, purpose, at, day, preset)
+    tier = "team"
     if not free:
-        tier, free = "open", free_to_book(published_seats(open_to_all=True), day, preset, at)
+        tier, free = "open", rank_seats(free_to_book(published_seats(open_to_all=True), day, preset, at), usual)
     if not free:
         return {"tier": "none", "seats": []}
-    return {"tier": tier, "seats": [suggestion(s) for s in rank_seats(free, usual)[:limit]]}
+    return {"tier": tier, "seats": [suggestion(s) for s in free[:limit]]}
 
 
 # --- bookings -----------------------------------------------------------------------------
@@ -408,25 +443,15 @@ def create_booking(viewer: User, plan_id, seat_id, day_text, preset, for_user_id
         day = date.fromisoformat(str(day_text))
     except ValueError:
         raise DeskError("date must be YYYY-MM-DD")
-    if not el.open_to_all:
-        raise DeskError("only free-for-all seats can be booked")
-    try:
-        starts, ends = rules.preset_range(day, str(preset), at)
-    except rules.BookingRuleError as exc:
-        raise DeskError(str(exc))
 
     session = orm_session()
     target = viewer
     if for_user_id and _uuid(for_user_id) != viewer.id:
-        target = session.get(User, _uuid(for_user_id)) if _uuid(for_user_id) else None
-        if target is None:
-            raise DeskError("colleague not found", 404)
+        target = colleague_for(viewer, for_user_id)
         if not is_usable(target, day):
             raise DeskError(f"{target.full_name}'s account is not active on that day")
         if is_admin(viewer):
             pass                                  # admins book for anyone, with no allowance (owner 2026-10-16)
-        elif not (department_ids(target) & department_ids(viewer)):
-            raise DeskError("you can only book for colleagues in your project teams", 403)
         elif viewer.booking_allowance <= 0:
             raise DeskError("you are not allowed to book for others", 403)
         else:
@@ -438,9 +463,21 @@ def create_booking(viewer: User, plan_id, seat_id, day_text, preset, for_user_id
     elif not is_usable(viewer, day):
         raise DeskError("your account is not active on that day")
 
+    if not el.open_to_all and el.department_id is None:
+        raise DeskError("This seat cannot be booked: it has no project team.")
+    if not may_use_seat(target, el):
+        raise DeskError("This seat is for another project team.", 403)
+    try:
+        starts, ends = rules.preset_range(day, str(preset), at)
+    except rules.BookingRuleError as exc:
+        raise DeskError(str(exc))
     checkin = open_checkins([el.element_id]).get(el.element_id)
     if checkin and checkin.checked_in_at < ends and checkin.ends_at > starts:
         raise DeskError("seat is occupied at that time", 409)
+    if el.open_to_all:                            # team seats first (spec 2026-10-19-team-seats-first)
+        s = team_first_seat(target, "book", at, day, str(preset))
+        if s is not None:
+            raise DeskError(team_first_message(target, viewer, s, "book"), 409, suggestion=s)
 
     booking = SeatBooking(plan_id=plan.id, version_id=plan.published_version_id, seat_id=el.element_id,
                           seat_label=seat_label(el), booking_date=day, starts_at=starts, ends_at=ends, preset=preset,
@@ -682,18 +719,26 @@ def seat_activity(seat_id, at: datetime) -> list[dict]:
 
 def cancel_for_plan_change(plan: FloorPlan, at: datetime, removed: bool = False, actor_id=None) -> int:
     """After publish/unpublish (or before deleting the plan, `removed=True`): cancel today/tomorrow
-    bookings on seats that are gone or no longer free for all, and end check-ins on seats that are
-    gone or were free for all and no longer are (spec §2.7). Returns how many rows changed."""
+    bookings on seats that are gone or that the booked person may no longer book (neither free for all
+    nor one of their project teams), and end check-ins on seats that are gone or were free for all and
+    no longer are (spec §2.7). Returns how many rows changed."""
     session = orm_session()
     live = {}
     if plan.published_version is not None and not removed:
         live = {el.element_id: el for el in plan.published_version.elements if el.type == "seat"}
     changed = 0
-    for b in session.scalars(select(SeatBooking).where(
-            SeatBooking.plan_id == plan.id, SeatBooking.booking_date.in_(rules.bookable_days(at)),
-            SeatBooking.end_reason.is_(None))).all():
+    bookings = session.scalars(select(SeatBooking).where(
+        SeatBooking.plan_id == plan.id, SeatBooking.booking_date.in_(rules.bookable_days(at)),
+        SeatBooking.end_reason.is_(None))).all()
+    teams_of: dict = {}
+    booked = {b.booked_for for b in bookings if b.booked_for is not None}
+    if live and booked:                           # one query for every booked person's project teams
+        for user_id, dept_id in session.execute(select(UserDepartment.user_id, UserDepartment.department_id)
+                                                .where(UserDepartment.user_id.in_(booked))):
+            teams_of.setdefault(user_id, set()).add(dept_id)
+    for b in bookings:
         el = live.get(b.seat_id)
-        if el is None or not el.open_to_all:
+        if el is None or not (el.open_to_all or el.department_id in teams_of.get(b.booked_for, ())):
             b.ended_at, b.end_reason = at, "plan_changed"
             b.blocks = []
             audit_row(actor_id, "booking.plan_changed", b.id, _booking_details(b))

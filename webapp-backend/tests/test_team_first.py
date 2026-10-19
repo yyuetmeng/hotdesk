@@ -89,3 +89,48 @@ def test_suggest_none_when_nothing_free(app, client, world):
     for who, seat in (("jane", "F1"), ("carl", "F2"), ("ali", "F3")):
         assert book(client, world, who, seat, "full").status_code == 201
     assert _suggest(app, world, "bob", "full") == {"tier": "none", "seats": []}
+
+
+def test_team_member_books_own_team_seat_and_others_cannot(client, world):
+    assert book(client, world, "dina", "E1").status_code == 201
+    r = book(client, world, "jane", "D2")
+    assert r.status_code == 403 and r.get_json()["error"] == "This seat is for another project team."
+    r = book(client, world, "jane", "U1")
+    assert r.status_code == 400 and r.get_json()["error"] == "This seat cannot be booked: it has no project team."
+
+
+def test_free_for_all_refused_while_team_seat_on_another_floor_is_free(client, world):
+    assert book(client, world, "erin", "E1", "full").status_code == 201
+    r = book(client, world, "dina", "F1", "am")
+    assert r.status_code == 409
+    assert r.get_json() == {"error": "Your project team has a free seat: D2 on Level 2. Book that one instead.",
+                            "suggestion": {"seat_id": world["seats"]["D2"], "seat_label": "D2",
+                                           "plan_id": world["plans"]["Level 2"], "plan_name": "Level 2", "zone": "North"}}
+
+
+def test_free_for_all_allowed_once_every_team_seat_is_taken(app, client, world):
+    for who, seat in FILL_DESIGN:
+        assert book(client, world, who, seat, "full").status_code == 201
+    assert _suggest(app, world, "dina", "am")["tier"] == "open"
+    assert book(client, world, "dina", "F1", "am").status_code == 201
+
+
+def test_team_first_is_slot_aware(client, world):
+    for who, seat in FILL_DESIGN:
+        assert book(client, world, who, seat, "am").status_code == 201
+    assert book(client, world, "dina", "F1", "am").status_code == 201
+    assert book(client, world, "dina", "F2", "pm").status_code == 409
+
+
+def test_rule_uses_the_colleagues_teams_and_binds_admins(client, world):
+    r = book(client, world, "ali", "F1", for_user="dina")
+    assert r.status_code == 409 and r.get_json()["error"].startswith("Dina Koh's project team has a free seat: E1 on Level 1.")
+    assert book(client, world, "dina", "F1", for_user="carl").status_code == 201   # dina's own free team seats don't matter
+    assert book(client, world, "root", "F2", for_user="dina").status_code == 409
+
+
+def test_team_seat_on_unpublished_floor_does_not_block(client, world):
+    # Unpublish Level 2 and take E1: dina's only free team seats are now on a draft floor.
+    assert client.post(f"/api/admin/floor-plans/{world['plans']['Level 2']}/unpublish", headers=hdr(world["tok"]["root"])).status_code == 200
+    assert book(client, world, "erin", "E1", "am").status_code == 201
+    assert book(client, world, "dina", "F1", "am").status_code == 201

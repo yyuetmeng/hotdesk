@@ -36,9 +36,9 @@ def test_overlap_refused_per_seat_and_per_person(client, world):
     assert book(client, world, "jane", "F2", "am").status_code == 409          # Jane already has AM
 
 
-def test_only_free_for_all_seats(client, world):
-    assert book(client, world, "jane", "E1").status_code == 400
-    assert book(client, world, "jane", "U1").status_code == 400
+def test_booking_by_seat_tag(client, world):
+    assert book(client, world, "jane", "E1").status_code == 403    # another project team's seat
+    assert book(client, world, "jane", "U1").status_code == 400    # untagged
 
 
 def test_booking_for_colleagues_uses_allowance(client, world):

@@ -38,9 +38,22 @@ def test_republish_without_seat_or_retagged_cancels_its_bookings(client, world):
     _republish(client, world, {"F2": lambda e: e, "E1": lambda e: e})          # F1 deleted
     assert run_one("select end_reason from seat_bookings where id = cast(:b as uuid)", {"b": gone})["end_reason"] == "plan_changed"
     assert run_one("select end_reason from seat_bookings where id = cast(:b as uuid)", {"b": keep_f2})["end_reason"] is None
-    _republish(client, world, {"F2": lambda e: {**e, "open_to_all": False, "department_id": world["eng"]},
-                               "E1": lambda e: e})                              # F2 retagged
+    _republish(client, world, {"F2": lambda e: {**e, "open_to_all": False, "department_id": world["ops"]},
+                               "E1": lambda e: e})                              # F2 retagged to a team jane is not in
     assert run_one("select end_reason from seat_bookings where id = cast(:b as uuid)", {"b": keep_f2})["end_reason"] == "plan_changed"
+
+
+def _state(booking_id):
+    reason = run_one("select end_reason from seat_bookings where id = cast(:b as uuid)", {"b": booking_id})["end_reason"]
+    return reason or "active"
+
+
+def test_republish_keeps_team_seat_bookings(client, world):
+    kept = book(client, world, "dina", "E1").get_json()["id"]
+    _republish(client, world, {"F1": lambda e: e, "F2": lambda e: e, "E1": lambda e: e, "U1": lambda e: e})
+    assert _state(kept) == "active"
+    _republish(client, world, {"F1": lambda e: e, "F2": lambda e: e, "E1": lambda e: {**e, "department_id": world["ops"]}})
+    assert _state(kept) == "plan_changed"
 
 
 def test_public_floor_shows_names_without_sign_in(client, world, monkeypatch):
