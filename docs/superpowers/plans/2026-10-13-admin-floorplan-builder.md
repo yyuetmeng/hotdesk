@@ -290,8 +290,8 @@ import pytest
 from app.core.db import run_one
 from app.core.security import hash_password
 
-ADMIN_PW = "adminpw1"
-USER_PW = "userpw12"
+ADMIN_PW = "***"
+USER_PW = "***"
 
 
 @pytest.fixture()

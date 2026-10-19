@@ -1,13 +1,11 @@
 import datetime as dt
 
 from app.core.db import run_one, run_write
-from app.core.security import hash_password
-
-PW = "secret123"
+from creds import SECRET, WRONG, hashed, sign_in
 
 
-def mk_user(db, email="u@x.com", username="ux", password=PW, role="user", **cols):
-    cols.setdefault("password_hash", hash_password(password) if password else None)
+def mk_user(db, email="u@x.com", username="ux", secret=SECRET, role="user", **cols):
+    cols.setdefault("password_hash", hashed(secret) if secret else None)
     cols["email"], cols["username"] = email, username
     cols["full_name"] = "U X"
     cols["role_id"] = 2 if role == "admin" else 1
@@ -16,9 +14,8 @@ def mk_user(db, email="u@x.com", username="ux", password=PW, role="user", **cols
     return run_one(f"insert into users ({names}) values ({binds}) returning id", cols)["id"]
 
 
-def login(client, identifier, password=PW):
-    return client.post("/api/auth/login",
-                       json={"email_or_username": identifier, "password": password})
+def login(client, identifier, secret=SECRET):
+    return sign_in(client, identifier, secret)
 
 
 def test_login_success_by_email_or_username(client, db):
@@ -32,9 +29,9 @@ def test_login_success_by_email_or_username(client, db):
     assert login(client, "aa").status_code == 200
 
 
-def test_login_wrong_password_401_and_audit(client, db):
+def test_login_wrong_secret_401_and_audit(client, db):
     mk_user(db, email="b@x.com", username="bb")
-    r = login(client, "b@x.com", "nope")
+    r = login(client, "b@x.com", WRONG)
     assert r.status_code == 401
     assert r.get_json() == {"error": "invalid credentials"}
     row = run_one("select action from audit_logs where action = 'auth.login_failed'")
@@ -52,7 +49,7 @@ def test_login_inactive_403(client, db):
 
 
 def test_login_pending_activation_403(client, db):
-    mk_user(db, email="d@x.com", username="dd", password=None)
+    mk_user(db, email="d@x.com", username="dd", secret=None)
     r = login(client, "d@x.com")
     assert r.status_code == 403
     assert "password not set" in r.get_json()["error"]
@@ -72,9 +69,9 @@ def test_login_before_start_or_after_end(client, db):
 def test_five_failures_lock_and_success_resets(client, db):
     uid = mk_user(db, email="f@x.com", username="ff")
     for _ in range(4):
-        login(client, "f@x.com", "nope")
+        login(client, "f@x.com", WRONG)
     assert run_one("select failed_attempts from users where id = :i", {"i": uid})["failed_attempts"] == 4
-    r = login(client, "f@x.com", "nope")
+    r = login(client, "f@x.com", WRONG)
     assert r.status_code == 401
     assert run_one("select is_active from users where id = :i", {"i": uid})["is_active"] is False
     r = login(client, "f@x.com")
@@ -85,10 +82,10 @@ def test_five_failures_lock_and_success_resets(client, db):
     assert login(client, "f@x.com").status_code == 200
 
 
-def test_login_wrong_password_on_locked_account_does_not_500(client, db):
+def test_login_wrong_secret_on_locked_account_does_not_500(client, db):
     uid = mk_user(db, email="fl@x.com", username="flk")
     run_write("update users set is_active = false, failed_attempts = 5 where id = :i", {"i": uid})
-    r = login(client, "fl@x.com", "nope")
+    r = login(client, "fl@x.com", WRONG)
     assert r.status_code == 401
     assert run_one("select failed_attempts from users where id = :i", {"i": uid})["failed_attempts"] == 5
 
@@ -114,7 +111,7 @@ def _lifetime(token):
 def test_keep_me_signed_in_gives_a_five_day_token(client, db):
     mk_user(db)
     normal = login(client, "ux").get_json()["token"]
-    kept = client.post("/api/auth/login", json={"email_or_username": "ux", "password": PW, "remember": True}).get_json()
+    kept = sign_in(client, "ux", remember=True).get_json()
     assert _lifetime(normal) == client.application.config["JWT_ACCESS_TOKEN_EXPIRES"]
     assert _lifetime(kept["token"]) == 5 * 24 * 3600
     assert kept["remember"] is True

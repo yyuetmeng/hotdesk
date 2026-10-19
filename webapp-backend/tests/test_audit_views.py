@@ -4,6 +4,7 @@ from datetime import timedelta
 import pytest
 
 from app.core.db import run_write
+from creds import WRONG, sign_in
 from desk_helpers import DAY, book, build_world, hdr, set_now, sg
 
 
@@ -19,8 +20,8 @@ def _root(world):
 # --- §2 users: security badges and filters ------------------------------------------------------
 
 def test_users_list_has_last_sign_in_and_failed_count(client, world):
-    client.post("/api/auth/login", json={"email_or_username": "jane", "password": "wrong"})
-    client.post("/api/auth/login", json={"email_or_username": "jane", "password": "wrong"})
+    sign_in(client, "jane", WRONG)
+    sign_in(client, "jane", WRONG)
     items = {u["username"]: u for u in client.get("/api/admin/users", headers=_root(world)).get_json()["items"]}
     assert items["jane"]["failed_logins_7d"] == 2 and items["jane"]["last_login_at"]
     assert items["bob"]["failed_logins_7d"] == 0
@@ -29,7 +30,7 @@ def test_users_list_has_last_sign_in_and_failed_count(client, world):
 
 def test_enabling_a_user_clears_the_failed_and_locked_badges(client, world):
     for _ in range(2):
-        client.post("/api/auth/login", json={"email_or_username": "jane", "password": "wrong"})
+        sign_in(client, "jane", WRONG)
     run_write("update users set is_active = false, failed_attempts = 5 where username = 'jane'")
     before = {u["username"]: u for u in client.get("/api/admin/users", headers=_root(world)).get_json()["items"]}["jane"]
     assert before["locked"] is True and before["failed_logins_7d"] == 2

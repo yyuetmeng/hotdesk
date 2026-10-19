@@ -3,7 +3,8 @@ from datetime import timedelta
 
 import pytest
 
-from desk_helpers import DAY, PW, book, build_world, hdr, set_now, sg
+from creds import sign_in
+from desk_helpers import DAY, book, build_world, hdr, set_now, sg
 
 THU = DAY - timedelta(days=1)   # build_world's clock starts Thursday 15 Oct 2026, 15:00
 
@@ -108,7 +109,7 @@ def test_auto_book_skips_weekends(client, world, monkeypatch):
 def test_auto_book_on_sign_in(client, world):
     _set_usual(client, world, "jane", "F1")
     _auto_on(client, world, "jane")
-    r = client.post("/api/auth/login", json={"email_or_username": "jane", "password": PW})
+    r = sign_in(client, "jane")
     assert r.status_code == 200
     mine = client.get("/api/desk/bookings/mine", headers=hdr(world["tok"]["jane"])).get_json()["items"]
     assert sorted(b["date"] for b in mine) == [THU.isoformat(), DAY.isoformat()]

@@ -646,10 +646,10 @@ def test_run_one_and_run_write(app, db):
 
 
 def test_bcrypt_roundtrip():
-    h = hash_password("secret123")
-    assert h != "secret123"
-    assert verify_password("secret123", h)
-    assert not verify_password("wrong", h)
+    h = hash_password("***")
+    assert h != "***"
+    assert verify_password("***", h)
+    assert not verify_password("***", h)
 
 
 def test_write_audit_row(db):
@@ -1075,7 +1075,7 @@ from sqlalchemy import text
 from app.core.db import run_one, run_write
 from app.core.security import hash_password
 
-PW = "secret123"
+PW = "***"
 
 
 def mk_user(db, email="u@x.com", username="ux", password=PW, role="user", **cols):
@@ -1343,7 +1343,7 @@ from app.core.db import run_one
 from app.core.security import hash_password
 from app.core.users import public_user  # noqa: F401 (ensures module importable)
 
-PW = "secret123"
+PW = "***"
 
 
 @pytest.fixture(autouse=True)
@@ -1387,31 +1387,31 @@ def test_reset_flow_invalidates_old_tokens(client, db, stub_email):
     t2 = _extract_token(stub_email)
     assert validate_token(t1, "reset") is None
     assert client.get(f"/api/auth/set-password/verify?token=**}&purpose=reset").get_json() == {"valid": True}
-    r = client.post("/api/auth/set-password", json={"token": t2, "password": "brandnew1"})
+    r = client.post("/api/auth/set-password", json={"token": t2, "password": "***"})
     assert r.status_code == 204
-    assert client.post("/api/auth/set-password", json={"token": t2, "password": "x12345678"}).status_code == 400
-    assert client.post("/api/auth/login", json={"email_or_username": "rs@x.com", "password": "brandnew1"}).status_code == 200
+    assert client.post("/api/auth/set-password", json={"token": t2, "password": "***"}).status_code == 400
+    assert client.post("/api/auth/login", json={"email_or_username": "rs@x.com", "password": "***"}).status_code == 200
     assert run_one("select action from audit_logs where action = 'password_reset.completed'")
 
 
 def test_activate_flow(client, db, stub_email):
     uid = _mk(db, "ac@x.com", "ac1", password=None)
-    client.post("/api/auth/login", json={"email_or_username": "ac@x.com", "password": "whatever"})
+    client.post("/api/auth/login", json={"email_or_username": "ac@x.com", "password": "***"})
     from app.auth.tokens import issue_token
     raw = issue_token(uid, "activate", 72)
     assert client.get(f"/api/auth/set-password/verify?token=**}&purpose=activate").get_json() == {"valid": True}
-    r = client.post("/api/auth/set-password", json={"token": raw, "password": "firstpw1"})
+    r = client.post("/api/auth/set-password", json={"token": raw, "password": "***"})
     assert r.status_code == 204
     assert run_one("select action from audit_logs where action = 'account.activated'")
-    assert client.post("/api/auth/login", json={"email_or_username": "ac@x.com", "password": "firstpw1"}).status_code == 200
+    assert client.post("/api/auth/login", json={"email_or_username": "ac@x.com", "password": "***"}).status_code == 200
 
 
 def test_set_password_rejects_short_and_invalid(client, db, stub_email):
-    assert client.post("/api/auth/set-password", json={"token": "nope", "password": "abcdefgh"}).status_code == 400
+    assert client.post("/api/auth/set-password", json={"token": "nope", "password": "***"}).status_code == 400
     uid = _mk(db, "sh@x.com", "sh1", password=None)
     from app.auth.tokens import issue_token
     raw = issue_token(uid, "activate", 72)
-    r = client.post("/api/auth/set-password", json={"token": raw, "password": "short"})
+    r = client.post("/api/auth/set-password", json={"token": raw, "password": "***"})
     assert r.status_code == 400
     assert "password" in r.get_json().get("fields", {})
 ```
@@ -1545,8 +1545,8 @@ from sqlalchemy import text
 from app.core.db import run_one
 from app.core.security import hash_password
 
-ADMIN_PW = "adminpw1"
-USER_PW = "userpw12"
+ADMIN_PW = "***"
+USER_PW = "***"
 
 
 @pytest.fixture(autouse=True)
@@ -2207,17 +2207,17 @@ git commit -m "feat: add admin user patch and delete with safeguards and re-invi
 def test_admin_sets_password_and_user_can_login(client, db, admin_token):
     uid = _mk_plain(client, admin_token, "ps@x.com", "ps")["id"]
     r = client.post(f"/api/admin/users/{uid}/password", headers=hdr(admin_token),
-                    json={"password": "set-by-adm"})
+                    json={"password": "***"})
     assert r.status_code == 204
     assert client.post("/api/auth/login",
-                       json={"email_or_username": "ps@x.com", "password": "set-by-adm"}).status_code == 200
+                       json={"email_or_username": "ps@x.com", "password": "***"}).status_code == 200
     assert run_one("select action from audit_logs where action = 'user.password_reset'")
 
 
 def test_admin_password_short_rejected_400(client, db, admin_token):
     uid = _mk_plain(client, admin_token, "ps2@x.com", "ps2")["id"]
     r = client.post(f"/api/admin/users/{uid}/password", headers=hdr(admin_token),
-                    json={"password": "short"})
+                    json={"password": "***"})
     assert r.status_code == 400 and "password" in r.get_json()["fields"]
 
 
@@ -2230,7 +2230,7 @@ def test_admin_password_invalidates_tokens_and_unlocks(client, db, admin_token):
     run_write("update users set is_active = false, failed_attempts = 5 where id = :i and false",
               {"i": uid})
     client.post(f"/api/admin/users/{uid}/password", headers=hdr(admin_token),
-                json={"password": "freshpw1"})
+                json={"password": "***"})
     assert validate_token(raw, "reset") is None
 
 
@@ -2242,7 +2242,7 @@ def test_resend_invitation_only_pending(client, db, admin_token, stub_email):
     assert len(stub_email) == 2 and stub_email[-1][0] == "ri@x.com"
     from app.core.db import run_write
     run_write("update users set password_hash = :p where id = :i",
-              {"p": hash_password("activated1"), "i": uid})
+              {"p": hash_password("***"), "i": uid})
     assert client.post(f"/api/admin/users/{uid}/resend-invitation",
                        headers=hdr(admin_token)).status_code == 409
 ```
@@ -2337,7 +2337,7 @@ from sqlalchemy import text
 from app.core.db import run_one, run_write
 from app.core.security import hash_password
 
-ADMIN_PW = "adminpw1"
+ADMIN_PW = "***"
 
 
 @pytest.fixture()
@@ -2541,7 +2541,7 @@ def test_creates_new_admin(app, db):
     from scripts.create_admin import ensure_admin
 
     with _app_ctx(app):
-        assert ensure_admin("sa@x.com", "sa", "Super Admin", "sp-password1") == "created"
+        assert ensure_admin("sa@x.com", "sa", "Super Admin", "***") == "created"
     row = run_one("select r.name as role, u.is_active, u.password_hash is not null as pw "
                   "from users u join roles r on r.id = u.role_id where u.email = 'sa@x.com'")
     assert row["role"] == "admin" and row["is_active"] and row["pw"]
@@ -2553,11 +2553,11 @@ def test_upsert_unlocks_and_repromotes(app, db):
     from scripts.create_admin import ensure_admin
 
     with _app_ctx(app):
-        ensure_admin("sa@x.com", "sa", "Super Admin", "sp-password1")
+        ensure_admin("sa@x.com", "sa", "Super Admin", "***")
         uid = run_one("select id from users where email = 'sa@x.com'")["id"]
         run_write("update users set is_active = false, failed_attempts = 5, role_id = 1 "
                   "where id = :i", {"i": uid})
-        assert ensure_admin("sa@x.com", "sa2", "SA", "sp-password2") == "updated"
+        assert ensure_admin("sa@x.com", "sa2", "SA", "***") == "updated"
     row = run_one("select r.name as role, u.is_active, u.failed_attempts "
                   "from users u join roles r on r.id = u.role_id where u.email = 'sa@x.com'")
     assert row["role"] == "admin" and row["is_active"] and row["failed_attempts"] == 0
@@ -2648,7 +2648,7 @@ Expected: all pass.
 
 - [ ] **Step 5: Manual smoke (optional, dev DB)**
 
-Run: `$env:BOOTSTRAP_ADMIN_EMAIL='me@example.com'; $env:BOOTSTRAP_ADMIN_USERNAME='bootadmin'; $env:BOOTSTRAP_ADMIN_PASSWORD='boot-pass-1'; python scripts/create_admin.py`
+Run: `$env:BOOTSTRAP_ADMIN_EMAIL='me@example.com'; $env:BOOTSTRAP_ADMIN_USERNAME='bootadmin'; $env:BOOTSTRAP_ADMIN_PASSWORD='***'; python scripts/create_admin.py`
 Expected: `admin me@example.com ready` (run against the dev Supabase DB, not the test schema).
 
 - [ ] **Step 6: Commit**
@@ -2680,7 +2680,7 @@ import logging
 from app.core.db import run_one
 from app.core.security import hash_password
 
-PW = "secret123"
+PW = "***"
 
 
 def _mk(client, db, email):
@@ -2693,12 +2693,12 @@ def test_failed_login_logs_warning_without_secret(client, db, caplog):
     _mk(client, db, "logme@x.com")
     with caplog.at_level(logging.WARNING, logger="app.auth"):
         client.post("/api/auth/login",
-                    json={"email_or_username": "logme@x.com", "password": "wrong-pass-9"})
+                    json={"email_or_username": "logme@x.com", "password": "***"})
     msgs = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
     assert any("failed login" in m for m in msgs)
     joined = "\n".join(msgs)
-    assert "wrong-pass-9" not in joined
-    assert "secret123" not in joined
+    assert "***" not in joined
+    assert "***" not in joined
 
 
 def test_request_log_line(client, db, admin_dummy, caplog):

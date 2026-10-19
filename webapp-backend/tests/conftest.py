@@ -1,4 +1,5 @@
 import os
+import secrets
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from passlib.context import CryptContext
 _security._ctx = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=4)
 
 SQL_DIR = Path(__file__).resolve().parents[1] / "sql"
+SIGNING_KEY = secrets.token_hex(32)     # made per run; the app never starts with a built-in key
 # TEST_SCHEMA lets two test runs share the local database without clashing (each drops/creates its own schema).
 TEST_SCHEMA = os.environ.get("TEST_SCHEMA", "hotdesk_test")
 # Tests run only against a local PostgreSQL, never the Supabase app database. The connection
@@ -50,14 +52,14 @@ def admin_conn():
 
 @pytest.fixture()
 def app(admin_conn):
-    application = create_app()
-    application.config.update(
+    application = create_app(overrides=dict(
         TESTING=True,
+        SECRET_KEY=SIGNING_KEY,
+        JWT_SECRET_KEY=SIGNING_KEY,
         SQLALCHEMY_DATABASE_URI=BASE_URI,
         SQL_SEARCH_PATH=TEST_SCHEMA,
-        JWT_SECRET_KEY="**",
         JWT_ACCESS_TOKEN_EXPIRES=3600,
-    )
+    ))
     return application
 
 

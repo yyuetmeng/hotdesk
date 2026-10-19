@@ -6,16 +6,15 @@ load_dotenv()
 
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "SUPABASE_CONNECTION_STRING",
-        "postgresql://postgres:password@db.project-ref.supabase.co:5432/postgres",
-    )
+    # No built-in fallbacks: create_app refuses to start without these (see REQUIRED), so a known signing key or a
+    # sample connection string never ends up in use or in the code.
+    SECRET_KEY = os.getenv("SECRET_KEY", "")
+    SQLALCHEMY_DATABASE_URI = os.getenv("SUPABASE_CONNECTION_STRING", "")
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
     }
-    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY") or SECRET_KEY
     JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES", "43200"))
     # "Keep me signed in on this device": a longer token, kept in the browser beyond the tab (5 days).
     JWT_REMEMBER_EXPIRES = int(os.getenv("JWT_REMEMBER_EXPIRES", "432000"))

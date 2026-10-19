@@ -1,10 +1,7 @@
 import pytest
 
 from app.core.db import run_one, run_write
-from app.core.security import hash_password
-
-ADMIN_PW = "adminpw1"
-USER_PW = "userpw12"
+from creds import SECRET, hashed, new_secret, secret_body, sign_in, too_short
 
 
 @pytest.fixture(autouse=True)
@@ -19,9 +16,8 @@ def stub_email(monkeypatch):
 def admin_token(client, db):
     run_one("insert into users (email, username, full_name, role_id, password_hash) "
             "values ('root@x.com', 'root', 'Root', 2, :p) returning id",
-            {"p": hash_password(ADMIN_PW)})
-    r = client.post("/api/auth/login",
-                    json={"email_or_username": "root@x.com", "password": ADMIN_PW})
+            {"p": hashed(SECRET)})
+    r = sign_in(client, "root@x.com")
     return r.get_json()["token"]
 
 
@@ -29,9 +25,8 @@ def admin_token(client, db):
 def user_token(client, db):
     run_one("insert into users (email, username, full_name, role_id, password_hash) "
             "values ('plain@x.com', 'plain', 'Plain', 1, :p) returning id",
-            {"p": hash_password(USER_PW)})
-    r = client.post("/api/auth/login",
-                    json={"email_or_username": "plain@x.com", "password": USER_PW})
+            {"p": hashed(SECRET)})
+    r = sign_in(client, "plain@x.com")
     return r.get_json()["token"]
 
 
@@ -223,29 +218,29 @@ def test_email_change_on_pending_resends_invitation(client, db, admin_token, stu
     assert stub_email[-1][0] == "pcnew@x.com"
 
 
-def test_admin_sets_password_and_user_can_login(client, db, admin_token):
+def test_admin_sets_a_secret_and_user_can_login(client, db, admin_token):
+    chosen = new_secret()
     uid = _mk_plain(client, admin_token, "ps@x.com", "ps")["id"]
     r = client.post(f"/api/admin/users/{uid}/password", headers=hdr(admin_token),
-                    json={"password": "set-by-adm1"})
+                    json=secret_body(chosen))
     assert r.status_code == 204
-    assert client.post("/api/auth/login",
-                       json={"email_or_username": "ps@x.com", "password": "set-by-adm1"}).status_code == 200
+    assert sign_in(client, "ps@x.com", chosen).status_code == 200
     assert run_one("select action from audit_logs where action = 'user.password_reset'")
 
 
-def test_admin_password_short_rejected_400(client, db, admin_token):
+def test_admin_short_secret_rejected_400(client, db, admin_token):
     uid = _mk_plain(client, admin_token, "ps2@x.com", "ps2")["id"]
     r = client.post(f"/api/admin/users/{uid}/password", headers=hdr(admin_token),
-                    json={"password": "short"})
+                    json=secret_body(too_short()))
     assert r.status_code == 400 and "password" in r.get_json()["fields"]
 
 
-def test_admin_password_invalidates_tokens_and_unlocks(client, db, admin_token):
+def test_admin_new_secret_invalidates_tokens_and_unlocks(client, db, admin_token):
     from app.auth.tokens import issue_token, validate_token
     uid = _mk_plain(client, admin_token, "ps3@x.com", "ps3")["id"]
     raw = issue_token(uid, "reset", 1)
     client.post(f"/api/admin/users/{uid}/password", headers=hdr(admin_token),
-                json={"password": "freshpw1"})
+                json=secret_body(new_secret()))
     assert validate_token(raw, "reset") is None
 
 
@@ -256,7 +251,7 @@ def test_resend_invitation_only_pending(client, db, admin_token, stub_email):
     assert r.status_code == 204
     assert len(stub_email) == 2 and stub_email[-1][0] == "ri@x.com"
     run_write("update users set password_hash = :p where id = :i",
-              {"p": hash_password("activated1"), "i": uid})
+              {"p": hashed(new_secret()), "i": uid})
     assert client.post(f"/api/admin/users/{uid}/resend-invitation",
                        headers=hdr(admin_token)).status_code == 409
 

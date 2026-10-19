@@ -10,9 +10,18 @@ from .core.orm import init_orm
 from .routes import api_bp
 
 
-def create_app(config_class=Config) -> Flask:
+REQUIRED = {"SECRET_KEY": "SECRET_KEY", "SQLALCHEMY_DATABASE_URI": "SUPABASE_CONNECTION_STRING"}
+
+
+def create_app(config_class=Config, overrides=None) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_class)
+    app.config.update(overrides or {})
+    missing = [env for key, env in REQUIRED.items() if not app.config.get(key)]
+    if missing:
+        raise RuntimeError(f"Set {', '.join(missing)} in webapp-backend/.env (see .env.example).")
+    if not app.config.get("JWT_SECRET_KEY"):
+        app.config["JWT_SECRET_KEY"] = app.config["SECRET_KEY"]
     CORS(app)
     init_db(app)
     init_orm(app)

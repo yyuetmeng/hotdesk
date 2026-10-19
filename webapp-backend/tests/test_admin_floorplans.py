@@ -1,26 +1,22 @@
 import pytest
 
 from app.core.db import run_one, run_write
-from app.core.security import hash_password
+from creds import SECRET, hashed, sign_in
 
-ADMIN_PW = "adminpw1"
-USER_PW = "userpw12"
 
 
 @pytest.fixture()
 def admin_token(client, db):
     run_one("insert into users (email, username, full_name, role_id, password_hash) "
-            "values ('root@x.com', 'root', 'Root', 2, :p) returning id", {"p": hash_password(ADMIN_PW)})
-    return client.post("/api/auth/login",
-                       json={"email_or_username": "root@x.com", "password": ADMIN_PW}).get_json()["token"]
+            "values ('root@x.com', 'root', 'Root', 2, :p) returning id", {"p": hashed(SECRET)})
+    return sign_in(client, "root@x.com").get_json()["token"]
 
 
 @pytest.fixture()
 def user_token(client, db):
     run_one("insert into users (email, username, full_name, role_id, password_hash) "
-            "values ('plain@x.com', 'plain', 'Plain', 1, :p) returning id", {"p": hash_password(USER_PW)})
-    return client.post("/api/auth/login",
-                       json={"email_or_username": "plain@x.com", "password": USER_PW}).get_json()["token"]
+            "values ('plain@x.com', 'plain', 'Plain', 1, :p) returning id", {"p": hashed(SECRET)})
+    return sign_in(client, "plain@x.com").get_json()["token"]
 
 
 def hdr(tok):

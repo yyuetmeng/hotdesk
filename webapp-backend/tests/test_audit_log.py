@@ -5,6 +5,7 @@ import zipfile
 import pytest
 
 from app.core.db import run_write
+from creds import WRONG, sign_in
 from desk_helpers import DAY, book, build_world, hdr, set_now, sg
 
 URL = "/api/admin/audit"
@@ -57,7 +58,7 @@ def test_export(client, world):
 
 
 def test_security_summary(client, world):
-    client.post("/api/auth/login", json={"email_or_username": "jane", "password": "wrong"})
+    sign_in(client, "jane", WRONG)
     run_write("update users set failed_attempts = 5 where username = 'bob'")
     run_write("insert into users (email, username, full_name, role_id) values ('new@x.com', 'newbie', 'New Person', 1)")
     s = client.get("/api/admin/audit/security-summary", headers=hdr(world["tok"]["root"])).get_json()

@@ -3,11 +3,10 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.core.db import run_one, run_write
-from app.core.security import hash_password
+from creds import SECRET, hashed, sign_in
 
 SG = ZoneInfo("Asia/Singapore")
 DAY = date(2026, 10, 16)
-PW = "password1"
 
 
 def sg(day, hh, mm=0):
@@ -27,7 +26,7 @@ def _user(username, full_name, role_id=1, depts=(), allowance=0, active=True):
         "insert into users (email, username, full_name, role_id, password_hash, booking_allowance, is_active) "
         "values (:e, :u, :n, :r, :p, :a, :act) returning id",
         {"e": f"{username}@x.com", "u": username, "n": full_name, "r": role_id,
-         "p": hash_password(PW), "a": allowance, "act": active})["id"])
+         "p": hashed(SECRET), "a": allowance, "act": active})["id"])
     for d in depts:
         run_write("insert into user_departments (user_id, department_id) values (cast(:u as uuid), cast(:d as uuid))",
                   {"u": uid, "d": d})
@@ -35,7 +34,7 @@ def _user(username, full_name, role_id=1, depts=(), allowance=0, active=True):
 
 
 def _login(client, username):
-    r = client.post("/api/auth/login", json={"email_or_username": username, "password": PW})
+    r = sign_in(client, username)
     assert r.status_code == 200, r.get_json()
     return r.get_json()["token"]
 

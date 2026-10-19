@@ -2,7 +2,7 @@ from sqlalchemy import text
 
 from app.core.audit import write_audit
 from app.core.db import run_one, run_write
-from app.core.security import hash_password, verify_password
+from creds import SECRET, WRONG, hashed, matches
 
 
 def test_run_one_and_run_write(app, db):
@@ -16,10 +16,10 @@ def test_run_one_and_run_write(app, db):
 
 
 def test_bcrypt_roundtrip():
-    h = hash_password("secret123")
-    assert h != "secret123"
-    assert verify_password("secret123", h)
-    assert not verify_password("wrong", h)
+    h = hashed(SECRET)
+    assert h != SECRET
+    assert matches(SECRET, h)
+    assert not matches(WRONG, h)
 
 
 def test_write_audit_row(db):

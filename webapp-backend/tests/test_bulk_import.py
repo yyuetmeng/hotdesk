@@ -11,6 +11,7 @@ import pytest
 from app.core.db import run_query
 from app.core.xlsx import write_xlsx
 from app.core.xlsx_read import read_xlsx
+from creds import default_secret_form, new_secret, sign_in, too_short
 from desk_helpers import build_world, hdr
 
 USERS = "/api/admin/users/import"
@@ -148,13 +149,14 @@ def test_a_role_column_in_an_older_file_is_ignored(client, world):
     assert boss["name"] == "user"
 
 
-def test_a_default_password_lets_new_users_sign_in_straight_away(client, world):
-    """Owner 2026-10-16: optionally give every uploaded user the same starting password (at least 8 characters)."""
+def test_a_default_secret_lets_new_users_sign_in_straight_away(client, world):
+    """Owner 2026-10-16: optionally give every uploaded user the same starting secret (at least 8 characters)."""
+    start = new_secret()
     rows = [["Mei Ling", "mei@x.com", "", "", "", "", ""]]
-    assert _upload(client, world, USERS, rows, default_password="short").status_code == 400
+    assert _upload(client, world, USERS, rows, **default_secret_form(too_short())).status_code == 400
     assert "Mei Ling" not in _names()
-    assert _upload(client, world, USERS, rows, default_password="Welcome#2026").get_json()["imported"] == 1
-    r = client.post("/api/auth/login", json={"email_or_username": "mei", "password": "Welcome#2026"})
+    assert _upload(client, world, USERS, rows, **default_secret_form(start)).get_json()["imported"] == 1
+    r = sign_in(client, "mei", start)
     assert r.status_code == 200
     [entry] = run_query("select details from audit_logs where action = 'user.create' and details->>'email' = 'mei@x.com'")
-    assert entry["details"]["default_password"] is True and "Welcome" not in str(entry["details"])
+    assert entry["details"]["default_password"] is True and start not in str(entry["details"])

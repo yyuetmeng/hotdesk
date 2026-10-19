@@ -5,19 +5,17 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.db import run_one
-from app.core.security import hash_password
+from creds import SECRET, hashed, sign_in
 from desk_helpers import DAY, book, build_world, set_now, sg
 from desk_helpers import hdr as dhdr
 
-ADMIN_PW = "adminpw1"
 
 
 @pytest.fixture()
 def admin_token(client, db):
     run_one("insert into users (email, username, full_name, role_id, password_hash) "
-            "values ('root@x.com', 'root', 'Root', 2, :p) returning id", {"p": hash_password(ADMIN_PW)})
-    return client.post("/api/auth/login",
-                       json={"email_or_username": "root@x.com", "password": ADMIN_PW}).get_json()["token"]
+            "values ('root@x.com', 'root', 'Root', 2, :p) returning id", {"p": hashed(SECRET)})
+    return sign_in(client, "root@x.com").get_json()["token"]
 
 
 def hdr(tok):
