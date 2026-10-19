@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { initialDisplayState, nextFloorIndex, overall, overviewConfig, overviewOptions, reduceRefresh, resolvePick, rotationKey, seatTip, sgDateTime, sgTime, slugify } from '../src/display/displayLogic.js';
+import { initialDisplayState, nextFloorIndex, overall, overviewConfig, overviewOptions, reduceRefresh, resolvePick, rotationKey, seatTip, sgDateTime, sgTime, slugify, tableLabel } from '../src/display/displayLogic.js';
 
 assert.deepEqual(
   overall([{ bookable: 3, available: 1, booked: 1, occupied: 1 }, { bookable: 5, available: 2, booked: 0, occupied: 3 }]),
@@ -113,3 +113,11 @@ assert.deepEqual(seatTip({ label: 'F1', department: 'Free for all', state: 'book
 assert.deepEqual(seatTip({ label: 'F2', department: 'Free for all', state: 'available' }), ['F2 · Free for all', 'Available']);
 assert.deepEqual(seatTip({ label: '', department: null, state: 'not_bookable' }), ['Seat', 'Not set up for booking']);
 console.log('seat tip smoke OK');
+
+assert.equal(tableLabel('T1', 84), 'T1');                                    // a 3-cell table
+assert.equal(tableLabel('  Hot desk row A  ', 84), 'Hot desk row A');
+assert.equal(tableLabel('Engineering hot desks', 84), 'Engineering h…');     // 14 characters fit
+assert.equal(tableLabel('', 84), '');
+assert.equal(tableLabel(null, 84), '');
+assert.equal(tableLabel('T1', 18), '');                                      // no room on a tiny table
+console.log('table label smoke OK');

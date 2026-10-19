@@ -6,7 +6,7 @@
 import { footprint, initials, zoneCaption } from '../desk/deskLogic.js';
 import { iconPath } from './icons.js';
 import { useState } from 'react';
-import { monitorMarks, plantRadius, seatTip, thinBar, toiletGender } from './displayLogic.js';
+import { monitorMarks, plantRadius, seatTip, tableLabel, thinBar, toiletGender } from './displayLogic.js';
 import './floor.css';
 
 const C = 28;  // drawing units per grid cell
@@ -58,13 +58,18 @@ function Element({ el, catalog }) {
     }
     case 'corridor':
       return <rect x={x} y={y} width={W} height={H} className="fd-corridor" />;
-    case 'table': {
+    case 'table': {   // its label (if any) runs along the long side, on a plate over the monitor marks
       const marks = monitorMarks(x, y, W, H, C);
+      const name = tableLabel(el.label, Math.max(W, H));
       return <g>
         <rect x={x + 4} y={y + 3} width={W - 8} height={H - 6} rx="3" className="fd-table" />
         {marks.at.map((o) => (marks.vertical
           ? <g key={o} className="fd-monitor"><rect x={cx - 4} y={y + o - 5} width="2.2" height="10" rx="1" /><rect x={cx + 1.8} y={y + o - 5} width="2.2" height="10" rx="1" /></g>
           : <rect key={o} className="fd-monitor" x={x + o - 5} y={cy - 1.2} width="10" height="2.4" rx="1" />))}
+        {name && <g transform={marks.vertical ? `rotate(-90 ${cx} ${cy})` : undefined}>
+          <rect x={cx - name.length * 2.6 - 3} y={cy - 6} width={name.length * 5.2 + 6} height="12" rx="2" className="fd-table-plate" />
+          <text x={cx} y={cy + 3.2} textAnchor="middle" fontSize="9" fontWeight="600" className="fd-table-label">{name}</text>
+        </g>}
       </g>;
     }
     case 'plant':

@@ -116,6 +116,15 @@ export function monitorMarks(x, y, W, H, cell) {
   return { vertical, at: Array.from({ length: count }, (_, i) => i * cell + cell / 2) };
 }
 
+/** A table's label fitted to its long side (`length` drawing units, 9px text ≈ 5.2 units a character):
+ * the whole label, or cut with "…"; '' for no label or no room. */
+export function tableLabel(label, length) {
+  const text = String(label ?? '').trim();
+  const room = Math.floor((length - 10) / 5.2);
+  if (!text || room < 2) return '';
+  return text.length <= room ? text : `${text.slice(0, room - 1).trimEnd()}…`;
+}
+
 /** A plant's outer radius: 36% of its element's smaller side, so the flower never spills out of it. */
 export const plantRadius = (W, H) => Math.round(Math.min(W, H) * 0.36 * 100) / 100;
 

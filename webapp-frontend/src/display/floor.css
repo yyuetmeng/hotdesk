@@ -20,6 +20,8 @@
 .fd .fd-corridor { fill: var(--fd-corridor); }
 .fd .fd-table { fill: var(--fd-table); stroke: var(--fd-table-edge); stroke-width: 1; }
 .fd .fd-monitor, .fd .fd-monitor rect { fill: var(--fd-monitor); }
+.fd .fd-table-plate { fill: var(--fd-table); }
+.fd .fd-table-label { fill: var(--fd-monitor); stroke: none; }
 .fd .fd-plant ellipse, .fd .fd-plant circle { fill: var(--fd-plant); }
 .fd .fd-stairs { stroke: var(--fd-muted); }
 .fd .fd-stairs-label { fill: var(--fd-muted); stroke: none; }
