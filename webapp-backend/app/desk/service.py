@@ -278,8 +278,16 @@ def _overlaps(checkin: SeatCheckin | None, starts: datetime, ends: datetime) -> 
 
 def seat_states(plan: FloorPlan, day: date, preset: str | None, at: datetime,
                 viewer: User | None = None) -> list[dict]:
+    return floor_view(plan, day, preset, at, viewer)["seats"]
+
+
+def floor_view(plan: FloorPlan, day: date, preset: str | None, at: datetime, viewer: User | None = None) -> dict:
+    """The floor's seats for `day`, plus (with a viewer) the viewer's first free team seat per preset.
+    One `floor_context` over this floor's seats and the viewer's team seats keeps the cost fixed."""
     seats = [el for el in plan.published_version.elements if el.type == "seat"]
-    ctx = floor_context([el.element_id for el in seats], day, at, viewer)
+    seat_ids = [el.element_id for el in seats]
+    team, usual = _team_seats(viewer) if viewer is not None else ([], None)
+    ctx = floor_context(set(seat_ids) | {s["el"].element_id for s in team}, day, at, viewer)
     is_today = day == rules.local_today(at)
     starts, ends = _window(day, preset, at)
     ranges = {}
@@ -288,6 +296,11 @@ def seat_states(plan: FloorPlan, day: date, preset: str | None, at: datetime,
             ranges[p] = rules.preset_range(day, p, at)
         except rules.BookingRuleError:
             ranges[p] = None
+    team_first = team_now = None
+    if viewer is not None:
+        first = lambda free: suggestion(free[0]) if free else None   # noqa: E731
+        team_first = {p: first(rank_seats(free_to_book(team, day, p, at, ctx), usual)) for p in rules.PRESETS}
+        team_now = first(rank_seats(free_to_check_in(viewer, team, at, ctx), usual)) if is_today else None
     out = []
     for el in seats:
         seat_blocks = ctx["blocks_by_seat"].get(el.element_id, [])
@@ -306,15 +319,14 @@ def seat_states(plan: FloorPlan, day: date, preset: str | None, at: datetime,
                 "booking": _booking_view(booking) if booking and not checkin else None}
         if viewer is not None:
             open_now = ctx["open"].get(el.element_id)
-            seat["can_book"] = {
-                p: bool(el.open_to_all and r and not any(r[0] <= b.block_start < r[1] for b in seat_blocks)
-                        and not _overlaps(open_now, *r))
-                for p, r in ranges.items()}
-            # Without the team-first step for now (no per-seat queries); Task 5 passes team_seat= instead.
-            seat["can_check_in"] = is_today and _base_decision(viewer, el, at, ctx)["ok"]
+            seat["free"] = {p: bool(tagged and _slot_free(seat_blocks, open_now, r)) for p, r in ranges.items()}
+            usable = may_use_seat(viewer, el)
+            seat["can_book"] = {p: free and usable and not (el.open_to_all and team_first[p] is not None)
+                                for p, free in seat["free"].items()}
+            seat["can_check_in"] = is_today and checkin_decision(viewer, el, at, ctx, team_seat=team_now)["ok"]
             seat["can_give_up"] = bool(is_today and checkin is not None and checkin.user_id == viewer.id)
         out.append(seat)
-    return out
+    return {"seats": out, "team_first": team_first}
 
 
 # --- team first (spec 2026-10-19-team-seats-first) ----------------------------------------
@@ -406,11 +418,16 @@ def _free_team_seats(person: User, purpose: str, at: datetime, day: date | None,
     "checkin" means free to check in now (today, `at`): `day` and `preset` are ignored."""
     if purpose not in ("book", "checkin"):
         raise ValueError(f"unknown purpose {purpose!r}")
+    team, usual = _team_seats(person)
+    return rank_seats(_free_for(person, purpose, team, at, day, preset, ctx), usual), usual
+
+
+def _team_seats(person: User) -> tuple[list[dict], dict | None]:
+    """`person`'s team seats on every published floor and their usual seat (or None): one `published_seats` call."""
     teams = department_ids(person)
     found = published_seats(teams, also=frozenset({person.usual_seat_id}))
     usual = next((s for s in found if s["el"].element_id == person.usual_seat_id), None)
-    free = _free_for(person, purpose, [s for s in found if s["el"].department_id in teams], at, day, preset, ctx)
-    return rank_seats(free, usual), usual
+    return [s for s in found if s["el"].department_id in teams], usual
 
 
 def team_first_seat(person: User, purpose: str, at: datetime, day: date | None = None, preset: str | None = None,

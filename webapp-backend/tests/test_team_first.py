@@ -174,3 +174,30 @@ def test_suggest_for_check_in_uses_now(app, client, world, monkeypatch):
     assert check_in(client, world, "erin", "E1").status_code == 201
     got = _suggest(app, world, "dina", preset=None, purpose="checkin")
     assert got["tier"] == "team" and got["seats"][0]["seat_label"] == "D2"
+
+
+def test_floor_can_book_and_team_first_for_team_member(client, world):
+    body = _floor(client, world, "dina", DAY, "am")
+    seats = {s["label"]: s for s in body["seats"]}
+    assert seats["E1"]["can_book"]["am"] is True and seats["F1"]["can_book"]["am"] is False and seats["F1"]["free"]["am"] is True
+    assert body["team_first"]["am"]["seat_label"] == "E1" and set(body["team_first"]) == {"am", "pm", "full"}
+
+
+def test_floor_for_someone_without_team_seats(client, world):
+    body = _floor(client, world, "jane", DAY, "am")
+    seats = {s["label"]: s for s in body["seats"]}
+    assert seats["E1"]["can_book"]["am"] is False and seats["F1"]["can_book"]["am"] is True
+    assert body["team_first"] == {"am": None, "pm": None, "full": None}
+
+
+def test_floor_team_first_per_preset(client, world):
+    for who, seat in FILL_DESIGN:
+        assert book(client, world, who, seat, "am").status_code == 201
+    body = _floor(client, world, "dina", DAY, "am")
+    assert body["team_first"]["am"] is None and body["team_first"]["pm"]["seat_label"] == "E1"
+
+
+def test_floor_late_in_day_team_first_is_null(client, world, monkeypatch):
+    set_now(monkeypatch, sg(DAY, 18, 45))
+    body = _floor(client, world, "dina", DAY, None)
+    assert body["team_first"]["am"] is None and body["team_first"]["full"] is None

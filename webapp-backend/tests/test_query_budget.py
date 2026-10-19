@@ -26,14 +26,15 @@ def _count(app, client, path, token):
     return len(seen)
 
 
-@pytest.mark.parametrize("path, budget", [
-    ("/api/desk/floors/{plan}", 7),     # was 10
-    ("/api/public/floors/{plan}", 7),   # was 9
-    ("/api/desk/me", 5),                # was 7
-    ("/api/admin/insights/zones", 6),   # was 8
-    ("/api/admin/insights/teams", 7),
-    ("/api/desk/dashboard", 16),
+@pytest.mark.parametrize("path, budget, who", [
+    ("/api/desk/floors/{plan}", 8, "root"),     # was 10; +1 for the viewer's team seats (team first)
+    ("/api/desk/floors/{plan}", 8, "dina"),     # a viewer with team seats: same fixed cost
+    ("/api/public/floors/{plan}", 7, "root"),   # was 9
+    ("/api/desk/me", 5, "root"),                # was 7
+    ("/api/admin/insights/zones", 6, "root"),   # was 8
+    ("/api/admin/insights/teams", 7, "root"),
+    ("/api/desk/dashboard", 16, "root"),
 ])
-def test_page_query_budget(app, client, world, path, budget):
-    used = _count(app, client, path.format(plan=world["plan"]), world["tok"]["root"])
+def test_page_query_budget(app, client, world, path, budget, who):
+    used = _count(app, client, path.format(plan=world["plan"]), world["tok"][who])
     assert used <= budget, f"{path}: {used} queries (budget {budget})"

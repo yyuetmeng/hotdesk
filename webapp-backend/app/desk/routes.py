@@ -70,9 +70,10 @@ def floor(viewer, at, plan_id):
     if preset is not None and preset not in rules.PRESETS:
         raise service.DeskError(f"unknown booking slot '{preset}'")
     live = plan.published_version
-    seats = service.seat_states(plan, day, preset, at, viewer)
+    view = service.floor_view(plan, day, preset, at, viewer)
+    seats = view["seats"]
     return jsonify(id=str(plan.id), name=live.name, cols=live.cols, rows=live.rows, version=live.version,
-                   date=day.isoformat(), preset=preset,
+                   date=day.isoformat(), preset=preset, team_first=view["team_first"],
                    elements=[_version_element_dto(el) for el in live.elements],
                    seats=seats, zones=drawn_zones(live.elements, seats),
                    catalog=[_catalog_dto(entry) for entry in _catalog().values()])
