@@ -51,16 +51,16 @@ def test_booked_person_checks_in_inside_window_and_others_cannot(client, world, 
 
 
 def test_one_active_check_in_and_give_up(client, world, monkeypatch):
-    set_now(monkeypatch, sg(DAY, 9))
-    assert check_in(client, world, "dina", "F2").status_code == 201
-    r = check_in(client, world, "dina", "E1")
+    set_now(monkeypatch, sg(DAY, 9))      # jane (Eng) has no team seat, so team first never applies
+    assert check_in(client, world, "jane", "F2").status_code == 201
+    r = check_in(client, world, "jane", "F1")
     assert r.status_code == 409 and "Give up your seat at F2" in r.get_json()["error"]
     assert give_up(client, world, "carl", "F2").status_code == 409     # not Carl's check-in
-    assert give_up(client, world, "dina", "F2").status_code == 204
+    assert give_up(client, world, "jane", "F2").status_code == 204
     seat = client.get(f"/api/desk/seats/{world['seats']['F2']}", headers=hdr(world["tok"]["carl"])).get_json()
     assert seat["state"] == "available" and seat["can_check_in"] is True
     assert run_one("select end_reason from seat_checkins")["end_reason"] == "given_up"
-    assert check_in(client, world, "dina", "E1").status_code == 201
+    assert check_in(client, world, "jane", "F1").status_code == 201
 
 
 def test_early_booked_person_waits_for_walk_in_to_end(client, world, monkeypatch):

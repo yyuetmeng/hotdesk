@@ -6,7 +6,7 @@ import pytest
 from app.core.auth_models import User
 from app.core.orm import orm_session
 from app.desk import rules, service
-from desk_helpers import DAY, _login, _user, add_floor, book, build_world, hdr
+from desk_helpers import DAY, _login, _user, add_floor, book, build_world, hdr, set_now, sg
 
 FILL_DESIGN = (("erin", "E1"), ("frank", "D2"), ("gus", "D3"), ("hana", "D4"))
 
@@ -134,3 +134,43 @@ def test_team_seat_on_unpublished_floor_does_not_block(client, world):
     assert client.post(f"/api/admin/floor-plans/{world['plans']['Level 2']}/unpublish", headers=hdr(world["tok"]["root"])).status_code == 200
     assert book(client, world, "erin", "E1", "am").status_code == 201
     assert book(client, world, "dina", "F1", "am").status_code == 201
+
+
+def test_walk_up_free_for_all_refused_while_team_seat_can_be_checked_in(client, world, monkeypatch):
+    set_now(monkeypatch, sg(DAY, 9))
+    r = check_in(client, world, "dina", "F2")
+    assert r.status_code == 409
+    assert r.get_json()["error"] == "Your project team has a free seat: E1 on Level 1. Check in there instead."
+    assert r.get_json()["suggestion"]["seat_id"] == world["seats"]["E1"]
+    info = client.get(f"/api/desk/seats/{world['seats']['F2']}", headers=hdr(world["tok"]["dina"])).get_json()
+    assert info["can_check_in"] is False and info["suggestion"]["seat_label"] == "E1"
+    assert check_in(client, world, "dina", "E1").status_code == 201
+
+
+def test_checking_in_to_own_free_for_all_booking_is_allowed(client, world, monkeypatch):
+    ids = {who: book(client, world, who, seat, "am").get_json()["id"] for who, seat in FILL_DESIGN}
+    assert book(client, world, "dina", "F1", "am").status_code == 201        # legal: every team seat taken
+    assert client.delete(f"/api/desk/bookings/{ids['erin']}", headers=hdr(world["tok"]["erin"])).status_code == 204
+    set_now(monkeypatch, sg(DAY, 7, 45))
+    r = check_in(client, world, "dina", "F1")
+    assert r.status_code == 201 and r.get_json()["method"] == "booking"
+
+
+def test_booked_team_seat_later_today_still_counts_as_free_now(client, world, monkeypatch):
+    assert book(client, world, "erin", "E1", "pm").status_code == 201
+    set_now(monkeypatch, sg(DAY, 9))
+    assert check_in(client, world, "dina", "F2").get_json()["suggestion"]["seat_label"] == "E1"
+
+
+def test_checked_in_elsewhere_gets_give_up_message_not_team_first(client, world, monkeypatch):
+    set_now(monkeypatch, sg(DAY, 9))
+    assert check_in(client, world, "dina", "E1").status_code == 201
+    r = check_in(client, world, "dina", "F2")
+    assert r.status_code == 409 and r.get_json()["error"] == "Give up your seat at E1 first." and "suggestion" not in r.get_json()
+
+
+def test_suggest_for_check_in_uses_now(app, client, world, monkeypatch):
+    set_now(monkeypatch, sg(DAY, 9))
+    assert check_in(client, world, "erin", "E1").status_code == 201
+    got = _suggest(app, world, "dina", preset=None, purpose="checkin")
+    assert got["tier"] == "team" and got["seats"][0]["seat_label"] == "D2"

@@ -310,7 +310,8 @@ def seat_states(plan: FloorPlan, day: date, preset: str | None, at: datetime,
                 p: bool(el.open_to_all and r and not any(r[0] <= b.block_start < r[1] for b in seat_blocks)
                         and not _overlaps(open_now, *r))
                 for p, r in ranges.items()}
-            seat["can_check_in"] = is_today and checkin_decision(viewer, el, at, ctx)["ok"]
+            # Without the team-first step for now (no per-seat queries); Task 5 passes team_seat= instead.
+            seat["can_check_in"] = is_today and _base_decision(viewer, el, at, ctx)["ok"]
             seat["can_give_up"] = bool(is_today and checkin is not None and checkin.user_id == viewer.id)
         out.append(seat)
     return out
@@ -381,15 +382,34 @@ def free_to_book(seats: list[dict], day: date, preset: str, at: datetime, ctx: d
                                            ctx["open"].get(s["el"].element_id), r)]
 
 
+def free_to_check_in(person: User, seats: list[dict], at: datetime, ctx: dict | None = None) -> list[dict]:
+    """The `published_seats` items `person` may check in to now (without the team-first step)."""
+    if not seats:
+        return []
+    if ctx is None:
+        ctx = floor_context([s["el"].element_id for s in seats], rules.local_today(at), at, person)
+    return [s for s in seats if _base_decision(person, s["el"], at, ctx)["ok"]]
+
+
+def _free_for(person: User, purpose: str, seats: list[dict], at: datetime, day: date | None, preset: str | None,
+              ctx: dict | None = None) -> list[dict]:
+    if purpose == "checkin":
+        return free_to_check_in(person, seats, at, ctx)
+    if purpose == "book":
+        return free_to_book(seats, day, preset, at, ctx)
+    raise ValueError(f"unknown purpose {purpose!r}")
+
+
 def _free_team_seats(person: User, purpose: str, at: datetime, day: date | None, preset: str | None,
                      ctx: dict | None = None) -> tuple[list[dict], dict | None]:
-    """`person`'s free team seats on every published floor, ranked, with their usual seat (or None)."""
-    if purpose != "book":
+    """`person`'s free team seats on every published floor, ranked, with their usual seat (or None).
+    "checkin" means free to check in now (today, `at`): `day` and `preset` are ignored."""
+    if purpose not in ("book", "checkin"):
         raise ValueError(f"unknown purpose {purpose!r}")
     teams = department_ids(person)
     found = published_seats(teams, also=frozenset({person.usual_seat_id}))
     usual = next((s for s in found if s["el"].element_id == person.usual_seat_id), None)
-    free = free_to_book([s for s in found if s["el"].department_id in teams], day, preset, at, ctx)
+    free = _free_for(person, purpose, [s for s in found if s["el"].department_id in teams], at, day, preset, ctx)
     return rank_seats(free, usual), usual
 
 
@@ -412,7 +432,8 @@ def suggest_seats(person: User, day: date, preset: str | None, at: datetime, pur
     free, usual = _free_team_seats(person, purpose, at, day, preset)
     tier = "team"
     if not free:
-        tier, free = "open", rank_seats(free_to_book(published_seats(open_to_all=True), day, preset, at), usual)
+        tier, free = "open", rank_seats(_free_for(person, purpose, published_seats(open_to_all=True), at, day, preset),
+                                        usual)
     if not free:
         return {"tier": "none", "seats": []}
     return {"tier": tier, "seats": [suggestion(s) for s in free[:limit]]}
@@ -535,17 +556,31 @@ def _active_bookings_on(seat_id, day: date) -> list[SeatBooking]:
         SeatBooking.end_reason.is_(None)).order_by(SeatBooking.starts_at)).all()
 
 
-def _refuse(reason: str, status: int) -> dict:
-    return {"ok": False, "reason": reason, "status": status, "booking": None, "ends_at": None, "warning": None}
+def _refuse(reason: str, status: int, suggestion: dict | None = None) -> dict:
+    return {"ok": False, "reason": reason, "status": status, "booking": None, "ends_at": None, "warning": None,
+            "suggestion": suggestion}
 
 
-def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime, ctx: dict | None = None) -> dict:
-    """Whether `viewer` may check in to seat `el` now, and on what terms. `ctx` (floor_context for
-    today) avoids per-seat queries on the floor view.
+def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime, ctx: dict | None = None,
+                     team_seat="lookup") -> dict:
+    """Whether `viewer` may check in to seat `el` now, and on what terms: `_base_decision`, then team
+    seats first for a walk-up at a free-for-all seat. `team_seat` is the viewer's best team seat for a
+    check-in (a suggestion or None) when the caller already knows it; "lookup" finds it.
 
-    Returns {"ok", "reason", "status", "booking", "ends_at", "warning"}; used by the check-in
-    itself and by the seat page so the two never disagree.
+    Returns {"ok", "reason", "status", "booking", "ends_at", "warning", "suggestion"}; used by the
+    check-in itself and by the seat page so the two never disagree.
     """
+    decision = _base_decision(viewer, el, at, ctx)
+    if decision["ok"] and decision["booking"] is None and el.open_to_all:
+        s = team_first_seat(viewer, "checkin", at) if team_seat == "lookup" else team_seat
+        if s is not None:
+            return _refuse(team_first_message(viewer, viewer, s, "checkin"), 409, s)
+    return decision
+
+
+def _base_decision(viewer: User, el: FloorPlanVersionElement, at: datetime, ctx: dict | None = None) -> dict:
+    """The check-in decision without the team-first step. `ctx` (floor_context for today) avoids
+    per-seat queries on the floor view."""
     day = rules.local_today(at)
     if not (el.open_to_all or el.department_id):
         return _refuse("This seat cannot be used: it has no project team.", 403)
@@ -566,7 +601,8 @@ def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime, ct
                 else _active_bookings_on(el.element_id, day))
     for b in bookings:
         if b.booked_for == viewer.id and rules.checkin_window_opens(b.starts_at) <= at < b.ends_at:
-            return {"ok": True, "reason": None, "status": 201, "booking": b, "ends_at": b.ends_at, "warning": None}
+            return {"ok": True, "reason": None, "status": 201, "booking": b, "ends_at": b.ends_at, "warning": None,
+                    "suggestion": None}
     # Once someone else's check-in window has opened (30 min before their booking), the seat is theirs.
     current = next((b for b in bookings if rules.checkin_window_opens(b.starts_at) <= at < b.ends_at), None)
     if current is not None:
@@ -578,14 +614,16 @@ def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime, ct
     upcoming = next((b.starts_at for b in bookings if b.starts_at > at), None)
     ends_at = rules.walk_in_ends_at(at, upcoming)
     warning = f"Booked from {_hhmm(upcoming)}: your check-in ends then." if upcoming and ends_at == upcoming else None
-    return {"ok": True, "reason": None, "status": 201, "booking": None, "ends_at": ends_at, "warning": warning}
+    return {"ok": True, "reason": None, "status": 201, "booking": None, "ends_at": ends_at, "warning": warning,
+            "suggestion": None}
 
 
 def check_in(viewer: User, seat_id, at: datetime, location: dict | None = None) -> tuple[SeatCheckin, str | None]:
     plan, el = seat_element(seat_id)
     decision = checkin_decision(viewer, el, at)
     if not decision["ok"]:
-        raise DeskError(decision["reason"], decision["status"])
+        s = decision["suggestion"]
+        raise DeskError(decision["reason"], decision["status"], **({"suggestion": s} if s else {}))
     booking = decision["booking"]
     checkin = SeatCheckin(plan_id=plan.id, version_id=plan.published_version_id, seat_id=el.element_id,
                           seat_label=seat_label(el), user_id=viewer.id, user_name=viewer.full_name,
@@ -669,7 +707,7 @@ def seat_info(viewer: User | None, seat_id, at: datetime) -> dict:
         mine = open_checkin_of(viewer)
         here = bool(mine and mine.seat_id == el.element_id)
         info.update(can_check_in=decision["ok"], reason=decision["reason"], warning=decision["warning"],
-                    can_give_up=here, my_checkin=checkin_dto(mine) if here else None)
+                    suggestion=decision["suggestion"], can_give_up=here, my_checkin=checkin_dto(mine) if here else None)
     return info
 
 
