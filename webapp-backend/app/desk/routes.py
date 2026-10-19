@@ -59,6 +59,25 @@ def floors(viewer, at):
                    days=[d.isoformat() for d in rules.bookable_days(at)])
 
 
+@desk_bp.get("/suggest")
+@desk_endpoint
+def suggest(viewer, at):
+    purpose = request.args.get("purpose") or "book"
+    if purpose not in ("book", "checkin"):
+        raise service.DeskError("purpose must be book or checkin")
+    user_id = request.args.get("user_id")
+    person = viewer if not user_id or user_id == str(viewer.id) else service.colleague_for(viewer, user_id)
+    day, preset = rules.local_today(at), "am"        # a check-in ignores both
+    if purpose == "book":
+        day = _day_arg(at)
+        if day not in rules.bookable_days(at):
+            raise service.DeskError("only today or the next working day can be shown")
+        preset = request.args.get("preset")
+        if preset not in rules.PRESETS:
+            raise service.DeskError(f"unknown booking slot '{preset}'")
+    return jsonify(service.suggest_seats(person, day, preset, at, purpose))
+
+
 @desk_bp.get("/floors/<plan_id>")
 @desk_endpoint
 def floor(viewer, at, plan_id):

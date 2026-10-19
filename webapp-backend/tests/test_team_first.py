@@ -201,3 +201,14 @@ def test_floor_late_in_day_team_first_is_null(client, world, monkeypatch):
     set_now(monkeypatch, sg(DAY, 18, 45))
     body = _floor(client, world, "dina", DAY, None)
     assert body["team_first"]["am"] is None and body["team_first"]["full"] is None
+
+
+def test_suggest_endpoint_and_permission(client, world):
+    q = f"/api/desk/suggest?date={DAY.isoformat()}&preset=am"
+    r = client.get(q, headers=hdr(world["tok"]["dina"]))
+    assert r.status_code == 200 and r.get_json()["tier"] == "team"
+    assert client.get(q + f"&user_id={world['users']['dina']}", headers=hdr(world["tok"]["ali"])).get_json()["seats"][0]["seat_label"] == "E1"
+    r = client.get(q + f"&user_id={world['users']['bob']}", headers=hdr(world["tok"]["jane"]))
+    assert r.status_code == 403 and r.get_json()["error"] == "you can only book for colleagues in your project teams"
+    assert client.get(q + f"&user_id={world['users']['bob']}", headers=hdr(world["tok"]["root"])).status_code == 200
+    assert client.get(q + "&purpose=nap", headers=hdr(world["tok"]["dina"])).status_code == 400
