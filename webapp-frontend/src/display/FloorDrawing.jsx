@@ -127,6 +127,15 @@ function Seat({ el, seat, onClick, selected, highlight, onHover }) {
   </g>;
 }
 
+// Legend key: the same chair as Seat, drawn small, so the legend matches the floor.
+export function SeatKey({ state }) {
+  return <svg className="fd fd-key" viewBox="0 0 24 24" aria-hidden="true">
+    <rect className={`fd-chair state-${state}`} x="3" y="3" width="18" height="18" rx="4" />
+    <rect className="fd-chair-back" x="7" y="7" width="10" height="10" rx="2" fill="none" />
+    {state === 'available' && <circle className="fd-dot" cx="20" cy="4" r="3.6" />}
+  </svg>;
+}
+
 // Zone: tinted area with a coloured top edge (drawn under everything else).
 function ZoneOutline({ zone }) {
   const color = zone.color || '#3b82f6';

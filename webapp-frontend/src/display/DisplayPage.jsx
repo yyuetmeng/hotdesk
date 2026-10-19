@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import CapacityBar from './CapacityBar.jsx';
-import FloorDrawing from './FloorDrawing.jsx';
+import FloorDrawing, { SeatKey } from './FloorDrawing.jsx';
 import SeatPopover from './SeatPopover.jsx';
 import { initialDisplayState, nextFloorIndex, overall, reduceRefresh, rotationKey, sgDateTime, sgTime } from './displayLogic.js';
 import './display.css';
@@ -96,8 +96,8 @@ export function DisplayView({ loadConfig, heading = null }) {
           aria-label={f.name} onClick={() => setIndex(i)} />)}
       </nav>}
       <div className="disp-legend">
-        <span><i className="available" />Available</span><span><i className="booked" />Booked</span>
-        <span><i className="occupied" />Occupied</span><span><i className="not_bookable" />Not bookable</span>
+        <span><SeatKey state="available" />Available</span><span><SeatKey state="booked" />Booked</span>
+        <span><SeatKey state="occupied" />Occupied</span><span><SeatKey state="not_bookable" />Not bookable</span>
         <span>Tap a seat to see today&apos;s activity</span>
       </div>
     </footer>

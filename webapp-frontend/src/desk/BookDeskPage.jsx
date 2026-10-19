@@ -5,11 +5,11 @@ import { useSearchParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatDate, formatTime } from '../format.js';
-import FloorDrawing from '../display/FloorDrawing.jsx';
+import FloorDrawing, { SeatKey } from '../display/FloorDrawing.jsx';
 import '../display/display.css';
 import SeatPanel from './SeatPanel.jsx';
 import { canAddSeat } from './bookingLogic.js';
-import { PRESETS, dayActive, firstLoad, floorLoading, latestOnly, nextDayName, presetLabel } from './deskLogic.js';
+import { PRESETS, dayActive, firstLoad, floorLoading, latestOnly, nextDayName, presetLabel, stateLabel } from './deskLogic.js';
 
 const STATE_TEXT = { active: 'Booked', checked_in: 'Checked in', released: 'Released (no check-in)',
   cancelled: 'Cancelled', plan_changed: 'Cancelled (floor plan changed)' };
@@ -104,9 +104,7 @@ export function BookDeskPage() {
         · {floor.date === days?.[0] ? 'Today' : nextDayName(floor.date, days?.[0] ?? floor.date)} {formatDate(floor.date)} · {presetLabel(preset)}</small></h2>
         <div className="desk-drawing"><FloorDrawing floor={floor} selectedId={selected?.id} selectedIds={picked.map((p) => p.id)} onSeatClick={clickSeat} /></div>
         <ul className="desk-legend">
-          <li><span className="available" />Available</li><li><span className="booked" />Booked</li>
-          <li><span className="occupied" />Occupied</li><li><span className="not_bookable" />Not bookable</li>
-          <li><span className="available free-for-all" />Free for all (bookable)</li>
+          {['available', 'booked', 'occupied', 'not_bookable'].map((s) => <li key={s}><SeatKey state={s} />{stateLabel(s)}</li>)}
         </ul></section>
       {selected
         ? <SeatPanel planId={planId} seat={selected} isToday={dayOffset === 0} onChanged={load}

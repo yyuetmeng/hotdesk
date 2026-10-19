@@ -24,7 +24,7 @@
 .disp-bar { display: flex; height: .7em; border-radius: 999px; overflow: hidden; background: #e2e8f0; }
 .disp-bar span { display: block; height: 100%; }
 .disp-counts { display: flex; flex-wrap: wrap; gap: .3vh 1.1vw; margin-top: .5vh; color: #475569; font-size: 1em; }
-.disp-counts i, .disp-legend i { display: inline-block; width: .8em; height: .8em; border-radius: 50%; margin-right: .4em; vertical-align: -.05em; }
+.disp-counts i { display: inline-block; width: .8em; height: .8em; border-radius: 50%; margin-right: .4em; vertical-align: -.05em; }
 .available { background: #16a34a; }
 .booked { background: #f59e0b; }
 .occupied { background: #dc2626; }

@@ -2,7 +2,7 @@
 // `floor` comes from previewFloor() in logic.js: every tagged seat shows as available.
 import { useEffect } from 'react';
 import CapacityBar from '../display/CapacityBar.jsx';
-import FloorDrawing from '../display/FloorDrawing.jsx';
+import FloorDrawing, { SeatKey } from '../display/FloorDrawing.jsx';
 import '../display/display.css';
 
 export default function FloorPreview({ floor, note, onClose }) {
@@ -22,7 +22,7 @@ export default function FloorPreview({ floor, note, onClose }) {
           <div className="disp-top"><section className="disp-summary"><CapacityBar title={floor.name} summary={floor.summary} /></section></div>
           <section className="disp-floors layout-rotate"><article className="disp-floor-card"><FloorDrawing floor={floor} /></article></section>
           <footer className="disp-foot"><div className="disp-legend">
-            <span><i className="available" />Available</span><span><i className="not_bookable" />Not bookable (no project team)</span>
+            <span><SeatKey state="available" />Available</span><span><SeatKey state="not_bookable" />Not bookable (no project team)</span>
           </div></footer>
         </main>
       </div>

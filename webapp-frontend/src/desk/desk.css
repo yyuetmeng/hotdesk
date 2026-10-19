@@ -2,9 +2,7 @@
 /* Book a desk draws the floor like the TV display (FloorDrawing); here it sizes to its card. */
 .desk-drawing .disp-floor { height: auto; max-height: 72vh; min-height: 0; }
 .desk-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
-.desk-legend li { display: flex; align-items: center; gap: 6px; }
-.desk-legend span { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, .15); }
-.desk-legend span.free-for-all { border-color: #0f172a; }
+.desk-legend li { display: flex; align-items: center; }
 
 .desk-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; }
 .desk-segment { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }

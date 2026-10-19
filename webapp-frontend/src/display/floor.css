@@ -44,6 +44,9 @@
 .fd .disp-seat { cursor: pointer; }
 .fd .disp-seat:focus-visible .fd-chair { stroke: #2563eb; stroke-width: 3; }
 
+/* Legend key (SeatKey): a small chair beside each legend label. */
+.fd-key { width: 1.35em; height: 1.35em; flex: none; vertical-align: -.3em; margin-right: .35em; overflow: visible; }
+
 /* Seat hover tip (FloorDrawing SeatTip). */
 .fd { --fd-tip-bg: #0f172a; --fd-tip-text: #e2e8f0; --fd-tip-head: #ffffff; }
 :root[data-theme="dark"] .fd { --fd-tip-bg: #f8fafc; --fd-tip-text: #334155; --fd-tip-head: #0f172a; }
