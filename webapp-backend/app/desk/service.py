@@ -19,6 +19,7 @@ from app.core.audit import audit_row
 from app.core.orm import orm_session
 
 from . import rules
+from .zones import ZONE_TYPE, zone_at
 
 log = logging.getLogger("app.desk")
 
@@ -299,6 +300,87 @@ def seat_states(plan: FloorPlan, day: date, preset: str | None, at: datetime,
             seat["can_give_up"] = bool(is_today and checkin is not None and checkin.user_id == viewer.id)
         out.append(seat)
     return out
+
+
+# --- team first (spec 2026-10-19-team-seats-first) ----------------------------------------
+
+def published_seats(departments: set[uuid.UUID] = frozenset(), open_to_all: bool = False,
+                    also: frozenset = frozenset()) -> list[dict]:
+    """Live seats of a project team in `departments`, free for all (when `open_to_all`) or listed in `also`,
+    with their floor and zone, by (floor_rank, label). One query, none when there is nothing to match."""
+    el_ = FloorPlanVersionElement
+    also = {i for i in also if i is not None}
+    match = ([el_.department_id.in_(departments)] if departments else []) + (
+        [el_.open_to_all.is_(True)] if open_to_all else []) + ([el_.element_id.in_(also)] if also else [])
+    if not match:
+        return []
+    rows = orm_session().execute(
+        select(el_, FloorPlan.id, FloorPlanVersion.name)
+        .join(FloorPlan, FloorPlan.published_version_id == el_.version_id)
+        .join(FloorPlanVersion, FloorPlanVersion.id == FloorPlan.published_version_id)
+        .where(or_(el_.type == ZONE_TYPE, (el_.type == "seat") & or_(*match)))
+        .order_by(FloorPlan.name, FloorPlan.id)).all()
+    plans: dict = {}   # plan id -> [live name, zones, seats], in FloorPlan.name order
+    for el, plan_id, plan_name in rows:
+        plan = plans.setdefault(plan_id, [plan_name, [], []])
+        plan[1 if el.type == ZONE_TYPE else 2].append(el)
+    out = []
+    for rank, (plan_id, (plan_name, zones, seats)) in enumerate(plans.items()):
+        out += [{"el": el, "seat_id": str(el.element_id), "seat_label": seat_label(el), "plan_id": str(plan_id),
+                 "plan_name": plan_name, "zone": zone_at(zones, el), "floor_rank": rank} for el in seats]
+    return sorted(out, key=lambda s: (s["floor_rank"], s["seat_label"].casefold()))
+
+
+def suggestion(seat: dict) -> dict:
+    return {k: seat[k] for k in ("seat_id", "seat_label", "plan_id", "plan_name", "zone")}
+
+
+def rank_seats(seats: list[dict], usual: dict | None) -> list[dict]:
+    """Best first: the usual seat, its floor and zone, its floor, the rest; ties by floor order, then label."""
+    def bucket(s):
+        if usual is None:
+            return 0
+        if s["seat_id"] == usual["seat_id"]:
+            return 0
+        if s["plan_id"] != usual["plan_id"]:
+            return 3
+        return 1 if usual["zone"] is not None and s["zone"] == usual["zone"] else 2
+    return sorted(seats, key=lambda s: (bucket(s), s["floor_rank"], s["seat_label"].casefold()))
+
+
+def _slot_free(seat_blocks: list, open_now, r: tuple | None) -> bool:
+    """No booking block in the range `r` and no open check-in overlapping it (False without a range)."""
+    return bool(r and not any(r[0] <= b.block_start < r[1] for b in seat_blocks) and not _overlaps(open_now, *r))
+
+
+def free_to_book(seats: list[dict], day: date, preset: str, at: datetime, ctx: dict | None = None) -> list[dict]:
+    """The `published_seats` items free for a booking of `preset` on `day` made at `at`."""
+    try:
+        r = rules.preset_range(day, preset, at)
+    except rules.BookingRuleError:
+        return []
+    if not seats:
+        return []
+    if ctx is None:
+        ctx = floor_context([s["el"].element_id for s in seats], day, at)
+    return [s for s in seats if _slot_free(ctx["blocks_by_seat"].get(s["el"].element_id, []),
+                                           ctx["open"].get(s["el"].element_id), r)]
+
+
+def suggest_seats(person: User, day: date, preset: str | None, at: datetime, purpose: str = "book",
+                  limit: int = 5) -> dict:
+    """Seats to offer `person`: free team seats, else free-for-all seats only when no team seat is free."""
+    if purpose != "book":
+        raise ValueError(f"unknown purpose {purpose!r}")
+    teams = department_ids(person)
+    found = published_seats(teams, also=frozenset({person.usual_seat_id}))
+    usual = next((s for s in found if s["el"].element_id == person.usual_seat_id), None)
+    tier, free = "team", free_to_book([s for s in found if s["el"].department_id in teams], day, preset, at)
+    if not free:
+        tier, free = "open", free_to_book(published_seats(open_to_all=True), day, preset, at)
+    if not free:
+        return {"tier": "none", "seats": []}
+    return {"tier": tier, "seats": [suggestion(s) for s in rank_seats(free, usual)[:limit]]}
 
 
 # --- bookings -----------------------------------------------------------------------------

@@ -13,6 +13,12 @@ def _contains(zone, seat: dict) -> bool:
     return zone.x <= seat["x"] < zone.x + zone.w and zone.y <= seat["y"] < zone.y + zone.h
 
 
+def zone_at(zones: list, el) -> str | None:
+    """Name of the zone containing element `el` (zone elements in `zones`), or None outside every zone."""
+    zone = next((z for z in zones if _contains(z, {"x": el.x, "y": el.y})), None)
+    return zone_name(zone.label) if zone else None
+
+
 def _row(id_, name, zone, seats: list[dict]) -> dict:
     counts = {state: sum(1 for s in seats if s["state"] == state) for state in COUNTED}
     total = sum(counts.values())

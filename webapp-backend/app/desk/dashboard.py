@@ -13,7 +13,7 @@ from app.core.desk_models import SeatBooking, SeatCheckin
 from app.core.orm import orm_session
 
 from . import rules, service
-from .zones import ZONE_TYPE, zone_name
+from .zones import ZONE_TYPE, zone_at
 
 TREND_DAYS = 10
 HISTORY_LIMIT = 10
@@ -32,7 +32,7 @@ def _minutes_to_hhmm(minutes: float) -> str:
 
 
 def seat_places() -> dict:
-    """Every seat on a published floor: seat id -> {plan_id, plan_name, seat_label, zone}."""
+    """Every seat on a published floor: seat id -> {plan_id, plan_name, seat_label, zone, open_to_all, department_id}."""
     places = {}
     for plan in service.published_floors():
         live = plan.published_version
@@ -40,9 +40,9 @@ def seat_places() -> dict:
         for el in live.elements:
             if el.type != "seat":
                 continue
-            zone = next((z for z in zones if z.x <= el.x < z.x + z.w and z.y <= el.y < z.y + z.h), None)
             places[el.element_id] = {"plan_id": str(plan.id), "plan_name": live.name, "seat_label": service.seat_label(el),
-                                     "zone": zone_name(zone.label) if zone else None, "open_to_all": bool(el.open_to_all)}
+                                     "zone": zone_at(zones, el), "open_to_all": bool(el.open_to_all),
+                                     "department_id": str(el.department_id) if el.department_id else None}
     return places
 
 
