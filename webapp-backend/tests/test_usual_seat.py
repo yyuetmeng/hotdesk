@@ -53,9 +53,11 @@ def test_me_shows_usual_seat_and_auto_book(client, world):
     assert client.patch("/api/desk/me", headers=hdr(world["tok"]["jane"]), json={"auto_book": "yes"}).status_code == 400
 
 
-def test_team_seat_is_not_bookable(client, world):
+def test_usual_seat_bookable_for_its_team(client, world):
     _set_usual(client, world, "dina", "E1")
-    assert client.get("/api/desk/me", headers=hdr(world["tok"]["dina"])).get_json()["usual_seat"]["bookable"] is False
+    assert client.get("/api/desk/me", headers=hdr(world["tok"]["dina"])).get_json()["usual_seat"]["bookable"] is True
+    _set_usual(client, world, "jane", "E1")                                               # jane is not in Design
+    assert client.get("/api/desk/me", headers=hdr(world["tok"]["jane"])).get_json()["usual_seat"]["bookable"] is False
 
 
 # --- where it shows ---------------------------------------------------------------------------
@@ -81,12 +83,33 @@ def test_auto_book_today_and_tomorrow_once(client, world):
     assert [(u["date"], u["seat_label"], u["preset"]) for u in body["upcoming"]] == [(THU.isoformat(), "F1", "full"), (DAY.isoformat(), "F1", "full")]
 
 
-def test_auto_book_off_or_team_seat_does_nothing(client, world):
+def test_auto_book_off_does_nothing(client, world):
     _set_usual(client, world, "jane", "F1")
-    assert _dash(client, world, "jane")["auto_book"] == []                                # switch off
-    _set_usual(client, world, "dina", "E1")
-    _auto_on(client, world, "dina")
-    assert _dash(client, world, "dina")["auto_book"] == []                                # team seat: no booking needed
+    assert _dash(client, world, "jane")["auto_book"] == []
+
+
+def test_auto_book_team_seat_before_free_for_all_usual_seat(client, world):
+    _set_usual(client, world, "dina", "F1"); _auto_on(client, world, "dina")
+    notes = _dash(client, world, "dina")["auto_book"]
+    assert [(n["seat_label"], n["ok"], n["usual_seat_label"]) for n in notes] == [("E1", True, "F1")] * 2
+
+
+def test_auto_book_usual_team_seat(client, world):
+    _set_usual(client, world, "dina", "E1"); _auto_on(client, world, "dina")
+    assert [(n["seat_label"], n["usual_seat_label"]) for n in _dash(client, world, "dina")["auto_book"]] == [("E1", None)] * 2
+
+
+def test_auto_book_without_usual_seat(client, world):
+    _auto_on(client, world, "bob")
+    assert [(n["seat_label"], n["ok"]) for n in _dash(client, world, "bob")["auto_book"]] == [("F1", True)] * 2
+
+
+def test_auto_book_nothing_free(client, world):
+    for who, seat in (("jane", "F1"), ("carl", "F2")):
+        assert book(client, world, who, seat, "full").status_code == 201
+    _auto_on(client, world, "bob")
+    friday = next(n for n in _dash(client, world, "bob")["auto_book"] if n["date"] == DAY.isoformat())
+    assert (friday["ok"], friday["seat_label"], friday["message"]) == (False, None, "no free seat")
 
 
 def test_auto_book_reports_a_taken_seat(client, world):
@@ -94,8 +117,9 @@ def test_auto_book_reports_a_taken_seat(client, world):
     _set_usual(client, world, "jane", "F1")
     _auto_on(client, world, "jane")
     notes = {n["date"]: n for n in _dash(client, world, "jane")["auto_book"]}
-    assert notes[THU.isoformat()]["ok"] is True
-    assert notes[DAY.isoformat()]["ok"] is False and notes[DAY.isoformat()]["message"]
+    assert (notes[THU.isoformat()]["seat_label"], notes[THU.isoformat()]["usual_seat_label"]) == ("F1", None)
+    friday = notes[DAY.isoformat()]                                                      # F1 taken: the next free seat
+    assert (friday["ok"], friday["seat_label"], friday["usual_seat_label"]) == (True, "F2", "F1")
 
 
 def test_auto_book_skips_weekends(client, world, monkeypatch):
@@ -113,3 +137,7 @@ def test_auto_book_on_sign_in(client, world):
     assert r.status_code == 200
     mine = client.get("/api/desk/bookings/mine", headers=hdr(world["tok"]["jane"])).get_json()["items"]
     assert sorted(b["date"] for b in mine) == [THU.isoformat(), DAY.isoformat()]
+    _auto_on(client, world, "bob")                                                       # no usual seat: still auto-books
+    assert sign_in(client, "bob").status_code == 200
+    mine = client.get("/api/desk/bookings/mine", headers=hdr(world["tok"]["bob"])).get_json()["items"]
+    assert sorted((b["date"], b["seat_label"]) for b in mine) == [(THU.isoformat(), "F2"), (DAY.isoformat(), "F2")]

@@ -1,8 +1,9 @@
 """Usual seat and auto-booking (spec 2026-10-16-usual-seat-and-auto-book-design §3).
 
-With auto-booking on, signing in and opening the dashboard book the user's usual seat (free for all) for
-today and tomorrow when those are working days and the user has nothing booked yet. Normal booking rules
-apply; a refusal (seat taken, too late today) is reported, never raised.
+With auto-booking on, signing in and opening the dashboard book a full day for today and tomorrow when those
+are working days and the user has nothing booked yet. The seat is the first `suggest_seats` pick: the usual
+seat when allowed and free, else the user's team seats, else a free-for-all seat (spec 2026-10-19-team-seats-first).
+A usual seat is optional. Normal booking rules apply; a refusal (nothing free, too late today) is reported, never raised.
 """
 from datetime import datetime
 
@@ -17,12 +18,13 @@ from . import rules, service
 
 
 def usual_seat(user: User, places: dict) -> dict | None:
-    """The user's usual seat on a published floor, with `bookable` (free for all), or None."""
+    """The user's usual seat on a published floor, with `bookable` (free for all or one of their teams), or None."""
     place = places.get(user.usual_seat_id) if user.usual_seat_id else None
     if not place:
         return None
     return {"seat_id": str(user.usual_seat_id), "seat_label": place["seat_label"], "plan_id": place["plan_id"],
-            "plan_name": place["plan_name"], "zone": place["zone"], "bookable": place["open_to_all"]}
+            "plan_name": place["plan_name"], "zone": place["zone"],
+            "bookable": place["open_to_all"] or place["department_id"] in {str(d) for d in service.department_ids(user)}}
 
 
 def _has_booking(user: User, day) -> bool:
@@ -37,20 +39,30 @@ def _checked_in_today(user: User, day) -> bool:
 
 
 def run_auto_book(user: User, at: datetime, places: dict) -> list[dict]:
-    """Book the usual seat where needed; one note per attempt: {date, seat_label, ok, message}."""
-    seat = usual_seat(user, places)
-    if not (user.auto_book and seat and seat["bookable"]):
+    """Book the first suggested seat where needed; one note per attempt:
+    {date, seat_label, ok, message, usual_seat_label (the usual seat, when another seat was booked or none was free)}."""
+    if not user.auto_book:
         return []
+    usual = usual_seat(user, places)
     today = rules.local_today(at)
     notes = []
     for day in rules.bookable_days(at):
         if day.weekday() >= 5 or _has_booking(user, day) or (day == today and _checked_in_today(user, day)):
             continue
-        try:
-            booking = service.create_booking(user, seat["plan_id"], seat["seat_id"], day.isoformat(), "full", None, at)
-            write_audit(user.id, "booking.auto_created", booking.id, service._booking_details(booking))
-            notes.append({"date": day.isoformat(), "seat_label": seat["seat_label"], "ok": True, "message": None})
-        except service.DeskError as exc:
-            orm_session().rollback()
-            notes.append({"date": day.isoformat(), "seat_label": seat["seat_label"], "ok": False, "message": str(exc)})
+        note = {"date": day.isoformat(), "seat_label": None, "ok": False, "message": "no free seat",
+                "usual_seat_label": usual["seat_label"] if usual else None}
+        seats = service.suggest_seats(user, day, "full", at)["seats"]   # per day: an earlier booking changes what's free
+        if seats:
+            seat = seats[0]
+            note.update(seat_label=seat["seat_label"], message=None)
+            if not usual or seat["seat_id"] == usual["seat_id"]:
+                note["usual_seat_label"] = None
+            try:
+                booking = service.create_booking(user, seat["plan_id"], seat["seat_id"], day.isoformat(), "full", None, at)
+                write_audit(user.id, "booking.auto_created", booking.id, service._booking_details(booking))
+                note["ok"] = True
+            except service.DeskError as exc:
+                orm_session().rollback()
+                note["message"] = str(exc)
+        notes.append(note)
     return notes

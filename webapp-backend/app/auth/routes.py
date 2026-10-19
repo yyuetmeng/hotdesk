@@ -94,8 +94,8 @@ def login():
 
 
 def _auto_book_after_sign_in(user):
-    """Auto-book the usual seat (spec 2026-10-16-usual-seat-and-auto-book §3). Never fails the sign-in."""
-    if not (user.auto_book and user.usual_seat_id):
+    """Auto-book the first suggested seat (spec 2026-10-19-team-seats-first). Never fails the sign-in."""
+    if not user.auto_book:
         return
     try:
         from app.desk import rules, service
