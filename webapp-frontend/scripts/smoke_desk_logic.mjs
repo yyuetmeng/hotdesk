@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, nextDayName, sgToday, seatAction, myBookingsToday, checkInWindow, untaggedNote, latestOnly, dayActive } from '../src/desk/deskLogic.js';
+import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, teamSeatText, nextDayName, sgToday, seatAction, myBookingsToday, checkInWindow, untaggedNote, latestOnly, dayActive } from '../src/desk/deskLogic.js';
 
 assert.equal(initials('Jane Tan'), 'JT');
 assert.equal(initials('Prince'), 'P');
@@ -64,4 +64,7 @@ assert.equal(untaggedNote({ open_to_all: false, department_id: 'd1' }), '');
 assert.equal(dayActive(0, 0, false), true);
 assert.equal(dayActive(1, 0, false), false);
 assert.equal(dayActive(1, 0, true), true);
+const e1s = { seat_id: 'e1', seat_label: 'E1', plan_id: 'p1', plan_name: 'Level 1', zone: null };
+assert.equal(teamSeatText(e1s), 'Your project team has a free seat: E1 on Level 1.');
+assert.equal(teamSeatText(e1s, "Tan's team"), "Tan's team has a free seat: E1 on Level 1.");
 console.log('desk logic smoke OK');

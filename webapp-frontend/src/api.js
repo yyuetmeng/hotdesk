@@ -76,6 +76,7 @@ export async function flaskRequest(path, { method = 'GET', body } = {}) {
     const err = new Error(data.error || response.statusText || 'Request failed');
     err.status = response.status;
     err.fields = data.fields;
+    err.suggestion = data.suggestion ?? null;
     throw err;
   }
   return data;

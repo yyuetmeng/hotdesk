@@ -19,8 +19,12 @@ assert.deepEqual(checkInOutcome({ seat: { ...seat, my_checkin: checkin }, result
   { kind: 'ok', title: "You're checked in here", checkin, note: null });
 assert.equal(checkInOutcome({ seat, result: { kind: 'gave_up' } }).kind, 'done');
 assert.deepEqual(checkInOutcome({ seat: null, result: { kind: 'error', text: 'seat not found' } }),
-  { kind: 'bad', title: 'Could not check in', reason: 'seat not found' });
+  { kind: 'bad', title: 'Could not check in', reason: 'seat not found', suggestion: null });
 assert.deepEqual(checkInOutcome({ seat: { ...seat, can_give_up: false, reason: 'This seat is for another project team.' }, result: null }),
-  { kind: 'bad', title: 'Could not check in', reason: 'This seat is for another project team.' });
+  { kind: 'bad', title: 'Could not check in', reason: 'This seat is for another project team.', suggestion: null });
 assert.equal(checkInOutcome({ seat: { ...seat, can_give_up: false }, result: null }), null);
+const e1s = { seat_id: 'e1', seat_label: 'E1', plan_id: 'p1', plan_name: 'Level 1', zone: null };
+assert.equal(checkInOutcome({ seat: null, result: { kind: 'error', text: 'x', suggestion: e1s } }).suggestion, e1s);
+assert.equal(checkInOutcome({ seat: null, result: { kind: 'error', text: 'x' } }).suggestion, null);
+assert.equal(checkInOutcome({ seat: { can_check_in: false, can_give_up: false, reason: 'r', suggestion: e1s } }).suggestion, e1s);
 console.log('scan logic smoke OK');

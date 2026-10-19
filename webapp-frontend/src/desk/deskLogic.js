@@ -13,6 +13,9 @@ export function initials(name) {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
 
+/** "Your project team has a free seat: E1 on Level 1." (`whose` for a colleague's team). */
+export const teamSeatText = (s, whose = 'Your project team') => `${whose} has a free seat: ${s.seat_label} on ${s.plan_name}.`;
+
 export const canBookAny = (seat) => Object.values(seat.can_book ?? {}).some(Boolean);
 
 /** Grid footprint of a published element (its own w/h, swapped when rotated a quarter turn). */

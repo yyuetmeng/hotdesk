@@ -12,6 +12,13 @@ export function greeting(nowIso) {
 
 export const firstName = (name) => String(name ?? '').trim().split(/\s+/)[0] || 'there';
 
+/** One auto-book note (GET /api/desk/dashboard): `dayLabel` is already formatted. */
+export function autoBookText(n, dayLabel) {
+  if (!n.ok) return `Could not auto-book for ${dayLabel}: ${n.message}.`;
+  return n.usual_seat_label ? `Your usual seat ${n.usual_seat_label} was not available; auto-booked ${n.seat_label} for ${dayLabel}.`
+    : `Auto-booked ${n.seat_label} for ${dayLabel} (full day).`;
+}
+
 export const slotText = (preset) => (preset ? presetLabel(preset) : '');
 
 const OUTCOME = { checked_in: 'Checked in', released: 'Released (no check-in)', cancelled: 'Cancelled',

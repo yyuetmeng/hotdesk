@@ -10,12 +10,13 @@ export function seatFromCode(text) {
 }
 
 /** Which result screen the check-in page shows (owner 2026-10-16): { kind: 'ok' | 'bad' | 'done', ... } or null.
- * `result` is what just happened here: { kind: 'checked_in', checkin, warning } | { kind: 'gave_up' } | { kind: 'error', text }. */
+ * `result` is what just happened here: { kind: 'checked_in', checkin, warning } | { kind: 'gave_up' } | { kind: 'error', text, suggestion }.
+ * A 'bad' outcome carries `suggestion` (a free team seat to go to instead) or null. */
 export function checkInOutcome({ seat, result }) {
   if (result?.kind === 'checked_in') return { kind: 'ok', title: "You're checked in", checkin: result.checkin, note: result.warning ?? null };
   if (result?.kind === 'gave_up') return { kind: 'done', title: 'Seat given up', note: 'Thanks for freeing it up.' };
-  if (result?.kind === 'error') return { kind: 'bad', title: 'Could not check in', reason: result.text };
+  if (result?.kind === 'error') return { kind: 'bad', title: 'Could not check in', reason: result.text, suggestion: result.suggestion ?? null };
   if (seat?.my_checkin) return { kind: 'ok', title: "You're checked in here", checkin: seat.my_checkin, note: null };
-  if (seat && !seat.can_check_in && !seat.can_give_up && seat.reason) return { kind: 'bad', title: 'Could not check in', reason: seat.reason };
+  if (seat && !seat.can_check_in && !seat.can_give_up && seat.reason) return { kind: 'bad', title: 'Could not check in', reason: seat.reason, suggestion: seat.suggestion ?? null };
   return null;
 }
