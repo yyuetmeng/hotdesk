@@ -1,12 +1,14 @@
 // Booking form inside the seat panel (owner 2026-10-16, preview v3): For (Myself / Someone else),
 // Seats (one / several, Someone else only), Day (today / next working day / both), Slot, summary, Confirm.
-// Rules live in bookingLogic.js; the server re-checks every booking.
+// Team first (spec 2026-10-19-team-seats-first §6): a free team seat is offered instead of a free-for-all one,
+// for you (jump to it) and for each colleague (swap the row's seat). Rules live in bookingLogic.js; the server
+// re-checks every booking.
 import { useEffect, useState } from 'react';
 import { flaskRequest } from '../api.js';
 import { Notice } from '../components.jsx';
 import { formatDate } from '../format.js';
-import { bookingProblem, bookingRequests, confirmLabel, dayDates, resultSummary } from './bookingLogic.js';
-import { PRESETS, nextDayName, presetLabel } from './deskLogic.js';
+import { bookBlock, bookingProblem, bookingRequests, confirmLabel, dayDates, firstName, resultSummary, rowTeamHint, toRowSeat } from './bookingLogic.js';
+import { PRESETS, nextDayName, presetLabel, teamSeatText } from './deskLogic.js';
 
 function Segment({ label, options, value, onChange }) {
   return <div className="bk-field"><span className="bk-label">{label}</span>
@@ -43,9 +45,11 @@ function PersonPicker({ date, person, taken, onPick }) {
 }
 
 export default function BookingPanel({ planId, seat, picked, multi, setMulti, onRemovePicked, days, dayOffset, setDayOffset,
-  bothDays: both, setBothDays: setBoth, preset, setPreset, skipped, onChanged }) {
+  bothDays: both, setBothDays: setBoth, preset, setPreset, skipped, onChanged, teamFirst, jumpTo }) {
   const [forWho, setForWho] = useState('me');
-  const [people, setPeople] = useState({});
+  const [people, setPeople] = useState({});        // { [clicked seat id]: person }
+  const [swaps, setSwaps] = useState({});          // { [clicked seat id]: row seat } (a colleague's team seat instead)
+  const [suggested, setSuggested] = useState({});  // { [person id]: GET /api/desk/suggest result }
   const [allowance, setAllowance] = useState(null);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState(null);
@@ -56,15 +60,30 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
     if (forWho !== 'other') return;
     flaskRequest(`/api/desk/colleagues?date=${dates[0]}&q=`).then((d) => setAllowance(d.allowance)).catch(() => setAllowance(null));
   }, [forWho, dates[0]]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setResults(null); }, [seat.id]);
+  useEffect(() => { setResults(null); setSwaps({}); }, [seat.id]);
+  // Each picked colleague's best free seat for the day and slot (their team's first).
+  const personIds = Object.values(people).filter(Boolean).map((p) => p.id).join(',');
+  useEffect(() => {
+    if (forWho !== 'other') return undefined;
+    let live = true;
+    personIds.split(',').filter(Boolean).forEach((id) => flaskRequest(`/api/desk/suggest?date=${dates[0]}&preset=${preset}&user_id=${id}`)
+      .then((r) => { if (live) setSuggested((all) => ({ ...all, [id]: r })); }).catch(() => {}));
+    return () => { live = false; };
+  }, [forWho, personIds, dates[0], preset]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const seats = [seat, ...(forWho === 'other' && multi ? picked : [])];
-  const rows = seats.map((s) => ({ seat: s, person: people[s.id] ?? null }));
+  const rows = seats.map((s) => ({ key: s.id, seat: (forWho === 'other' && swaps[s.id]) || s, person: people[s.id] ?? null }));
   const problem = bookingProblem({ forWho, rows, allowance });
-  const seatFree = Boolean(seat.can_book?.[preset]);
+  // A swapped first row books another seat, so the clicked one need not be free (the server re-checks).
+  const block = forWho === 'other' && swaps[seat.id] ? null : bookBlock({ seat, preset, forWho, teamFirst });
   const requests = bookingRequests({ forWho, rows: rows.filter((r) => forWho === 'me' || r.person), dayChoice, days, preset, planId });
 
   const chooseFor = (key) => { setForWho(key); setResults(null); if (key === 'me') setMulti(false); };
+  const swap = (key, s) => { setSwaps((all) => ({ ...all, [key]: toRowSeat(s) })); setResults(null); };
+  const pick = (key, p) => {
+    setPeople((all) => ({ ...all, [key]: p }));
+    if (!p) setSwaps((all) => { const { [key]: _, ...rest } = all; return rest; });   // the swap was for that person
+  };
   const chooseDay = (key) => { setBoth(key === 'both'); if (key !== 'both') setDayOffset(key === 'second' ? 1 : 0); };
   const dayName = (date) => (date === days[0] ? 'Today' : nextDayName(date, days[0]));
 
@@ -77,11 +96,11 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
       try {
         await flaskRequest('/api/desk/bookings', { method: 'POST', body });
         out.push({ ok: true, who, seat: row.seat.label, date: body.date });
-      } catch (err) { out.push({ ok: false, who, seat: row.seat.label, date: body.date, error: err.message }); }
+      } catch (err) { out.push({ ok: false, who, seat: row.seat.label, date: body.date, error: err.message, key: row.key, suggestion: err.suggestion }); }
     }
     setResults(out);
     setBusy(false);
-    if (out.every((r) => r.ok)) { setPeople({}); setBoth(false); setMulti(false); }
+    if (out.every((r) => r.ok)) { setPeople({}); setSwaps({}); setBoth(false); setMulti(false); }
     onChanged();
   };
 
@@ -89,7 +108,9 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
     {results && <div className={`notice ${results.every((r) => r.ok) ? 'success' : 'error'}`}>
       {resultSummary(results)}
       {results.some((r) => !r.ok) && <ul className="bk-failed">{results.filter((r) => !r.ok).map((r, i) =>
-        <li key={i}>{r.who} · {r.seat} · {dayName(r.date)}: {r.error}</li>)}</ul>}
+        <li key={i}>{r.who} · {r.seat} · {dayName(r.date)}: {r.error}
+          {r.suggestion && <> <button type="button" className="button"
+            onClick={() => (forWho === 'me' ? jumpTo(r.suggestion) : swap(r.key, r.suggestion))}>Use {r.suggestion.seat_label}</button></>}</li>)}</ul>}
     </div>}
 
     <Segment label="For" value={forWho} onChange={chooseFor}
@@ -99,12 +120,22 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
 
     {forWho === 'other' && <div className="bk-field"><span className="bk-label">{multi ? 'Who sits where' : 'Who'}</span>
       {multi && <p className="bk-hint">Click more free seats on the floor to add them.</p>}
-      {rows.map((r) => <div key={r.seat.id} className="bk-row">
-        <span className="bk-seat"><span className="bk-dot" />{r.seat.label}</span>
-        <PersonPicker date={dates[0]} person={r.person} taken={rows.filter((o) => o.person && o.seat.id !== r.seat.id).map((o) => o.person.id)}
-          onPick={(p) => setPeople((all) => ({ ...all, [r.seat.id]: p }))} />
-        {r.seat.id !== seat.id && <button type="button" className="bk-x" aria-label={`Remove ${r.seat.label}`} onClick={() => onRemovePicked(r.seat.id)}>✕</button>}
-      </div>)}
+      {rows.map((r) => {
+        const sug = r.person ? suggested[r.person.id] : null;
+        const hint = r.person ? rowTeamHint(r, sug) : null;
+        const find = !multi && !hint && sug && sug.tier !== 'none' && sug.seats[0].seat_id !== r.seat.id ? sug.seats[0] : null;
+        return <div key={r.key} className="bk-field">
+          <div className="bk-row">
+            <span className="bk-seat"><span className="bk-dot" />{r.seat.label}</span>
+            <PersonPicker date={dates[0]} person={r.person} taken={rows.filter((o) => o.person && o.key !== r.key).map((o) => o.person.id)}
+              onPick={(p) => pick(r.key, p)} />
+            {r.key !== seat.id && <button type="button" className="bk-x" aria-label={`Remove ${r.seat.label}`} onClick={() => onRemovePicked(r.key)}>✕</button>}
+          </div>
+          {hint && <p className="bk-hint">{firstName(r.person.name)}'s team has a free seat: {hint.seat_label}.{' '}
+            <button type="button" className="button" onClick={() => swap(r.key, hint)}>Use {hint.seat_label}</button></p>}
+          {find && <p className="bk-hint"><button type="button" className="button" onClick={() => swap(r.key, find)}>Find a seat for {firstName(r.person.name)}</button></p>}
+        </div>;
+      })}
       {skipped && <p className="bk-hint warn">{skipped}</p>}
       {allowance && allowance.limit === null && <p className="bk-hint">As an admin you can book for anyone, with no daily limit. Each person can be picked once.</p>}
       {allowance && allowance.limit > 0 && <p className="bk-hint">Allowance: {allowance.limit} colleague{allowance.limit === 1 ? '' : 's'} per day, {allowance.used} used. Each person can be picked once.</p>}
@@ -117,7 +148,11 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
     <Segment label="Slot" value={preset} onChange={setPreset}
       options={PRESETS.map((p) => { const [name, time] = presetLabel(p).split(' ('); return { key: p, text: name, sub: time?.replace(')', '') }; })} />
 
-    {!seatFree && <Notice kind="error">{seat.label} is not free for {presetLabel(preset)} on the day shown. Pick another slot or seat.</Notice>}
+    {block?.kind === 'team_hint' && <Notice>{teamSeatText(block.suggestion)}{' '}
+      <button type="button" className="button primary" onClick={() => jumpTo(block.suggestion)}>Book {block.suggestion.seat_label} instead</button></Notice>}
+    {block?.kind === 'other_team' && <Notice kind="error">This seat is for another project team.</Notice>}
+    {block?.kind === 'not_free' && <Notice kind="error">{seat.label} is not free for {presetLabel(preset)} on the day shown. Pick another slot or seat.</Notice>}
+    {block?.kind !== 'team_hint' && <>
     {both && <p className="bk-hint">The floor shows {dayName(days[dayOffset])}; the other day is checked when you confirm.</p>}
 
     <div className="bk-summary">
@@ -127,7 +162,8 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
         <b>{forWho === 'me' ? 'You' : r.person?.name ?? 'needs a person'}</b> {r.seat.label}</span>)}</div>
       {problem && <p className="bk-hint warn">{problem}</p>}
     </div>
-    <button type="button" className="button primary bk-confirm" disabled={busy || !seatFree || Boolean(problem) || !requests.length} onClick={confirm}>
+    <button type="button" className="button primary bk-confirm" disabled={busy || block !== null || Boolean(problem) || !requests.length} onClick={confirm}>
       {busy ? 'Booking…' : confirmLabel(requests.length || 1)}</button>
+    </>}
   </div>;
 }

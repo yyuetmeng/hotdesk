@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { flaskRequest } from '../../api.js';
 import { Loading, Notice, PageTitle } from '../../components.jsx';
 import { nextDayName } from '../../desk/deskLogic.js';
-import { firstName, greeting, outcomeText, slotText, teamCount, trendBar } from './dashboardLogic.js';
+import { autoBookText, firstName, greeting, outcomeText, slotText, teamCount, trendBar } from './dashboardLogic.js';
 import './dashboard.css';
 
 const sgDate = (iso, opts) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', ...opts }).format(new Date(iso));
@@ -102,10 +102,12 @@ function History({ items, today }) {
 
 function AutoBookNotes({ notes, today }) {
   if (!notes?.length) return null;
-  return <>{notes.map((n) => <Notice key={n.date} kind={n.ok ? 'success' : 'error'}>
-    {n.ok ? `Auto-booked your usual seat ${n.seat_label} for ${dayText(n.date, today).toLowerCase() === 'today' ? 'today' : dayText(n.date, today)} (full day).`
-      : <>Your usual seat {n.seat_label} could not be booked for {dayText(n.date, today)}: {n.message} <Link to="/book">Book another desk</Link></>}
-  </Notice>)}</>;
+  return <>{notes.map((n) => {
+    const day = dayText(n.date, today);
+    return <Notice key={n.date} kind={n.ok ? 'success' : 'error'}>
+      {autoBookText(n, day === 'Today' ? 'today' : day)}{!n.ok && <> <Link to="/book">Book another desk</Link></>}
+    </Notice>;
+  })}</>;
 }
 
 function BookAgain({ items: all, usual }) {

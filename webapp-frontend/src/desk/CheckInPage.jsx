@@ -7,7 +7,7 @@ import { Link, useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatTime } from '../format.js';
-import { checkInWindow, myBookingsToday, presetLabel, sgToday, stateLabel } from './deskLogic.js';
+import { checkInWindow, myBookingsToday, presetLabel, sgToday, stateLabel, teamSeatText } from './deskLogic.js';
 import { checkInLocation } from './location.js';
 import { checkInOutcome } from './scanLogic.js';
 import './desk.css';
@@ -16,12 +16,13 @@ const CheckInTitle = () => <PageTitle title="Desk check-in"><p>Scan the QR code 
 
 export function CheckInPage() {
   const { seatId } = useParams();
-  return seatId ? <SeatCheckIn seatId={seatId} /> : <MySeat />;
+  // key: "Go to" another seat remounts, so that seat checks in on arrival too (a fresh `attempted`).
+  return seatId ? <SeatCheckIn key={seatId} seatId={seatId} /> : <MySeat />;
 }
 
 function SeatCheckIn({ seatId }) {
   const [seat, setSeat] = useState(null);
-  const [result, setResult] = useState(null);   // { kind: 'checked_in', checkin, warning } | { kind: 'gave_up' } | { kind: 'error', text }
+  const [result, setResult] = useState(null);   // { kind: 'checked_in', checkin, warning } | { kind: 'gave_up' } | { kind: 'error', text, suggestion }
   const [busy, setBusy] = useState(false);
   const attempted = useRef(false);                // StrictMode runs effects twice in development
 
@@ -38,7 +39,7 @@ function SeatCheckIn({ seatId }) {
           setResult({ kind: 'checked_in', checkin: c, warning: c.warning });
           await reload();
         }
-      } catch (err) { setResult({ kind: 'error', text: err.message }); }
+      } catch (err) { setResult({ kind: 'error', text: err.message, suggestion: err.suggestion }); }
     })();
   }, [seatId, reload]);
 
@@ -74,7 +75,7 @@ function SeatCheckIn({ seatId }) {
 // Everything stays in the app; "Scan another desk" goes straight back to the camera.
 function CheckInResult({ outcome, seat, busy, onGiveUp }) {
   const where = seat ? [seat.plan?.name, seat.zone].filter(Boolean).join(' · ') : '';
-  const c = outcome.checkin;
+  const c = outcome.checkin, s = outcome.suggestion;
   return <section className={`desk-result ${outcome.kind}`} role="status" aria-live="polite">
     <div className="desk-result-badge" aria-hidden="true">{outcome.kind === 'bad' ? '✕' : '✓'}</div>
     <h1>{outcome.title}</h1>
@@ -86,12 +87,14 @@ function CheckInResult({ outcome, seat, busy, onGiveUp }) {
       <br /><span className="muted">Give the seat up when you leave.</span>
     </div>}
     {outcome.kind === 'bad' && <div className="desk-result-card"><b>{outcome.reason}</b>
+      {s && <><br />{teamSeatText(s)}</>}
       <br /><span className="muted">Free-for-all seats and your own team's seats can be used without booking.</span></div>}
     {outcome.kind === 'done' && <p className="muted">{outcome.note}</p>}
     <div className="desk-result-actions">
       {outcome.kind === 'ok' && <><Link className="button primary" to="/">Done</Link>
         {seat?.can_give_up && <button className="button" disabled={busy} onClick={onGiveUp}>{busy ? 'Giving up…' : 'Give up seat'}</button>}</>}
-      {outcome.kind === 'bad' && <><Link className="button primary" to="/scan">Scan another desk</Link>
+      {outcome.kind === 'bad' && <>{s && <Link className="button primary" to={`/checkin/${s.seat_id}`}>Go to {s.seat_label}</Link>}
+        <Link className={`button${s ? '' : ' primary'}`} to="/scan">Scan another desk</Link>
         <Link className="button" to="/book">Find a free seat</Link></>}
       {outcome.kind === 'done' && <><Link className="button primary" to="/">Done</Link><Link className="button" to="/scan">Scan another desk</Link></>}
     </div>

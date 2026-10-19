@@ -28,7 +28,7 @@ export default function ThemeSettings() {
 
   const pick = (value) => { setChoice(value); saveTheme(value); applyTheme(value); };
 
-  // Auto-booking (spec 2026-10-16-usual-seat-and-auto-book §3): shown only with a bookable usual seat.
+  // Auto-booking (spec 2026-10-19-team-seats-first §6.4): the usual seat first, then a team seat; no usual seat needed.
   const [me, setMe] = useState(null);
   useEffect(() => {
     if (!open) return;
@@ -51,12 +51,13 @@ export default function ThemeSettings() {
         </button>)}
       </div>
       <p className="theme-panel-current">{THEME_CHOICES.find((c) => c.value === choice).label}</p>
-      {seat?.bookable && <div className="theme-auto">
+      {me && <div className="theme-auto">
         <p className="theme-panel-label">Booking</p>
         <label className="theme-switch">
           <input type="checkbox" role="switch" checked={Boolean(me.auto_book)} onChange={(e) => toggleAuto(e.target.checked)} />
           <span className="theme-switch-track" aria-hidden="true" />
-          <span>Auto-book my usual seat<small>{seat.seat_label} · {seat.plan_name}, next working day</small></span>
+          <span>Auto-book a seat for me (my usual seat first, then my team's seats).
+            <small>{seat ? `${seat.seat_label} · ${seat.plan_name}, next working day` : 'Next working day'}</small></span>
         </label>
       </div>}
     </div>}
