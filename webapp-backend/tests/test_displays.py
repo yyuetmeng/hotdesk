@@ -58,11 +58,11 @@ def test_public_display_lists_floors_in_order(client, world):
 def test_public_floor_summary_and_department_names(client, world, monkeypatch):
     set_now(monkeypatch, sg(DAY, 9))
     assert book(client, world, "carl", "F2").status_code == 201                       # booked now
-    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["jane"])).status_code == 201
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["dina"])).status_code == 201
     floor = client.get(f"/api/public/floors/{world['plan']}").get_json()
     assert floor["summary"] == {"bookable": 3, "available": 1, "booked": 1, "occupied": 1, "occupancy_pct": 33}
     names = {s["label"]: s["department"] for s in floor["seats"]}
-    assert names == {"F1": "Free for all", "F2": "Free for all", "E1": "Engineering", "U1": None}
+    assert names == {"F1": "Free for all", "F2": "Free for all", "E1": "Design", "U1": None}
 
 
 def test_signed_in_users_can_list_displays_for_the_floor_overview(client, world):

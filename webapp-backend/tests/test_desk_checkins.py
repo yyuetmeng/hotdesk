@@ -20,13 +20,14 @@ def give_up(client, world, who, seat):
 
 def test_walk_in_rules_by_tag(client, world, monkeypatch):
     set_now(monkeypatch, sg(DAY, 9))
-    assert check_in(client, world, "bob", "E1").status_code == 403        # Ops on an Engineering seat
+    assert check_in(client, world, "bob", "E1").status_code == 403        # Ops on a Design seat
     assert check_in(client, world, "bob", "U1").status_code == 403        # untagged
-    r = check_in(client, world, "jane", "E1")
+    assert check_in(client, world, "jane", "E1").status_code == 403       # another team's seat
+    r = check_in(client, world, "dina", "E1")
     assert r.status_code == 201, r.get_json()
     assert r.get_json()["ends_at"] == sg(DAY, 19).isoformat() and r.get_json()["method"] == "walk_in"
     row = run_one("select seat_department_id::text as d, user_department_ids from seat_checkins")
-    assert row["d"] == world["eng"] and [str(x) for x in row["user_department_ids"]] == [world["eng"]]
+    assert row["d"] == world["design"] and sorted(str(x) for x in row["user_department_ids"]) == sorted([world["eng"], world["design"]])
 
 
 def test_walk_in_before_someone_elses_booking_ends_at_it(client, world, monkeypatch):
@@ -51,15 +52,15 @@ def test_booked_person_checks_in_inside_window_and_others_cannot(client, world, 
 
 def test_one_active_check_in_and_give_up(client, world, monkeypatch):
     set_now(monkeypatch, sg(DAY, 9))
-    assert check_in(client, world, "jane", "F2").status_code == 201
-    r = check_in(client, world, "jane", "E1")
+    assert check_in(client, world, "dina", "F2").status_code == 201
+    r = check_in(client, world, "dina", "E1")
     assert r.status_code == 409 and "Give up your seat at F2" in r.get_json()["error"]
     assert give_up(client, world, "carl", "F2").status_code == 409     # not Carl's check-in
-    assert give_up(client, world, "jane", "F2").status_code == 204
+    assert give_up(client, world, "dina", "F2").status_code == 204
     seat = client.get(f"/api/desk/seats/{world['seats']['F2']}", headers=hdr(world["tok"]["carl"])).get_json()
     assert seat["state"] == "available" and seat["can_check_in"] is True
     assert run_one("select end_reason from seat_checkins")["end_reason"] == "given_up"
-    assert check_in(client, world, "jane", "E1").status_code == 201
+    assert check_in(client, world, "dina", "E1").status_code == 201
 
 
 def test_early_booked_person_waits_for_walk_in_to_end(client, world, monkeypatch):
@@ -76,12 +77,12 @@ def test_early_booked_person_waits_for_walk_in_to_end(client, world, monkeypatch
 
 def test_me_and_auto_end(client, world, monkeypatch):
     set_now(monkeypatch, sg(DAY, 9))
-    check_in(client, world, "jane", "E1")
-    me = client.get("/api/desk/me", headers=hdr(world["tok"]["jane"])).get_json()
+    check_in(client, world, "dina", "E1")
+    me = client.get("/api/desk/me", headers=hdr(world["tok"]["dina"])).get_json()
     assert me["checkin"]["seat_label"] == "E1"
-    assert me["user_id"] == world["users"]["jane"]      # the Desk check-in page picks out bookings for me
+    assert me["user_id"] == world["users"]["dina"]      # the Desk check-in page picks out bookings for me
     set_now(monkeypatch, sg(DAY, 19, 5))
-    assert client.get("/api/desk/me", headers=hdr(world["tok"]["jane"])).get_json()["checkin"] is None
+    assert client.get("/api/desk/me", headers=hdr(world["tok"]["dina"])).get_json()["checkin"] is None
     assert run_one("select end_reason from seat_checkins")["end_reason"] == "auto"
 
 

@@ -25,31 +25,31 @@ def test_requires_sign_in(client, world):
 
 def test_empty_query_lists_everyone_active(client, world):
     names = [p["name"] for p in _find(client, world, "  ")]
-    assert names == ["Ali Rahman", "Bob Ong", "Carl Lim", "Jane Tan"]       # dave is inactive; Root Admin is an admin
+    assert names == ["Ali Rahman", "Bob Ong", "Carl Lim", "Dina Koh", "Jane Tan"]       # dave is inactive; Root Admin is an admin
 
 
 def test_team_filter(client, world):
     assert [p["name"] for p in _find(client, world, "", team=world["ops"])] == ["Bob Ong"]
-    assert [p["name"] for p in _find(client, world, "a", team=world["eng"])] == ["Ali Rahman", "Carl Lim", "Jane Tan"]
+    assert [p["name"] for p in _find(client, world, "a", team=world["eng"])] == ["Ali Rahman", "Carl Lim", "Dina Koh", "Jane Tan"]
     assert client.get(URL, query_string={"team": "nope"}, headers=hdr(world["tok"]["jane"])).status_code == 400
 
 
 def test_teams_list_for_everyone(client, world):
     r = client.get("/api/desk/teams", headers=hdr(world["tok"]["jane"]))
     assert r.status_code == 200
-    assert [t["name"] for t in r.get_json()["items"]] == ["Engineering", "Ops"]
+    assert [t["name"] for t in r.get_json()["items"]] == ["Design", "Engineering", "Ops"]
 
 
 def test_statuses(client, world, monkeypatch):
     assert book(client, world, "ali", "F2", "pm").status_code == 201                                   # today PM
     set_now(monkeypatch, sg(DAY, 9))
     assert book(client, world, "bob", "F1", "full", day=DAY + timedelta(days=3)).status_code == 201    # Monday: next working day
-    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["carl"])).status_code == 201
-    [carl] = _find(client, world, "carl")
-    assert (carl["name"], carl["status"], carl["seat"]["seat_label"], carl["seat"]["plan_name"], carl["since"]) == \
-        ("Carl Lim", "checked_in", "E1", "Level 1", "09:00")
-    assert carl["seat"]["seat_id"] == world["seats"]["E1"] and carl["seat"]["plan_id"] == world["plan"]
-    assert carl["teams"] == ["Engineering"] and carl["initials"] == "CL"
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["dina"])).status_code == 201
+    [dina] = _find(client, world, "dina")
+    assert (dina["name"], dina["status"], dina["seat"]["seat_label"], dina["seat"]["plan_name"], dina["since"]) == \
+        ("Dina Koh", "checked_in", "E1", "Level 1", "09:00")
+    assert dina["seat"]["seat_id"] == world["seats"]["E1"] and dina["seat"]["plan_id"] == world["plan"]
+    assert dina["teams"] == ["Design", "Engineering"] and dina["initials"] == "DK"
     [ali] = _find(client, world, "ali")
     assert (ali["status"], ali["seat"]["seat_label"], ali["preset"]) == ("booked", "F2", "pm")
     [bob] = _find(client, world, "bob")

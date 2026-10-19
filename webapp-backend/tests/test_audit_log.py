@@ -32,7 +32,7 @@ def test_lists_newest_first_with_summaries_and_counts(client, world):
     first = body["items"][0]
     assert first["action"] == "booking.create" and first["category"] == "desks"
     assert first["summary"] == f"Jane Tan booked F1 · Level 1 ({DAY.isoformat()})" and first["actor_name"] == "Jane Tan"
-    assert body["counts"]["security"] == 5          # the five sign-ins of build_world
+    assert body["counts"]["security"] == 6          # the six sign-ins of build_world
     assert body["counts"]["desks"] == 1 and body["counts"]["floor_plans"] >= 3   # create, save, publish
     published = next(i for i in body["items"] if i["action"] == "floorplan.publish")
     assert published["summary"] == "Root Admin published floor plan Level 1 (v1)" and published["target_name"] == "Level 1"

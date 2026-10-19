@@ -25,7 +25,7 @@ def _republish(client, world, keep):
 def test_unpublish_cancels_bookings_and_ends_check_ins(client, world, monkeypatch):
     book(client, world, "jane", "F1", "pm")
     set_now(monkeypatch, sg(DAY, 9))
-    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["carl"])).status_code == 201
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["dina"])).status_code == 201
     assert client.post(f"/api/admin/floor-plans/{world['plan']}/unpublish", headers=hdr(world["tok"]["root"])).status_code == 200
     assert run_one("select end_reason from seat_bookings")["end_reason"] == "plan_changed"
     assert run_one("select end_reason from seat_checkins")["end_reason"] == "plan_changed"
@@ -67,12 +67,12 @@ def test_public_activity_today_only(client, world, monkeypatch):
 def test_deleting_published_plan_cancels_bookings_and_ends_check_ins(client, world, monkeypatch):
     book(client, world, "jane", "F1", "pm")
     set_now(monkeypatch, sg(DAY, 9))
-    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["carl"])).status_code == 201
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["dina"])).status_code == 201
     assert client.delete(f"/api/admin/floor-plans/{world['plan']}", headers=hdr(world["tok"]["root"])).status_code == 204
     assert run_one("select end_reason from seat_bookings")["end_reason"] == "plan_changed"
     assert run_one("select end_reason from seat_checkins")["end_reason"] == "plan_changed"
     assert run_one("select count(*) as n from seat_booking_blocks")["n"] == 0
-    assert client.get("/api/desk/me", headers=hdr(world["tok"]["carl"])).get_json()["checkin"] is None
+    assert client.get("/api/desk/me", headers=hdr(world["tok"]["dina"])).get_json()["checkin"] is None
 
 
 def test_retagging_seat_away_from_free_for_all_ends_its_check_ins(client, world, monkeypatch):
@@ -142,7 +142,7 @@ def test_settle_logs_when_it_rolls_back(client, world, monkeypatch, caplog):
     monkeypatch.setattr(service, "_free_booking_blocks", boom)
     book(client, world, "jane", "F1")
     set_now(monkeypatch, sg(DAY, 13, 30))
-    client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["jane"]))
+    client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["dina"]))
     set_now(monkeypatch, sg(DAY, 19, 30))                                       # check-in due to end -> boom
     with caplog.at_level(logging.WARNING):
         assert client.get(f"/api/public/floors/{world['plan']}").status_code == 200
@@ -152,7 +152,7 @@ def test_settle_logs_when_it_rolls_back(client, world, monkeypatch, caplog):
 def test_occupied_seat_says_since_and_until_for_the_floor_tooltip(client, world, monkeypatch):
     """Owner 2026-10-16: hover on a seat shows who sits there and until when (live floor and TV)."""
     set_now(monkeypatch, sg(DAY, 9))
-    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["carl"])).status_code == 201
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["dina"])).status_code == 201
     seat = next(s for s in client.get(f"/api/public/floors/{world['plan']}").get_json()["seats"] if s["id"] == world["seats"]["E1"])
-    assert seat["state"] == "occupied" and seat["occupant"]["name"] == "Carl Lim"
+    assert seat["state"] == "occupied" and seat["occupant"]["name"] == "Dina Koh"
     assert seat["occupant"]["since"].startswith(f"{DAY.isoformat()}T09:00") and seat["occupant"]["until"].startswith(f"{DAY.isoformat()}T19:00")

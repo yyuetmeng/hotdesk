@@ -57,13 +57,13 @@ def test_team_today_and_tomorrow(client, world, monkeypatch):
     assert book(client, world, "ali", "F2", "pm").status_code == 201                       # ali: today (DAY) PM
     assert book(client, world, "bob", "F1", "pm").status_code == 201                       # bob is in Ops: not shown
     set_now(monkeypatch, sg(DAY, 9))
-    _check_in(client, world, "carl", "E1")
+    _check_in(client, world, "dina", "E1")
     assert book(client, world, "root", "F1", "full", day=DAY + timedelta(days=3)).status_code == 201  # root: Monday (next working day)
     [team] = _dash(client, world, "jane")["team"]
-    assert (team["team_name"], team["size"]) == ("Engineering", 4)                         # dave is inactive
+    assert (team["team_name"], team["size"]) == ("Engineering", 5)                         # dave is inactive
     assert [(m["name"], (m["today"] or {}).get("state"), bool(m["tomorrow"])) for m in team["members"]] == [
-        ("Carl Lim", "checked_in", False), ("Ali Rahman", "booked", False), ("Root Admin", None, True)]
-    assert team["members"][0]["today"]["seat_label"] == "E1" and team["members"][0]["initials"] == "CL"
+        ("Dina Koh", "checked_in", False), ("Ali Rahman", "booked", False), ("Root Admin", None, True)]
+    assert team["members"][0]["today"]["seat_label"] == "E1" and team["members"][0]["initials"] == "DK"
 
 
 def test_no_team(client, world):
@@ -74,18 +74,18 @@ def test_no_team(client, world):
 
 def test_trend_and_history(client, world, monkeypatch):
     mon, tue = DAY - timedelta(days=4), DAY - timedelta(days=3)   # DAY is Friday 16 Oct 2026
-    set_now(monkeypatch, sg(mon, 9)); _check_in(client, world, "carl", "E1")
-    set_now(monkeypatch, sg(mon, 17, 30)); _give_up(client, world, "carl", "E1")
-    set_now(monkeypatch, sg(tue, 8, 50)); _check_in(client, world, "carl", "E1")
-    set_now(monkeypatch, sg(DAY, 9)); _check_in(client, world, "carl", "E1")   # Tuesday's ended automatically
-    trend = _dash(client, world, "carl")["trend"]
+    set_now(monkeypatch, sg(mon, 9)); _check_in(client, world, "dina", "E1")
+    set_now(monkeypatch, sg(mon, 17, 30)); _give_up(client, world, "dina", "E1")
+    set_now(monkeypatch, sg(tue, 8, 50)); _check_in(client, world, "dina", "E1")
+    set_now(monkeypatch, sg(DAY, 9)); _check_in(client, world, "dina", "E1")   # Tuesday's ended automatically
+    trend = _dash(client, world, "dina")["trend"]
     assert len(trend["days"]) == 10 and trend["days"][-1]["date"] == DAY.isoformat()
     assert all(d["weekday"] not in ("Sat", "Sun") for d in trend["days"])
     by_day = {d["date"]: d for d in trend["days"]}
     assert (by_day[mon.isoformat()]["check_in"], by_day[mon.isoformat()]["check_out"]) == ("09:00", "17:30")
     assert by_day[tue.isoformat()]["check_in"] == "08:50" and by_day[tue.isoformat()]["check_out"]
     assert trend["days_in_office"] == 3 and trend["usual_arrival"] == "09:00"
-    history = _dash(client, world, "carl")["history"]
+    history = _dash(client, world, "dina")["history"]
     assert [(h["date"], h["kind"], h["outcome"]) for h in history[:3]] == [
         (DAY.isoformat(), "walk_in", "checked_in"), (tue.isoformat(), "walk_in", "checked_in"), (mon.isoformat(), "walk_in", "checked_in")]
     assert (history[2]["from"], history[2]["to"]) == ("09:00", "17:30")

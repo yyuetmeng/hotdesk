@@ -54,17 +54,17 @@ def test_me_shows_usual_seat_and_auto_book(client, world):
 
 
 def test_team_seat_is_not_bookable(client, world):
-    _set_usual(client, world, "carl", "E1")
-    assert client.get("/api/desk/me", headers=hdr(world["tok"]["carl"])).get_json()["usual_seat"]["bookable"] is False
+    _set_usual(client, world, "dina", "E1")
+    assert client.get("/api/desk/me", headers=hdr(world["tok"]["dina"])).get_json()["usual_seat"]["bookable"] is False
 
 
 # --- where it shows ---------------------------------------------------------------------------
 
 def test_finder_and_dashboard_show_usual_seat(client, world):
-    _set_usual(client, world, "carl", "E1")
-    [carl] = client.get("/api/desk/people", query_string={"q": "carl"}, headers=hdr(world["tok"]["jane"])).get_json()["items"]
-    assert (carl["status"], carl["usual_seat"]["seat_label"], carl["usual_seat"]["plan_id"]) == ("away", "E1", world["plan"])
-    assert _dash(client, world, "carl")["usual_seat"]["seat_label"] == "E1"
+    _set_usual(client, world, "dina", "E1")
+    [dina] = client.get("/api/desk/people", query_string={"q": "dina"}, headers=hdr(world["tok"]["jane"])).get_json()["items"]
+    assert (dina["status"], dina["usual_seat"]["seat_label"], dina["usual_seat"]["plan_id"]) == ("away", "E1", world["plan"])
+    assert _dash(client, world, "dina")["usual_seat"]["seat_label"] == "E1"
     [bob] = client.get("/api/desk/people", query_string={"q": "bob"}, headers=hdr(world["tok"]["jane"])).get_json()["items"]
     assert bob["usual_seat"] is None
 
@@ -84,9 +84,9 @@ def test_auto_book_today_and_tomorrow_once(client, world):
 def test_auto_book_off_or_team_seat_does_nothing(client, world):
     _set_usual(client, world, "jane", "F1")
     assert _dash(client, world, "jane")["auto_book"] == []                                # switch off
-    _set_usual(client, world, "carl", "E1")
-    _auto_on(client, world, "carl")
-    assert _dash(client, world, "carl")["auto_book"] == []                                # team seat: no booking needed
+    _set_usual(client, world, "dina", "E1")
+    _auto_on(client, world, "dina")
+    assert _dash(client, world, "dina")["auto_book"] == []                                # team seat: no booking needed
 
 
 def test_auto_book_reports_a_taken_seat(client, world):

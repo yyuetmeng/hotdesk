@@ -60,7 +60,7 @@ def test_colleague_rules(client, world):
     assert book(client, world, "ali", "F1", for_user="dave").status_code == 400     # inactive
     found = client.get("/api/desk/colleagues?q=&date=" + DAY.isoformat(), headers=hdr(world["tok"]["ali"])).get_json()
     names = {c["name"] for c in found["items"]}
-    assert names == {"Root Admin", "Jane Tan", "Carl Lim"} and found["allowance"]["limit"] == 5
+    assert names == {"Root Admin", "Jane Tan", "Carl Lim", "Dina Koh"} and found["allowance"]["limit"] == 5
 
 
 def test_cancel_rights(client, world):

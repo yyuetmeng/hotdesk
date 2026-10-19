@@ -134,7 +134,7 @@ def test_template_has_the_andy_lau_sample_row_which_upload_ignores(client, world
     assert len(rows) == 2
     sample = dict(zip(HEAD, rows[1]))
     assert (sample["Full name"], sample["Email"], sample["Username"]) == ("Andy Lau", "andy.lau@gmail.com", "andylau")
-    assert sample["Project teams"] == "Engineering"                                   # an existing team, as an example
+    assert sample["Project teams"] == "Design"                                        # an existing team, as an example
     body = _upload(client, world, USERS, [rows[1], ["Mei Ling", "mei@x.com", "", "", "", "", ""]]).get_json()
     assert [r["status"] for r in body["rows"]] == ["skip", "create"] and body["imported"] == 1
     assert "sample" in body["rows"][0]["messages"][0]

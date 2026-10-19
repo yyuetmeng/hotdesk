@@ -193,7 +193,7 @@ def test_insights_zones_rows(client, world, monkeypatch):
     _republish_with_zone(client, world, _zone(0, 0, 4, 1, "Z"))
     assert book(client, world, "jane", "F1", "am").status_code == 201
     set_now(monkeypatch, sg(DAY, 8, 15))       # before the AM no-show release at 08:30
-    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=dhdr(world["tok"]["carl"])).status_code == 201
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=dhdr(world["tok"]["dina"])).status_code == 201
     body = _insights(client, world)
     assert body["has_zones"] is True and datetime.fromisoformat(body["now"]) == sg(DAY, 8, 15)
     assert _brief(body["rows"]) == [("Z", "Level 1", 2, 1, 0, 1, 50), ("No zone", "Level 1", 1, 0, 1, 0, 100)]
@@ -215,7 +215,7 @@ def test_insights_whole_floor_and_empty(client, world):
 
 def test_insights_untagged_occupied_seat_counts(client, world, monkeypatch):
     set_now(monkeypatch, sg(DAY, 9))
-    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=dhdr(world["tok"]["carl"])).status_code == 201
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=dhdr(world["tok"]["dina"])).status_code == 201
     untag = {"E1": lambda e: {**e, "department_id": None, "open_to_all": False}}
     _republish_with_zone(client, world, _zone(4, 0, 2, 1, "E"), retag=untag)
     open_checkin = run_one("select count(*) as n from seat_checkins where checked_out_at is null")["n"]

@@ -33,11 +33,11 @@ def test_no_show_release_is_audited(client, world, monkeypatch):
 
 def test_automatic_check_out_is_audited(client, world, monkeypatch):
     set_now(monkeypatch, sg(DAY, 9))
-    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["carl"])).status_code == 201
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["dina"])).status_code == 201
     set_now(monkeypatch, sg(DAY, 23))
     _poke(client, world)
     [e] = _entries("checkin.auto_ended")
-    assert e["actor_id"] is None and (e["details"]["seat_label"], e["details"]["user_name"]) == ("E1", "Carl Lim")
+    assert e["actor_id"] is None and (e["details"]["seat_label"], e["details"]["user_name"]) == ("E1", "Dina Koh")
 
 
 def test_plan_change_cancellations_name_the_admin(client, world):

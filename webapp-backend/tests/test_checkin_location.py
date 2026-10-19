@@ -14,7 +14,7 @@ def world(client, db, monkeypatch):
 
 
 def _check_in(client, world, body=None):
-    return client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", json=body, headers=hdr(world["tok"]["carl"]))
+    return client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", json=body, headers=hdr(world["tok"]["dina"]))
 
 
 def _row():

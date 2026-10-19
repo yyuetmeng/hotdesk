@@ -19,7 +19,7 @@ def _occ(client, world, rng):
 
 def _carl_in_at_nine(client, world, monkeypatch):
     set_now(monkeypatch, sg(DAY, 9))
-    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["carl"])).status_code == 201
+    assert client.post(f"/api/desk/seats/{world['seats']['E1']}/check-in", headers=hdr(world["tok"]["dina"])).status_code == 201
     set_now(monkeypatch, sg(DAY, 10))
 
 
