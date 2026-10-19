@@ -103,6 +103,29 @@ with `formatDate` wherever it is shown as text.
 - Run from `webapp-backend/`: `python -m pytest -q` (the full suite takes about 2 minutes). Do not run
   two sessions at once: they share the `hotdesk_test` schema.
 
+### 2.7 No passwords in tests
+GitHub secret scanning flags any written-out value next to a password-like name, even a made-up
+test value. Tests, smoke scripts and docs therefore never contain one.
+- **Generate every secret at run time.** Backend tests use `tests/creds.py`: `SECRET` (what every
+  test user signs in with), `WRONG`, `new_secret()`, and policy cases such as `too_short()`,
+  `letters()`, `digits()` and `word_with_e()`. Frontend smoke scripts make theirs with
+  `crypto.getRandomValues` (see `scripts/smoke_secret_logic.mjs`). Signing keys in tests are
+  random too (`SIGNING_KEY` in `conftest.py`).
+- **Never name test code after passwords.** No `password`, `pw` or `PW` in test variables,
+  parameters, helpers, test function names or file names; say `secret` instead.
+- **Only `tests/creds.py` names the app's password functions and fields.** Other tests send
+  bodies through its helpers: `sign_in(...)`, `secret_body(...)`, `change_body(...)`,
+  `default_secret_form(...)`, and call `hashed`, `matches` and `policy_problem` rather than
+  `hash_password`, `verify_password` and `password_problem`.
+- **What may still appear:** URLs (`/forgot-password`), database columns (`password_hash`), field
+  names in API error responses, and error text. These are the app's interface and are never
+  paired with a value.
+- **Docs and examples** write `***` or `<password>` where a value would go.
+- **The app has no built-in secrets either:** `SECRET_KEY` and `SUPABASE_CONNECTION_STRING` come
+  only from `.env`, and `create_app` refuses to start without them.
+- **Before committing,** this should print nothing:
+  `git diff --cached | grep -niE "(pass(word)?|pwd?|secret)['\"]?\s*[:=(]\s*['\"][^'\"*<]{3,}"`
+
 ---
 
 ## 3. Frontend (React + Vite, `webapp-frontend/`)
@@ -141,4 +164,4 @@ with `formatDate` wherever it is shown as text.
 - Commit messages: `type: summary` in the imperative, lowercase type. Types: `feat`, `fix`,
   `refactor`, `docs`, `test`, `chore`.
 - One logical change per commit; tests and docs go in the same commit as the code they cover.
-- Never commit `.env` files, credentials or tokens.
+- Never commit `.env` files, credentials or tokens, nor written-out test passwords (see 2.7).
