@@ -62,7 +62,7 @@ Each part fades out into the next. **Total narration: about 200 words**, read at
 Times are positions in the finished video. Record each clip 2–3 seconds longer at both ends, for trimming.
 
 **Title and description:** show them as a card at the bottom left, fading in over the first half-second and out
-after about 5 seconds (so it doesn't hide what happens later in the scene; the intro and outro keep theirs).
+after about 7 seconds (sooner if a zoom-in would collide with it; the intro and outro keep theirs).
 The exact wording is under **On screen** in each part. Keep the same card style throughout: the logo, a small
 "Scene n of 6" line, the title in bold, and the description underneath.
 
@@ -169,7 +169,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
 1. Lay out the parts in order and trim each to its time above. Speed up the intro, the outro and the waiting
    in scene 4.
 2. Put a **fade** (about 0.6 s) between every two parts.
-3. Add the title cards at the bottom left, the same style for every scene, each visible for about 5 seconds.
+3. Add the title cards at the bottom left, the same style for every scene, each visible for about 7 seconds.
 4. Add the narration track, then nudge the clips so each action lands on its words.
 5. **Zoom in** (crop and scale) on the small moments:
    - the seat changing colour in scene 3;
