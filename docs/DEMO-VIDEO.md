@@ -16,7 +16,8 @@ with its **title and a one-line description** on screen. The whole video uses th
 | 1:16–1:32 | Scene 6 | **Plan the office** |
 | 1:32–1:45 | Outro: floor display, fast-forwarded, then the end card | **Every desk used, nobody searching** |
 
-Each part fades out into the next. **Total narration: about 200 words**, read at a calm pace.
+Each part dips to black (about 1 second) before the next one. **Total narration: about 170 words**, in a
+professional, cheerful voice; each line starts just after its part fades in.
 
 ## Before you record
 
@@ -74,8 +75,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
   in fast motion.
 - **Before it:** the splash card (the same as the end card) for about 3 seconds, fading into the display.
 - **On screen:** **Every desk in the office, live**: *A working day at DIC - Digital Factory*. No speed badge.
-- **Narration:** "In a hot-desking office, desks get booked and sit empty, and people waste time hunting for a
-  seat. Hot Desk fixes that."
+- **Narration:** "In a hot-desking office, desk availability is always an issue, and people waste time hunting for a seat. Hot Desk fixes that."
 - **Then:** fade into scene 1.
 
 ### Scene 1 · The live office (0:09–0:21)
@@ -87,8 +87,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
   2. Hover an **occupied** chair (coloured by its project): its card shows the person and project.
   3. Hover a **yellow (away)** chair: its card shows *Auto-release hh:mm*.
 - **On screen:** **The live office**: *Under-desk sensors and QR check-in show who is where, in real time.*
-- **Narration:** "Every desk is live. Under-desk sensors see who's there, a QR code on each desk handles
-  check-in, and desks free themselves when people leave."
+- **Narration:** "Every desk is live. Desk sensors see who's there, a QR code on each desk handles check-in, and desks free themselves when people leave, or did not appear."
 
 ### Scene 2 · Reserve a desk (0:21–0:34)
 
@@ -100,8 +99,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
   4. Click **Reserve L1-DF-07 · Today morning**. The green confirmation appears.
   5. Scroll up a little: **My reservations** shows it, marked *Reserved*.
 - **On screen:** **Reserve a desk**: *Book a morning, afternoon or full day, today or tomorrow.*
-- **Narration:** "Need a desk? Reserve one by slot: morning, afternoon or full day. A reservation only
-  holds it…"
+- **Narration:** "How to reserve a desk? You can choose your slot: morning, afternoon or full day. A reservation will hold your seat…"
 
 ### Scene 3 · Scan to check in (0:34–0:50)
 
@@ -115,8 +113,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
   3. On the dashboard beside it, **L1-DF-07** turns taken (in SAP's colour). Hover it to show its card.
 - **On screen:** **Scan to check in**: *The QR code on the desk confirms the reservation. The dashboard updates
   instantly.*
-- **Narration:** "…until you arrive and scan the QR code on the desk. Checking in confirms it, and everyone
-  sees the desk is taken."
+- **Narration:** "Scan QR or tap your phone via NFC on the desk. Checking in confirms your reservation, and everyone sees the desk is taken."
 
 ### Scene 4 · No ghost bookings (0:50–1:03)
 
@@ -129,8 +126,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
   4. Scroll to **Recent activity**: *"… did not check in at L1-AI-0x … : released"*.
 - **Edit:** speed up the waiting 6–8×.
 - **On screen:** **No ghost bookings**: *No check-in within 30 minutes? The desk is released automatically.*
-- **Narration:** "Booked but never showed up? With no check-in within thirty minutes, the desk is released
-  for someone else."
+- **Narration:** "Booked but never showed up? With no check-in within thirty minutes, the desk is released for someone else."
 
 ### Scene 5 · Find a colleague (1:03–1:16)
 
@@ -138,8 +134,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
 - **Do:** type **Rachel** in the search box, then tap **Rachel Tan**. The display switches to **Level 2**, and
   her desk **L2-GO-12** pulses.
 - **On screen:** **Find a colleague**: *Search the office screen, and their desk lights up.*
-- **Narration:** "On the screen at the entrance, anyone can find a colleague: tap a name, and their desk lights
-  up."
+- **Narration:** "Using the display placed at the entrance, anyone can find a colleague: tap a name, and their desk lights up. No more searching around."
 
 ### Scene 6 · Plan the office (1:16–1:32)
 
@@ -151,8 +146,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
   3. In the **What-if capacity planner**, drag **Extra headcount by the end of 12 weeks** up: the outlook reacts.
 - **On screen:** **Plan the office**: *Utilisation by zone, occupancy trends and a capacity forecast.*
 - **For the recording**, the "simulated" labels on Insights and the sidebar are hidden (the app itself keeps them).
-- **Narration:** "Facilities teams see utilisation by zone and how busy the office gets, and Insights turns
-  that into a capacity forecast."
+- **Narration:** "Admin can see utilisation by zone and how busy the office gets, and Insights turns that into a capacity forecast."
 
 ### Outro · Every desk used, nobody searching (1:32–1:45)
 
@@ -168,7 +162,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
 
 1. Lay out the parts in order and trim each to its time above. Speed up the intro, the outro and the waiting
    in scene 4.
-2. Put a **fade** (about 0.6 s) between every two parts.
+2. Put a **dip to black** (about 1 s) between every two parts, so each cut-over is clear.
 3. Add the title cards at the bottom left, the same style for every scene, each visible for about 7 seconds.
 4. Add the narration track, then nudge the clips so each action lands on its words.
 5. **Zoom in** (crop and scale) on the small moments:
