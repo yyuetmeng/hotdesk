@@ -127,6 +127,7 @@ The exact wording is under **On screen** in each part. Keep the same card style 
 - **Edit:** speed up the waiting 6–8×.
 - **On screen:** **No ghost bookings**: *No check-in within 30 minutes? The desk is released automatically.*
 - **Narration:** "Booked but never showed up? With no check-in within thirty minutes, the desk is released for someone else."
+  Then at about **1:07**, just before the zoom on Recent activity: "You can see that the desk is released in the recent activity."
 
 ### Scene 5 · Find a colleague (1:03–1:16)
 
@@ -146,7 +147,9 @@ The exact wording is under **On screen** in each part. Keep the same card style 
   3. In the **What-if capacity planner**, drag **Extra headcount by the end of 12 weeks** up: the outlook reacts.
 - **On screen:** **Plan the office**: *Utilisation by zone, occupancy trends and a capacity forecast.*
 - **For the recording**, the "simulated" labels on Insights and the sidebar are hidden (the app itself keeps them).
-- **Narration:** "Admin can see utilisation by zone and how busy the office gets, and Insights turns that into a capacity forecast."
+- **Narration:** "Admin can see utilisation by zone and how busy the office gets."
+  Then at about **1:30**, when the page changes to Capacity & demand planning: "And Insights turns that into a capacity
+  forecast. You can see the capacity outlook, do capacity planning and more…"
 
 ### Outro · Every desk used, nobody searching (1:32–1:45)
 
@@ -156,7 +159,8 @@ The exact wording is under **On screen** in each part. Keep the same card style 
   finder · capacity planning*.
 - **Then:** fade to the **end card** (about 5 seconds): the logo, ***Hot Desk: every desk used, nobody
   searching***, and your team name.
-- **Narration:** "Hot Desk. Every desk used, and nobody searching."
+- **Narration:** "This is Hot Desk. An idea conceived on AI Builders' Day and turned into reality."
+- **End card narration:** "Hot Desk. Every desk used, nobody searching."
 
 ## Edit (Clipchamp, built into Windows 11)
 
