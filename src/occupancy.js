@@ -726,8 +726,14 @@ export class OccupancyEngine extends EventEmitter {
     seat.checkedInUntil = null;
     seat.checkedInTeam = null;
     seat.teamBooking = false;
+    // The person's reservation for this desk ends with their check-in: the rest of the slot is free again.
+    let ended = false;
+    for (const r of this.reservations.values()) {
+      if (r.seatId === seat.id && r.status === 'checked-in' && sameName(r.checkedInBy, user) && r.end > now) { r.status = 'completed'; r.endedAt = now; ended = true; }
+    }
     this.#log(now, seat, reason, user, team);
     this.emit('change', this.view(seat, now));
+    if (ended) this.emit('reservations');
   }
 
   #countTeam(now, team, field) {

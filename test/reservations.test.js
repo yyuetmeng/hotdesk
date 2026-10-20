@@ -118,3 +118,14 @@ test('check-ins run to the end of a slot: morning, afternoon, full day, or the r
   assert.deepEqual(engine.checkinSlots(), [{ id: 'late', label: 'Rest of the day', until: at(0, 0, 1) }]);
   assert.equal(engine.checkIn('L1-A-04', 'Dee', { team: 'SAP', slot: 'auto' }).checkedInUntil, at(0, 0, 1));
 });
+
+test('checking out ends the reservation: the rest of the slot can be reserved again', () => {
+  const { engine, clock } = setup(8, 0);
+  engine.reserve(['L1-A-01'], 'Ana', { team: 'SAP', date: day(), slot: 'am' });
+  engine.checkIn('L1-A-01', 'Ana', { team: 'SAP' });
+  clock.advance(60);
+  engine.checkOut('L1-A-01', 'Ana', { team: 'SAP' });
+  assert.equal(engine.listReservations({ user: 'Ana' })[0].status, 'completed');
+  assert.equal(engine.slotAvailability(day(), 'am')['L1-A-01'].state, 'free');
+  assert.equal(engine.reserve(['L1-A-01'], 'Ben', { team: 'SAP', date: day(), slot: 'am' })[0].seatId, 'L1-A-01');
+});

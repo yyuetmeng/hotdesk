@@ -1,12 +1,13 @@
 # Demo video: shot-by-shot script
 
-A 1:45 video for a judging audience. It opens and closes on the **floor display, fast-forwarded**, so the
+A 1:53 video for a judging audience. It opens and closes on the **Hot Desk splash card** and the **floor display, fast-forwarded**, so the
 judges see desks fill up and free up on their own. In between are six short scenes, and each one starts
 with its **title and a one-line description** on screen. The whole video uses the **light theme**.
 
 | Time | Part | Title on screen |
 |---|---|---|
-| 0:00–0:09 | Intro: floor display, fast-forwarded | **Hot Desk** |
+| 0:00–0:03 | Splash: the end card (logo and tagline) | **Hot Desk** |
+| 0:03–0:12 | Intro: floor display, fast-forwarded | **Every desk in the office, live** |
 | 0:09–0:21 | Scene 1 | **The live office** |
 | 0:21–0:34 | Scene 2 | **Reserve a desk** |
 | 0:34–0:50 | Scene 3 | **Scan to check in** |
@@ -71,9 +72,8 @@ The exact wording is under **On screen** in each part. Keep the same card style 
 - **Record:** about 70 seconds without touching anything (the demo already runs 10× faster than real
   time). In the edit, speed it up **8×** so it lasts about 9 seconds: people arrive, leave and step away
   in fast motion.
-- **On screen:** **Every desk in the office, live**: *A working day at DIC Annex, sped up: desks fill up and free
-  up on their own.* Add a small "▶▶ 8× speed" badge at the bottom right so nobody thinks the office is really
-  that busy.
+- **Before it:** the splash card (the same as the end card) for about 3 seconds, fading into the display.
+- **On screen:** **Every desk in the office, live**: *A working day at DIC - Digital Factory*. No speed badge.
 - **Narration:** "In a hot-desking office, desks get booked and sit empty, and people waste time hunting for a
   seat. Hot Desk fixes that."
 - **Then:** fade into scene 1.
@@ -82,7 +82,8 @@ The exact wording is under **On screen** in each part. Keep the same card style 
 
 - **Page:** dashboard `http://localhost:3000`, scrolled to the top.
 - **Do:**
-  1. Hold for 2 seconds on the KPI cards and the floor plan.
+  1. Hold for 1.5 seconds on the KPI cards, then scroll down so the **Level 1 plan sits in the middle of the
+     screen**, clear of the title card.
   2. Hover an **occupied** chair (coloured by its project): its card shows the person and project.
   3. Hover a **yellow (away)** chair: its card shows *Auto-release hh:mm*.
 - **On screen:** **The live office**: *Under-desk sensors and QR check-in show who is where, in real time.*
@@ -148,17 +149,17 @@ The exact wording is under **On screen** in each part. Keep the same card style 
      **Utilisation by zone**.
   2. Open **Insights** from the sidebar. Hold on the **Capacity outlook**.
   3. In the **What-if capacity planner**, drag **Extra headcount by the end of 12 weeks** up: the outlook reacts.
-- **On screen:** **Plan the office**: *Utilisation by zone, occupancy trends and a capacity forecast (simulated
-  data).*
+- **On screen:** **Plan the office**: *Utilisation by zone, occupancy trends and a capacity forecast.*
+- **For the recording**, the "simulated" labels on Insights and the sidebar are hidden (the app itself keeps them).
 - **Narration:** "Facilities teams see utilisation by zone and how busy the office gets, and Insights turns
-  that into a capacity forecast, shown here on simulated data."
+  that into a capacity forecast."
 
 ### Outro · Every desk used, nobody searching (1:32–1:45)
 
 - **Page:** `http://localhost:3000/display` again, on another tab (e.g. **L1 · AI Lab**), recorded and sped
   up 8× like the intro (about 8 seconds).
 - **On screen:** **Every desk used, nobody searching**: *Live occupancy · reservations · QR check-in · colleague
-  finder · capacity planning*, with the 8× badge.
+  finder · capacity planning*.
 - **Then:** fade to the **end card** (about 5 seconds): the logo, ***Hot Desk: every desk used, nobody
   searching***, and your team name.
 - **Narration:** "Hot Desk. Every desk used, and nobody searching."
