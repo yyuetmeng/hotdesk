@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, teamSeatText, nextDayName, sgToday, seatAction, myBookingsToday, checkInWindow, untaggedNote, latestOnly, dayActive } from '../src/desk/deskLogic.js';
+import { canBookAny, footprint, initials, presetLabel, stateLabel, zoneCaption, floorLoading, firstLoad, teamSeatText, nextDayName, sgToday, seatAction, myBookingsToday, checkInWindow, untaggedNote, latestOnly, dayActive, goToLabel } from '../src/desk/deskLogic.js';
 
 assert.equal(initials('Jane Tan'), 'JT');
 assert.equal(initials('Prince'), 'P');
@@ -67,4 +67,11 @@ assert.equal(dayActive(1, 0, true), true);
 const e1s = { seat_id: 'e1', seat_label: 'E1', plan_id: 'p1', plan_name: 'Level 1', zone: null };
 assert.equal(teamSeatText(e1s), 'Your project team has a free seat: E1 on Level 1.');
 assert.equal(teamSeatText(e1s, "Tan's team"), "Tan's team has a free seat: E1 on Level 1.");
+// Go to a check-in suggestion: its end time only when the walk-in ends before 19:00 that day (team first §2).
+const e1go = { seat_id: 'e1', seat_label: 'E1' };
+assert.equal(goToLabel(e1go, '2026-10-16'), 'Go to E1');                                           // a book suggestion: no until
+assert.equal(goToLabel({ ...e1go, until: '2026-10-16T13:00:00+08:00' }, '2026-10-16'), 'Go to E1 (until 13:00)');
+assert.equal(goToLabel({ ...e1go, until: '2026-10-16T19:00:00+08:00' }, '2026-10-16'), 'Go to E1');   // the normal day end
+assert.equal(goToLabel({ ...e1go, until: '2026-10-17T00:00:00+08:00' }, '2026-10-16'), 'Go to E1');   // after 19:00: midnight
+assert.equal(goToLabel({ ...e1go, until: '2026-10-16T05:30:00Z' }, '2026-10-16'), 'Go to E1 (until 13:30)');   // read in Singapore time
 console.log('desk logic smoke OK');

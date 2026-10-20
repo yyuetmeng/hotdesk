@@ -37,6 +37,14 @@ export const nextDayName = (dayIso, todayIso) => (dayNumber(dayIso) - dayNumber(
 /** Today's date in Singapore as YYYY-MM-DD. */
 export const sgToday = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(now);
 
+/** A check-in suggestion's button: "Go to E1", or "Go to E1 (until 13:00)" when the walk-in there would end
+ * before 19:00 on `todayIso` (someone booked the seat later today; spec 2026-10-19-team-seats-first §2). */
+export function goToLabel(s, todayIso = sgToday()) {
+  const until = s.until ? new Date(s.until) : null;
+  const hhmm = until && new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(until);
+  return until && sgToday(until) === todayIso && hhmm < '19:00' ? `Go to ${s.seat_label} (until ${hhmm})` : `Go to ${s.seat_label}`;
+}
+
 /** The seat panel's check-in button: 'check_in' (no booking needed on a free-for-all or own-team seat; the
  * server decides via can_check_in), 'give_up' (your own seat), or null. Today only. */
 export const seatAction = (seat, isToday) => (!isToday ? null : seat.can_give_up ? 'give_up' : seat.can_check_in ? 'check_in' : null);

@@ -7,7 +7,7 @@ import { Link, useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatTime } from '../format.js';
-import { checkInWindow, myBookingsToday, presetLabel, sgToday, stateLabel } from './deskLogic.js';
+import { checkInWindow, goToLabel, myBookingsToday, presetLabel, sgToday, stateLabel } from './deskLogic.js';
 import { checkInLocation } from './location.js';
 import { checkInOutcome } from './scanLogic.js';
 import './desk.css';
@@ -92,7 +92,7 @@ function CheckInResult({ outcome, seat, busy, onGiveUp }) {
     <div className="desk-result-actions">
       {outcome.kind === 'ok' && <><Link className="button primary" to="/">Done</Link>
         {seat?.can_give_up && <button className="button" disabled={busy} onClick={onGiveUp}>{busy ? 'Giving up…' : 'Give up seat'}</button>}</>}
-      {outcome.kind === 'bad' && <>{s && <Link className="button primary" to={`/checkin/${s.seat_id}`}>Go to {s.seat_label}</Link>}
+      {outcome.kind === 'bad' && <>{s && <Link className="button primary" to={`/checkin/${s.seat_id}`}>{goToLabel(s)}</Link>}
         <Link className={`button${s ? '' : ' primary'}`} to="/scan">Scan another desk</Link>
         <Link className="button" to="/book">Find a free seat</Link></>}
       {outcome.kind === 'done' && <><Link className="button primary" to="/">Done</Link><Link className="button" to="/scan">Scan another desk</Link></>}

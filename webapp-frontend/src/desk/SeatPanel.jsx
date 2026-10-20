@@ -5,11 +5,11 @@ import { flaskRequest } from '../api.js';
 import { Notice } from '../components.jsx';
 import { formatTime } from '../format.js';
 import BookingPanel from './BookingPanel.jsx';
-import { seatAction, stateLabel, teamSeatText, untaggedNote } from './deskLogic.js';
+import { goToLabel, seatAction, stateLabel, teamSeatText, untaggedNote } from './deskLogic.js';
 import { checkInLocation } from './location.js';
 
 // A free team seat to check in at instead (team first): a link to its check-in page, which checks in on arrival.
-const GoTo = ({ s }) => <Link className="button" to={`/checkin/${s.seat_id}`}>Go to {s.seat_label}</Link>;
+const GoTo = ({ s }) => <Link className="button" to={`/checkin/${s.seat_id}`}>{goToLabel(s)}</Link>;
 
 export default function SeatPanel({ planId, seat, isToday, onChanged, booking, teamFirst, jumpTo }) {
   const [info, setInfo] = useState(null);
