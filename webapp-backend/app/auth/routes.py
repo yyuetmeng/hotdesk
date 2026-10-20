@@ -13,6 +13,7 @@ from app.core.errors import error
 from app.core.orm import orm_session
 from app.core.passwords import common_hashes, password_problem
 from app.core.security import hash_password, verify_password
+from app.core.team_scope import managed_departments
 from app.core.users import fetch_user, find_user_by_identity, public_user
 
 from . import auth_bp
@@ -37,6 +38,10 @@ def auth_required(fn):
 
 def get_current_user_row():
     return fetch_user(get_jwt_identity())
+
+
+def _manages(role: str, user_id: str) -> list[dict]:
+    return [] if role == "admin" else managed_departments(user_id)
 
 
 def _identity(body: dict) -> str:
@@ -90,7 +95,7 @@ def login():
                                 additional_claims={"role": user.role.name, "email": user.email})
     g.jwt_uid = uid
     _auto_book_after_sign_in(user)
-    return jsonify(token=token, user=public_user(user), remember=remember)
+    return jsonify(token=token, user={**public_user(user), "manages": _manages(user.role.name, uid)}, remember=remember)
 
 
 def _auto_book_after_sign_in(user):
@@ -115,7 +120,7 @@ def me():
     user = get_current_user_row()
     if user is None:
         return error("user not found", 401)
-    return jsonify(user)
+    return jsonify({**user, "manages": _manages(user["role"], user["id"])})
 
 
 @auth_bp.get("/common-password-hashes")

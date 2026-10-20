@@ -12,12 +12,13 @@ from sqlalchemy.exc import IntegrityError
 from app.auth.tokens import invalidate_tokens, issue_token
 from app.core.audit import write_audit
 from app.auth.routes import MAX_FAILED_ATTEMPTS
-from app.core.auth_models import AuditLog, Department, Role, User, UserDepartment
+from app.core.auth_models import AuditLog, Department, Role, User, UserDepartment, UserManagedDepartment
 from app.core.email import invitation_email, send_email
 from app.core.errors import error
 from app.core.orm import orm_session
 from app.core.passwords import password_problem
 from app.core.security import admin_required, hash_password
+from app.core.team_scope import managed_departments, set_managed
 from app.core.users import email_exists, fetch_user, public_user, username_exists
 from app.desk.dashboard import seat_places
 
@@ -199,7 +200,15 @@ def list_users():
         aliased_fail.created_at >= func.now() - timedelta(days=7),
         aliased_fail.created_at > func.coalesce(unlocked, literal("-infinity").cast(DateTime(timezone=True))))
         .group_by(aliased_fail.target_id)).all()) if ids else {}
-    return jsonify(items=[{**public_user(u), "last_login_at": last_login[u.id].isoformat() if u.id in last_login else None,
+    manages = {}
+    if ids:
+        for uid, did, name in session.execute(
+                select(UserManagedDepartment.user_id, Department.id, Department.name)
+                .join(Department, Department.id == UserManagedDepartment.department_id)
+                .where(UserManagedDepartment.user_id.in_(ids)).order_by(Department.name)).all():
+            manages.setdefault(uid, []).append({"id": str(did), "name": name})
+    return jsonify(items=[{**public_user(u), "manages": manages.get(u.id, []),
+                           "last_login_at": last_login[u.id].isoformat() if u.id in last_login else None,
                            "failed_logins_7d": failed.get(u.id, 0), "locked": u.failed_attempts >= MAX_FAILED_ATTEMPTS}
                           for u in users], total=total, page=page, page_size=page_size)
 
@@ -210,7 +219,7 @@ def get_user(user_id):
     user = fetch_user(str(user_id))
     if user is None:
         return error("user not found", 404)
-    return jsonify(user)
+    return jsonify({**user, "manages": managed_departments(str(user_id))})
 
 
 def is_last_active_admin(user_id: str) -> bool:
@@ -225,7 +234,8 @@ UNLOCK_ACTIONS = ("user.enable", "user.password_reset", "password_reset.complete
 aliased_fail = aliased(AuditLog)
 
 PATCHABLE = ("full_name", "username", "email", "role", "is_active",
-             "start_date", "end_date", "department_ids", "booking_allowance", "usual_seat_id")
+             "start_date", "end_date", "department_ids", "booking_allowance", "usual_seat_id",
+             "manages_department_ids")
 
 
 @admin_bp.patch("/users/<uuid:user_id>")
@@ -281,11 +291,17 @@ def patch_user(user_id):
     dept_ids = body.get("department_ids")
     if dept_ids is not None and not _departments_exist(dept_ids):
         fields["department_ids"] = "unknown department id"
+    manages = body.get("manages_department_ids")
+    if manages is not None and not _departments_exist(manages):
+        fields["manages_department_ids"] = "unknown department id"
     if fields:
         return error("validation failed", 400, fields=fields)
 
     if user is None:
         return error("user not found", 404)
+    if manages and body.get("role", user.role.name) == "admin":
+        return error("validation failed", 400,
+                     fields={"manages_department_ids": "admins already manage every account"})
 
     demoting = body.get("role") and body["role"] != user.role.name
     disabling = body.get("is_active") is False
@@ -322,6 +338,10 @@ def patch_user(user_id):
         user.updated_at = func.now()
     if dept_ids is not None:
         _set_departments(user, dept_ids)
+    if manages is not None:
+        set_managed(user, manages)
+    elif body.get("role") == "admin":
+        set_managed(user, [])     # admins manage every account, so a new admin keeps no grants
     try:
         session.commit()
     except IntegrityError:
@@ -340,7 +360,7 @@ def patch_user(user_id):
         invalidate_tokens(user_id, "activate")
         _send_invitation(user_id, user.email, user.full_name, user.username)
     session.refresh(user)
-    return jsonify(public_user(user))
+    return jsonify({**public_user(user), "manages": managed_departments(user_id)})
 
 
 @admin_bp.delete("/users/<uuid:user_id>")

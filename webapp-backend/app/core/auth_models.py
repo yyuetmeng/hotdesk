@@ -39,6 +39,18 @@ class UserDepartment(Base):
                                                     server_default=func.now())
 
 
+class UserManagedDepartment(Base):
+    __tablename__ = "user_managed_departments"
+    __table_args__ = (PrimaryKeyConstraint("user_id", "department_id"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False,
+                                                    server_default=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
 
