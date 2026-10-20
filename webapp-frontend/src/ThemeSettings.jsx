@@ -57,7 +57,7 @@ export default function ThemeSettings() {
           <input type="checkbox" role="switch" checked={Boolean(me.auto_book)} onChange={(e) => toggleAuto(e.target.checked)} />
           <span className="theme-switch-track" aria-hidden="true" />
           <span>Auto-book a seat for me (my usual seat first, then my team's seats).
-            <small>{seat ? `${seat.seat_label} · ${seat.plan_name}, next working day` : 'Next working day'}</small></span>
+            <small>{seat?.bookable ? `${seat.seat_label} · ${seat.plan_name}, next working day` : 'Next working day'}</small></span>
         </label>
       </div>}
     </div>}
