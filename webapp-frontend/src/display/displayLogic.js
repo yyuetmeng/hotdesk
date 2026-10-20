@@ -147,5 +147,6 @@ export function seatTip(seat) {
     const b = seat.booking;
     return [head, `Booked for ${b.booked_for?.name ?? 'someone'} · ${hhmm(b.starts_at)}–${hhmm(b.ends_at)}`];
   }
+  if (seat.state === 'neutral') return [head, 'Not assigned'];   // Seat assignments page: no live use shown
   return [head, seat.state === 'not_bookable' ? 'Not set up for booking' : 'Available'];
 }

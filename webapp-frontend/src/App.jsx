@@ -12,6 +12,7 @@ import { DisplaysPage } from './pages/displays/DisplaysPage.jsx';
 import { FloorOverviewPage } from './pages/overview/FloorOverviewPage.jsx';
 import { ScanPage } from './desk/ScanPage.jsx';
 import { InsightsPage } from './pages/insights/InsightsPage.jsx';
+import { SeatAssignmentsPage } from './pages/assignments/SeatAssignmentsPage.jsx';
 import { AccountPage } from './pages/account/AccountPage.jsx';
 import { LoginPage } from './pages/login/LoginPage.jsx';
 import { UsersPage } from './pages/users/UsersPage.jsx';
@@ -29,7 +30,7 @@ const workspaceLinks = [['/', 'Dashboard', 'dashboard'], ['/overview', 'Floor ov
 const analyticsLinks = [['/insights', 'Insights', 'insights']];
 // Account managers (non-admins who manage accounts for chosen teams) see only Manage Users.
 const accountManagerLinks = [['/users', 'Manage Users', 'users']];
-const adminLinks = [['/desk-labels', 'Print Desk Labels', 'labels'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users'], ['/audit', 'Audit Log', 'audit']];
+const adminLinks = [['/desk-labels', 'Print Desk Labels', 'labels'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users'], ['/seat-assignments', 'Seat assignments', 'seat'], ['/audit', 'Audit Log', 'audit']];
 
 function NavIcon({ name }) {
   const paths = {
@@ -47,6 +48,7 @@ function NavIcon({ name }) {
     menu: <path d="M4 6h16M4 12h16M4 18h16"/>,
     audit: <><path d="M9 4h9a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9"/><path d="M4 4l5 5M9 4v5H4"/><path d="M9 13h7M9 17h5"/></>,
     finder: <><circle cx="10" cy="8" r="3.5"/><path d="M3.5 20v-1a6.5 6.5 0 0 1 9.5-5.8"/><circle cx="17" cy="16" r="3"/><path d="m19.2 18.2 2.3 2.3"/></>,
+    seat: <><path d="M7 4v8h10"/><path d="M7 12v8M17 12v8M7 16h10"/><path d="M14 3h6v5h-6z"/></>,
     labels: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></>,
     close: <path d="M6 6l12 12M18 6 6 18"/>,
     collapse: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M16 10l-2 2 2 2"/></>,
@@ -153,6 +155,7 @@ function Workspace() {
       <Route path="/floor-plans/:id/qr" element={<AdminOnly><OldQrLink /></AdminOnly>} />
       <Route path="/desk-labels" element={<AdminOnly><DeskLabelsPage /></AdminOnly>} />
       <Route path="/users" element={<AccountManagersOnly><UsersPage /></AccountManagersOnly>} />
+      <Route path="/seat-assignments" element={<AdminOnly><SeatAssignmentsPage /></AdminOnly>} />
       <Route path="/audit" element={<AdminOnly><AuditLogPage /></AdminOnly>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></div>

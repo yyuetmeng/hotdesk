@@ -1,0 +1,68 @@
+/* Seat assignments page and the Insights card "Seat assignments ending" (spec 2026-10-19-seat-assignments §3, §4). */
+.sa-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .sa-layout { grid-template-columns: 1fr; } }
+.sa-layout h2 { margin: 0 0 10px; font-size: 20px; }
+/* Plates sit beside the chairs; let them show past the drawing's edge instead of being clipped. */
+.sa-drawing { padding: 4px; }
+.sa-drawing .disp-floor { height: auto; max-height: 72vh; min-height: 0; overflow: visible; }
+.sa-toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.sa-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+.sa-legend li { display: flex; align-items: center; gap: 6px; }
+.sa-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2px solid var(--fd-chair-edge, #64748b); }
+.sa-key.soon { background: #f59e0b; } .sa-key.left { background: #ef4444; }
+
+.sa-table-wrap { max-height: 46vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.sa-table th { position: sticky; top: 0; background: var(--surface); z-index: 1; white-space: nowrap; }
+.sa-table tbody tr { cursor: pointer; }
+.sa-table tbody tr:hover { background: var(--surface-2); }
+.sa-table tbody tr.selected { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.sa-table td { padding: 8px 7px; font-size: 14px; }
+.sa-note { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.sa-sort { border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted; }
+.sa-sort.active { color: var(--text); text-decoration: none; }
+.sa-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 650; white-space: nowrap;
+  background: var(--surface-2); border: 1px solid var(--border); }
+.sa-status.leaving_soon { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.sa-status.left { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.sa-removed { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 6px; font-size: 11px; font-weight: 650;
+  color: #991b1b; background: #fee2e2; }
+.muted { color: var(--muted); }
+.sa-hint { margin: 14px 0 0; }
+
+.sa-form { display: grid; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.sa-form h3 { margin: 0; font-size: 17px; }
+.sa-form p { margin: 0; }
+.sa-form .button-row { margin-bottom: 0; }
+.sa-field { display: grid; gap: 5px; color: var(--muted); font-size: 13px; }
+.sa-field input { color: var(--text); }
+.sa-person { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--text); font-size: 14px; }
+.sa-person small { color: var(--muted); }
+.sa-small { padding: 4px 10px; font-size: 13px; }
+.sa-search { position: relative; }
+.sa-search input { width: 100%; }
+.sa-results { list-style: none; margin: 4px 0 0; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  max-height: 220px; overflow: auto; }
+.sa-results li { font-size: 14px; } .sa-results li.muted { padding: 6px 8px; }
+.sa-results button { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--text); padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.sa-results button:hover, .sa-results button:focus { background: var(--surface-2); }
+.sa-results small { display: block; color: var(--muted); font-size: 12px; }
+
+:root[data-theme="dark"] .sa-status.leaving_soon { background: #451a03; color: #fcd34d; border-color: #92400e; }
+:root[data-theme="dark"] .sa-status.left, :root[data-theme="dark"] .sa-removed { background: #450a0a; color: #fca5a5; border-color: #991b1b; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sa-status.leaving_soon { background: #451a03; color: #fcd34d; border-color: #92400e; }
+  :root:not([data-theme="light"]) .sa-status.left, :root:not([data-theme="light"]) .sa-removed { background: #450a0a; color: #fca5a5; border-color: #991b1b; }
+}
+
+/* Insights card. */
+.sa-ending h2 { margin-bottom: 4px; }
+.sa-ending-sub { margin: 0 0 12px; color: var(--muted); }
+.sa-ending h3 { margin: 12px 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.sa-ending ul { list-style: none; margin: 0; padding: 0; }
+.sa-ending li a { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 4px; border-bottom: 1px solid var(--border);
+  color: var(--text); text-decoration: none; }
+.sa-ending li a:hover { background: var(--surface-2); }
+.sa-ending li b { display: block; font-size: 14px; }
+.sa-ending li small { display: block; color: var(--muted); font-size: 12px; }
+.sa-ending time { flex: none; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.sa-ending .leaving_soon time { color: #b45309; } .sa-ending .left time { color: #b91c1c; }

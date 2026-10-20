@@ -77,6 +77,7 @@ export async function flaskRequest(path, { method = 'GET', body } = {}) {
     err.status = response.status;
     err.fields = data.fields;
     err.suggestion = data.suggestion ?? null;
+    err.data = data;   // the whole error body, for answers with extra keys (e.g. needs_move)
     throw err;
   }
   return data;
