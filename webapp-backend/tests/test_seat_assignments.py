@@ -5,7 +5,7 @@ import pytest
 
 from app.admin.seat_assignments import status_of
 from app.core.db import run_one, run_query, run_write
-from desk_helpers import build_world, hdr
+from desk_helpers import add_floor, book, build_world, hdr
 
 
 def put(client, w, seat, who, **body):
@@ -135,3 +135,42 @@ def test_change_of_a_row_closed_meanwhile_does_not_touch_the_closed_row(client, 
     assert r.status_code == 200
     old = run_one("select end_date::text as d, closed_reason from seat_assignments where id = cast(:i as uuid)", {"i": a["id"]})
     assert old == {"d": "2026-11-01", "closed_reason": "moved"}
+
+
+def test_removed_seat_still_listed_and_clearable(client, monkeypatch, db):
+    w = build_world(client, monkeypatch); a = put(client, w, "U1", "jane").get_json()
+    h = hdr(w["tok"]["root"])
+    els = client.get(f"/api/admin/floor-plans/{w['plan']}", headers=h).get_json()["elements"]
+    assert client.put(f"/api/admin/floor-plans/{w['plan']}/elements", headers=h,
+                      json={"elements": [e for e in els if e.get("label") != "U1"]}).status_code == 200
+    assert client.post(f"/api/admin/floor-plans/{w['plan']}/publish", headers=h).status_code == 200
+    other = add_floor(client, w, "Level 2", [{"label": "L2-A", "x": 0, "y": 0, "open_to_all": True}])
+    for plan in (w["plan"], other):                                     # shown on every floor's page
+        item = client.get(f"/api/admin/seat-assignments?plan_id={plan}", headers=h).get_json()["items"][0]
+        assert (item["seat_removed"], item["seat_label"], item["plan_id"]) == (True, "U1", None)
+    assert client.delete(f"/api/admin/seat-assignments/{a['id']}", headers=h).status_code == 204
+
+
+def test_deactivated_person_keeps_assignment(client, monkeypatch, db):
+    w = build_world(client, monkeypatch); put(client, w, "E1", "jane")
+    client.patch(f"/api/admin/users/{w['users']['jane']}", headers=hdr(w["tok"]["root"]), json={"is_active": False})
+    item = client.get(f"/api/admin/seat-assignments?plan_id={w['plan']}", headers=hdr(w["tok"]["root"])).get_json()["items"][0]
+    assert item["user"]["is_active"] is False and item["person_name"] == "Jane Tan"
+
+
+def test_deleted_person_history_kept(client, monkeypatch, db):
+    w = build_world(client, monkeypatch); put(client, w, "E1", "carl")
+    client.delete(f"/api/admin/users/{w['users']['carl']}", headers=hdr(w["tok"]["root"]))
+    assert run_one("select person_name, user_id from seat_assignments") == {"person_name": "Carl Lim", "user_id": None}
+
+
+def test_assignment_changes_nothing_elsewhere(client, monkeypatch, db):
+    w = build_world(client, monkeypatch); h = hdr(w["tok"]["jane"])
+    urls = [f"/api/desk/floors/{w['plan']}?date=2026-10-16", "/api/desk/suggest?date=2026-10-16&preset=am",
+            "/api/desk/bookings/mine", f"/api/public/floors/{w['plan']}"]
+    assert all(client.get(u, headers=h).status_code == 200 for u in urls)    # so equality below is not two error bodies
+    before = [client.get(u, headers=h).get_json() for u in urls]
+    put(client, w, "E1", "jane"); put(client, w, "F1", "ali")
+    assert [client.get(u, headers=h).get_json() for u in urls] == before
+    assert book(client, w, "dina", "E1").status_code == 201      # jane's assigned seat is still bookable by its team
+    assert book(client, w, "jane", "F2").status_code == 201      # and jane is not steered to her assigned seat
