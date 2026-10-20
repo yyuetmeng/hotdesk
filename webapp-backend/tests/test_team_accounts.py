@@ -1,7 +1,7 @@
 import pytest
 
 from app.core.db import run_one
-from creds import SECRET, hashed, sign_in
+from creds import SECRET, hashed, new_secret, secret_body, sign_in
 
 
 @pytest.fixture(autouse=True)
@@ -89,3 +89,100 @@ def test_promoting_to_admin_clears_the_grant(client, world):
     r = client.patch(f"/api/admin/users/{world['hana']}", headers=hdr(world["root_tok"]), json={"role": "admin"})
     assert r.status_code == 200 and r.get_json()["manages"] == []
     assert run_one("select count(*) as n from user_managed_departments")["n"] == 0
+
+
+# --- Task 2: holder guard, list, view, edit, on/off, resend within scope ---------------------------------------------
+
+@pytest.fixture()
+def held(client, world):
+    grant(client, world["root_tok"], world["hana"], [world["eng"]])
+    return world
+
+
+def ids_listed(client, tok, query=""):
+    return {u["id"] for u in client.get(f"/api/admin/users?page_size=100{query}", headers=hdr(tok)).get_json()["items"]}
+
+
+def test_holder_lists_only_manageable_people(client, held):
+    assert ids_listed(client, held["hana_tok"]) == {held["eve"], held["dan"]}   # not ada (admin), hana, oli, root
+
+
+def test_holder_without_permission_gets_403(client, world):
+    grant(client, world["root_tok"], world["hana"], [])
+    assert client.get("/api/admin/users", headers=hdr(world["hana_tok"])).status_code == 403
+
+
+def test_holder_manages_a_team_they_are_not_in(client, world):
+    grant(client, world["root_tok"], world["hana"], [world["ops"]])
+    assert ids_listed(client, world["hana_tok"]) == {world["oli"]}
+
+
+def test_out_of_scope_is_403_for_view_edit_resend_and_unknown_ids(client, held):
+    tok = held["hana_tok"]
+    for uid in (held["oli"], held["ada"], held["hana"], "00000000-0000-0000-0000-000000000000"):
+        for r in (client.get(f"/api/admin/users/{uid}", headers=hdr(tok)),
+                  client.patch(f"/api/admin/users/{uid}", headers=hdr(tok), json={"full_name": "X"}),
+                  client.post(f"/api/admin/users/{uid}/resend-invitation", headers=hdr(tok))):
+            assert (r.status_code, r.get_json()["error"]) == (403, "You can only manage accounts in your project teams.")
+
+
+def test_holder_allowed_edits_work_and_are_audited_as_holder(client, held):
+    r = client.patch(f"/api/admin/users/{held['eve']}", headers=hdr(held["hana_tok"]),
+                     json={"full_name": "Eve Ng", "start_date": "2026-11-01", "end_date": "2026-12-31",
+                           "booking_allowance": 3, "is_active": False})
+    assert r.status_code == 200 and r.get_json()["full_name"] == "Eve Ng"
+    assert run_one("select actor_id::text as a from audit_logs where action = 'user.disable'")["a"] == held["hana"]
+
+
+@pytest.mark.parametrize("field,value", [("email", "new@x.com"), ("username", "newname"), ("role", "admin"),
+                                         ("department_ids", []), ("manages_department_ids", ["ENG"])])
+def test_changed_refused_field_refuses_whole_save(client, held, field, value):
+    if value == ["ENG"]:
+        value = [held["eng"]]
+    before = run_one("select full_name from users where id = :i", {"i": held["eve"]})["full_name"]
+    r = client.patch(f"/api/admin/users/{held['eve']}", headers=hdr(held["hana_tok"]),
+                     json={"full_name": "Changed", field: value})
+    assert (r.status_code, r.get_json()["error"]) == (403, "Only an administrator can change this.")
+    assert run_one("select full_name from users where id = :i", {"i": held["eve"]})["full_name"] == before
+
+
+def test_unchanged_refused_fields_are_ignored(client, held):
+    eve = client.get(f"/api/admin/users/{held['eve']}", headers=hdr(held["hana_tok"])).get_json()
+    r = client.patch(f"/api/admin/users/{held['eve']}", headers=hdr(held["hana_tok"]),
+                     json={"full_name": "Eve Two", "email": eve["email"], "username": eve["username"], "role": "user",
+                           "department_ids": [d["id"] for d in eve["departments"]][::-1],
+                           "manages_department_ids": []})
+    assert r.status_code == 200 and r.get_json()["full_name"] == "Eve Two"
+
+
+def test_holder_cannot_grant_permission_to_anyone(client, held):
+    r = grant(client, held["hana_tok"], held["eve"], [held["eng"]])
+    assert r.status_code == 403 and run_one("select count(*) as n from user_managed_departments")["n"] == 1
+
+
+def test_removal_takes_effect_on_next_request(client, held):
+    tok = held["hana_tok"]
+    assert client.get(f"/api/admin/users/{held['eve']}", headers=hdr(tok)).status_code == 200
+    grant(client, held["root_tok"], held["hana"], [])
+    assert client.get(f"/api/admin/users/{held['eve']}", headers=hdr(tok)).status_code == 403
+
+
+def test_deleting_the_team_refuses_the_holder_next_request(client, held):
+    tok = held["hana_tok"]
+    client.delete(f"/api/admin/departments/{held['eng']}", headers=hdr(held["root_tok"]))
+    assert client.get("/api/admin/users", headers=hdr(tok)).status_code == 403
+
+
+def test_holder_still_blocked_from_admin_only_endpoints(client, held):
+    tok, eve = held["hana_tok"], held["eve"]
+    assert client.delete(f"/api/admin/users/{eve}", headers=hdr(tok)).status_code == 403
+    assert client.post(f"/api/admin/users/{eve}/password", headers=hdr(tok), json=secret_body(new_secret())).status_code == 403
+    assert client.post("/api/admin/departments", headers=hdr(tok), json={"name": "Z"}).status_code == 403
+    assert client.get("/api/admin/audit", headers=hdr(tok)).status_code == 403
+    assert client.get("/api/admin/audit/security-summary", headers=hdr(tok)).status_code == 403
+
+
+def test_holder_resend_invitation_in_scope(client, held, stub_email):
+    run_one("update users set password_hash = null where id = :i returning id", {"i": held["eve"]})
+    r = client.post(f"/api/admin/users/{held['eve']}/resend-invitation", headers=hdr(held["hana_tok"]))
+    assert r.status_code == 204 and len(stub_email) == 1

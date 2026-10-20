@@ -1,7 +1,8 @@
 from functools import wraps
 
 import jwt as _pyjwt
-from flask_jwt_extended import get_jwt, verify_jwt_in_request
+from flask import g
+from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
 from passlib.context import CryptContext
 
 from .errors import error
@@ -32,6 +33,29 @@ def admin_required(fn):
         claims = get_jwt()
         if claims.get("role") != "admin":
             return error("admin required", 403)
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
+def account_manager_required(fn):
+    """Admins (no limit) or a user an admin has let manage accounts for some teams. Sets g.team_scope to None for an
+    admin, else the set of team ids the holder manages, read from the database on every request."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        from app.core.team_scope import managed_ids   # imported here: team_scope pulls in models that import security
+        try:
+            verify_jwt_in_request()
+        except _pyjwt.ExpiredSignatureError:
+            return error("token expired", 401)
+        except _pyjwt.PyJWTError:
+            return error("invalid token", 401)
+        if get_jwt().get("role") == "admin":
+            g.team_scope = None
+        else:
+            g.team_scope = managed_ids(get_jwt_identity())
+            if not g.team_scope:
+                return error("admin required", 403)
         return fn(*args, **kwargs)
 
     return wrapper

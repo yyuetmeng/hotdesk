@@ -17,8 +17,8 @@ from app.core.email import invitation_email, send_email
 from app.core.errors import error
 from app.core.orm import orm_session
 from app.core.passwords import password_problem
-from app.core.security import admin_required, hash_password
-from app.core.team_scope import managed_departments, set_managed
+from app.core.security import account_manager_required, admin_required, hash_password
+from app.core.team_scope import can_manage, managed_departments, manageable_clause, set_managed
 from app.core.users import email_exists, fetch_user, public_user, username_exists
 from app.desk.dashboard import seat_places
 
@@ -142,8 +142,38 @@ def _send_invitation(user_id: str, email_addr: str, full_name: str, username: st
     return True
 
 
+HOLDER_FIELDS = ("full_name", "start_date", "end_date", "usual_seat_id", "booking_allowance", "is_active")
+OUT_OF_SCOPE = "You can only manage accounts in your project teams."
+ADMIN_ONLY = "Only an administrator can change this."
+
+
+def _out_of_scope(user_id: str) -> bool:
+    """True when the caller is an account manager (not an admin) and may not manage this person, or there is no
+    such person."""
+    if g.team_scope is None:
+        return False
+    return not can_manage(get_jwt_identity(), g.team_scope, orm_session().get(User, user_id))
+
+
+def _refused_change(user: User, body: dict) -> bool:
+    """For an account manager: drop refused fields whose value is unchanged; True if any refused field changes."""
+    current = {"email": lambda: user.email, "username": lambda: user.username, "role": lambda: user.role.name,
+               "department_ids": lambda: {str(d.id) for d in user.departments},
+               "manages_department_ids": lambda: {d["id"] for d in managed_departments(str(user.id))}}
+    for key in [k for k in body if k not in HOLDER_FIELDS]:
+        value = body[key]
+        if key in ("email", "username"):
+            value = value.strip() if isinstance(value, str) else value
+        elif key in ("department_ids", "manages_department_ids"):
+            value = {str(v) for v in value} if isinstance(value, list) else value
+        if value != current[key]():
+            return True
+        del body[key]
+    return False
+
+
 @admin_bp.get("/users")
-@admin_required
+@account_manager_required
 def list_users():
     q = (request.args.get("q") or "").strip()
     role = (request.args.get("role") or "").strip()
@@ -179,6 +209,8 @@ def list_users():
             .join(Department, Department.id == UserDepartment.department_id)
             .where(UserDepartment.user_id == User.id, dept_match)
             .exists())
+    if g.team_scope is not None:
+        conds.append(manageable_clause(get_jwt_identity(), g.team_scope))
     session = orm_session()
     total = session.scalar(select(func.count()).select_from(User)
                            .join(Role, Role.id == User.role_id).where(*conds))
@@ -214,8 +246,10 @@ def list_users():
 
 
 @admin_bp.get("/users/<uuid:user_id>")
-@admin_required
+@account_manager_required
 def get_user(user_id):
+    if _out_of_scope(str(user_id)):
+        return error(OUT_OF_SCOPE, 403)
     user = fetch_user(str(user_id))
     if user is None:
         return error("user not found", 404)
@@ -239,7 +273,7 @@ PATCHABLE = ("full_name", "username", "email", "role", "is_active",
 
 
 @admin_bp.patch("/users/<uuid:user_id>")
-@admin_required
+@account_manager_required
 def patch_user(user_id):
     user_id = str(user_id)
     body = request.get_json(silent=True) or {}
@@ -253,6 +287,13 @@ def patch_user(user_id):
     g.jwt_uid = actor
     session = orm_session()
     user = session.get(User, user_id)
+    if g.team_scope is not None:
+        if not can_manage(actor, g.team_scope, user):
+            return error(OUT_OF_SCOPE, 403)
+        if _refused_change(user, body):
+            return error(ADMIN_ONLY, 403)
+        if not body:
+            return error("no fields provided", 400)
 
     fields = {}
     if "email" in body and not _valid_email((body["email"] or "").strip()):
@@ -409,9 +450,11 @@ def admin_set_password(user_id):
 
 
 @admin_bp.post("/users/<uuid:user_id>/resend-invitation")
-@admin_required
+@account_manager_required
 def resend_invitation(user_id):
     user_id = str(user_id)
+    if _out_of_scope(user_id):
+        return error(OUT_OF_SCOPE, 403)
     user = orm_session().get(User, user_id)
     if user is None:
         return error("user not found", 404)
