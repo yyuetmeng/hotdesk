@@ -309,7 +309,8 @@ nobody else can take it, until the person arrives and checks in.
 names they reserved under, and lists them under **My reservations** with **Show on plan**, **Check in** (once the
 window opens) and **Cancel**. It refreshes every 10 seconds.
 In demo mode (`npm run demo`, or `DEMO_MODE=1`, or `?demo` on the page), `/book` and `/checkin` fill the name with a
-random sample name from a list of 80 Chinese names (`public/demo-names.js`), with **Another sample name** to pick a
+random sample name from `public/demo-names.js` (110 Chinese names; the simulator uses the first 70 and the pages
+the other 40, so a page's name is never a simulated person's), with **Another sample name** to pick a
 different one. Each desk or booking gets a new name, and sample names are not remembered; `?demo=0` turns it off.
 
 ### Reservations
@@ -346,6 +347,9 @@ API (no admin token needed; responses never include who reserved a desk):
 | `POST /api/reservations/:id/cancel` | `{ "user" }` | Cancel (only the person who made it; admins without `user`) |
 
 ### Demo on one laptop (no phone needed)
+
+Recording a demo video? `npm run demo:video` sets up a scripted scenario for it; the shot-by-shot script is in
+[docs/DEMO-VIDEO.md](docs/DEMO-VIDEO.md).
 
 1. `npm run demo`, then open `http://localhost:3000` (the dashboard).
 2. Click a seat, then **Open check-in page** in its panel. Or open **Print desk labels** and click a label. Either
@@ -414,7 +418,7 @@ Labels are laid out for **A4 sheets of 21 labels (3 × 7, 63.5 × 38.1 mm, e.g. 
 works too (cut along the dashed guides shown on screen).
 
 - **From the running app:** click **Print desk labels** on the dashboard, or open `/labels` (admin only).
-  Filter with `/labels?floor=L1` or `/labels?floor=L1&zone=DF`. The QR codes use `PUBLIC_URL` if set,
+  Filter with `/labels?floor=L1`, `/labels?floor=L1&zone=DF` or `/labels?seat=L1-DF-07` (one desk). The QR codes use `PUBLIC_URL` if set,
   otherwise the address you opened the page at (in Codespaces that is the forwarded URL).
 - **Simulate a scan:** on screen, clicking a label opens its check-in page in a phone-sized window.
 - **Without a server:** `PUBLIC_URL=https://hotdesk.example.com npm run labels` writes

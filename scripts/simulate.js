@@ -16,19 +16,26 @@
 // Env:   SENSOR_API_KEY  the server's sensor key (needed if the server has one)
 //        ADMIN_TOKEN     the server's admin token (needed for team bookings if the server has one)
 //        SIM_INTERVAL_MS time between rounds (default 3000)
+//   --keep-free=A,B  desks the simulated people never use (for a scripted demo, see scripts/demo.js --video)
+//   --seated=A,B     desks whose sensor always sees someone (a scripted person sits there)
 import { readFileSync } from 'node:fs';
 import { expandLayout } from '../src/occupancy.js';
 
 const args = process.argv.slice(2);
 const base = args.find((a) => !a.startsWith('--')) ?? process.env.BASE_URL ?? 'http://localhost:3000';
 const reset = args.includes('--reset');
+const listArg = (name) => new Set((args.find((a) => a.startsWith(`--${name}=`))?.split('=')[1] ?? '').split(',').map((x) => x.trim().toUpperCase()).filter(Boolean));
+const keepFree = listArg('keep-free'), seated = listArg('seated');
 const SPEED = Math.max(0.1, Number(args.find((a) => a.startsWith('--speed='))?.split('=')[1] ?? process.env.SIM_SPEED ?? 1) || 1);
 const interval = Number(process.env.SIM_INTERVAL_MS ?? 3000);
 const building = JSON.parse(readFileSync(new URL('../config/building.json', import.meta.url), 'utf8'));
 const seats = expandLayout(building);
 const seatById = new Map(seats.map((s) => [s.id, s]));
-const sensored = seats.filter((s) => s.sensorId);
+// Desks set aside for a scripted demo are left out of everything the simulated people do.
+const sensored = seats.filter((s) => s.sensorId && !keepFree.has(s.id) && !seated.has(s.id));
+const scripted = seats.filter((s) => s.sensorId && (keepFree.has(s.id) || seated.has(s.id)));
 const qrOnly = seats.filter((s) => !s.sensorId);
+const pool = seats.filter((s) => !keepFree.has(s.id) && !seated.has(s.id)); // desks the simulated people may use
 
 // Rates are per minute of simulated time (real time x SPEED), so the picture is the same at any
 // SIM_INTERVAL_MS; SPEED makes the day pass faster.
@@ -52,15 +59,15 @@ const chance = (perMinute) => 1 - Math.exp(-perMinute * SPEED * interval / 60_00
 
 // Sensors that break: they report once, then go silent, so their desks turn "sensor offline".
 const broken = new Set(sensored.slice(-2).map((s) => s.sensorId));
-const present = new Map(sensored.map((s) => [s.sensorId, false]));
+const present = new Map([...sensored.map((s) => [s.sensorId, false]), ...scripted.map((s) => [s.sensorId, seated.has(s.id)])]);
 
 // The project list comes from the running server (it can be edited on the dashboard), falling
 // back to building.json if it can't be read.
 let teams = (building.projectTeams ?? ['External', 'Bolt On', 'eWorkplace', 'G&C', 'STREAM', 'SAP', 'ITGC', 'DDAP'])
   .map((t) => (typeof t === 'string' ? t : t.name));
-// Names: the sample names the booking pages use in demo mode (public/demo-names.js, 80 of them), in order.
+// Names: the first PEOPLE sample names from public/demo-names.js, in order (the pages pick from the rest).
 const NAMES = [...readFileSync(new URL('../public/demo-names.js', import.meta.url), 'utf8').matchAll(/'([A-Z][a-z]+(?: [A-Z][a-z]+)+)'/g)].map((m) => m[1]);
-if (NAMES.length < PEOPLE) { console.error(`public/demo-names.js has ${NAMES.length} names; the simulator needs ${PEOPLE}.`); process.exit(1); }
+if (NAMES.length < PEOPLE + 10) { console.error(`public/demo-names.js has ${NAMES.length} names; the simulator needs ${PEOPLE}, plus some for the pages.`); process.exit(1); }
 const people = NAMES.slice(0, PEOPLE).map((name) => ({ name, team: null, seat: null, checkedIn: false, res: null }));
 const visitors = Array.from({ length: VISITORS }, () => ({ seat: null }));
 const teamBooked = new Map(); // seat id -> { team, until, booking } for seats our team leads booked
@@ -122,11 +129,11 @@ function chooseSeat(team, avail, taken) {
   const free = (id) => !taken.has(id) && avail.get(id)?.status === 'available' && !avail.get(id)?.reservation;
   const booked = [...teamBooked].filter(([id, b]) => b.team === team && !taken.has(id)).map(([id]) => id);
   if (booked.length) return pick(booked);
-  const mine = seats.filter((s) => avail.get(s.id)?.allocatedTo === team && free(s.id));
+  const mine = pool.filter((s) => avail.get(s.id)?.allocatedTo === team && free(s.id));
   if (mine.length && Math.random() < PREFER_ALLOCATED) return pick(mine).id;
   // Otherwise a free seat that isn't kept for another project, if there is one.
-  const open = seats.filter((s) => free(s.id) && !avail.get(s.id)?.allocatedTo);
-  const any = seats.filter((s) => free(s.id));
+  const open = pool.filter((s) => free(s.id) && !avail.get(s.id)?.allocatedTo);
+  const any = pool.filter((s) => free(s.id));
   return (open.length ? pick(open) : any.length ? pick(any) : null)?.id ?? null;
 }
 
@@ -143,8 +150,8 @@ function stand(seatId) {
 async function bookForTeam(avail, taken) {
   const team = pick(projectTeams());
   const free = (s) => !taken.has(s.id) && avail.get(s.id)?.status === 'available' && !avail.get(s.id)?.reservation && !teamBooked.has(s.id);
-  const mine = shuffle(seats.filter((s) => free(s) && avail.get(s.id)?.allocatedTo === team));
-  const others = shuffle(seats.filter((s) => free(s) && !avail.get(s.id)?.allocatedTo));
+  const mine = shuffle(pool.filter((s) => free(s) && avail.get(s.id)?.allocatedTo === team));
+  const others = shuffle(pool.filter((s) => free(s) && !avail.get(s.id)?.allocatedTo));
   const chosen = [...mine, ...others].slice(0, 2 + Math.floor(Math.random() * 3)).map((s) => s.id);
   if (!chosen.length) return;
   // The team lead is someone from that team who isn't at a desk right now.
@@ -179,8 +186,8 @@ async function reserveDesk(avail, taken) {
   const p = pick(people.filter((x) => !x.seat && !x.res && x.team));
   if (!p) return;
   const free = (s) => !taken.has(s.id) && avail.get(s.id)?.status === 'available' && !avail.get(s.id)?.reservation && !teamBooked.has(s.id);
-  const mine = seats.filter((s) => free(s) && avail.get(s.id)?.allocatedTo === p.team);
-  const open = seats.filter((s) => free(s) && !avail.get(s.id)?.allocatedTo);
+  const mine = pool.filter((s) => free(s) && avail.get(s.id)?.allocatedTo === p.team);
+  const open = pool.filter((s) => free(s) && !avail.get(s.id)?.allocatedTo);
   const seat = (mine.length ? pick(mine) : open.length ? pick(open) : null)?.id;
   if (!seat) return;
   const res = await fetch(`${base}/api/reservations`, { method: 'POST', headers, body: JSON.stringify({ seatId: seat, user: p.name, projectTeam: p.team, ...when }) });
@@ -234,6 +241,8 @@ async function tick() {
     }
   }
 
+  // A scripted desk that someone checked in to (the demo video's booking scene): they sit down there.
+  for (const s of scripted) if (keepFree.has(s.id)) present.set(s.sensorId, Boolean(avail.get(s.id)?.checkedInUntil));
   // Sensors report what they see (every reading doubles as a heartbeat); broken ones only once.
   const events = [];
   for (const [sensorId, isPresent] of present) {

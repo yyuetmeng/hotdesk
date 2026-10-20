@@ -169,6 +169,26 @@ async function call(path, body) {
   return data;
 }
 
+// A desk reserved from this phone or browser (/book remembers the names used): fill in that name
+// and project, so checking in confirms the reservation without retyping.
+async function fillFromMyReservation(s) {
+  const r = s.reservation; if (!r) return;
+  let names = [];
+  try { names = JSON.parse(localStorage.getItem('hotdesk.myNames') || '[]'); } catch {}
+  for (const name of names) {
+    const mine = await call(`/api/reservations?user=${encodeURIComponent(name)}`).catch(() => []);
+    if (!mine.some((x) => x.id === r.id)) continue;
+    await optionsReady;
+    if (seatId !== s.id) return; // moved on to another desk meanwhile
+    $('user').value = name;
+    if ([...$('team').options].some((o) => o.value === r.team || o.textContent === r.team)) $('team').value = r.team;
+    confirmedTeam = r.team;
+    if ([...$('slot').options].some((o) => o.value === r.slot)) $('slot').value = r.slot;
+    $('resv').insertAdjacentHTML('beforeend', `<div style="margin-top:6px"><b style="display:inline">Your reservation</b> (${esc(name)}): tap Check in to confirm it.</div>`);
+    return;
+  }
+}
+
 // ---- Desk ID entry (no desk in the link) ----
 let desks = [];
 async function showPicker() {
@@ -197,7 +217,7 @@ function openDesk(id) {
   $('pick').hidden = true; $('desk').hidden = false; $('changeDesk').hidden = false;
   document.title = `Desk ${id} · Check-in`;
   demoNameForDesk();
-  call(`/api/seats/${encodeURIComponent(id)}`).then(render).catch((e) => {
+  call(`/api/seats/${encodeURIComponent(id)}`).then((s) => { render(s); return fillFromMyReservation(s); }).catch((e) => {
     $('title').textContent = `Desk ${id}`; $('status').textContent = e.message; $('status').className = 'pill k-offline';
   });
 }
@@ -247,7 +267,7 @@ async function act(kind) {
 $('in').onclick = () => act('checkin');
 $('out').onclick = () => act('checkout');
 
-loadDurations().catch(() => {});
+const optionsReady = loadDurations().catch(() => {});
 if (seatId) openDesk(seatId); else showPicker();
 </script>
 </body>

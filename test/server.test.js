@@ -343,3 +343,20 @@ test('project teams: required at check-in/out, listed publicly, summarised and e
   const csv2 = await (await fetch(`${base}/api/requesters.csv`, { headers: admin })).text();
   assert.match(csv2, /"'=HYPERLINK\(""x""\)"/);
 });
+
+test('a shortened check-in window (graceMinutes) is honoured only in demo mode, for admins', async () => {
+  const run = async (demo) => {
+    const app = createApp({ engine: new OccupancyEngine({ seats: expandLayout({ floors: [{ id: 'L1', name: 'Level 1', zones: [{ id: 'A', name: 'A', rows: 1, cols: 2 }] }] }) }),
+      publicDir: resolve(import.meta.dirname, '../public'), demo });
+    await new Promise((r) => app.listen(0, r));
+    const url = `http://127.0.0.1:${app.address().port}`;
+    const { reservations: { dates: [, tomorrow] } } = await (await fetch(`${url}/api/checkin-options`)).json();
+    const res = await fetch(`${url}/api/reservations`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ seatId: 'L1-A-01', user: 'Marcus', projectTeam: 'SAP', date: tomorrow, slot: 'am', graceMinutes: 2 }) });
+    const [r] = await res.json();
+    app.close();
+    return (r.deadline - r.start) / 60_000;
+  };
+  assert.equal(await run(false), 30);
+  assert.equal(await run(true), 2);
+});

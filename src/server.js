@@ -179,7 +179,10 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
       const zone = url.searchParams.get('zone') ?? undefined;
       const baseUrl = publicUrl || url.searchParams.get('base') || requestOrigin(req);
       res.writeHead(200, { 'content-type': MIME['.html'], 'cache-control': 'no-store' });
-      return res.end(renderLabelsPage({ seats: engine.list({ floor, zone }), baseUrl, buildingName }));
+      // ?seat=L1-DF-07,L1-DF-08: just those desks' labels (e.g. to show one desk's QR code in a demo).
+      const only = new Set((url.searchParams.get('seat') ?? '').split(',').map((x) => x.trim().toUpperCase()).filter(Boolean));
+      const seats = engine.list({ floor, zone }).filter((s) => !only.size || only.has(s.id));
+      return res.end(renderLabelsPage({ seats, baseUrl, buildingName }));
     }
 
     if (parts[0] !== 'api') throw new HttpError(404, 'Not found');
@@ -320,7 +323,10 @@ export function createApp({ engine, publicDir, sensorApiKey, adminToken, display
       const body = await readJson(req);
       const forTeam = body.forTeam === true;
       const seats = Array.isArray(body.seats) ? body.seats : [body.seatId];
-      const made = engine.reserve(seats, body.user, { team: body.projectTeam, date: body.date, slot: body.slot, forTeam, maxSeats: forTeam ? teamBookingMaxSeats : 1 });
+      // Demo mode only: an admin may shorten one reservation's check-in window, so a demo video can show
+      // a no-show being released within a minute or two (npm run demo:video).
+      const grace = demo && isAdmin(req, url) && Number.isFinite(Number(body.graceMinutes)) ? Math.max(0.5, Number(body.graceMinutes)) : undefined;
+      const made = engine.reserve(seats, body.user, { team: body.projectTeam, date: body.date, slot: body.slot, forTeam, maxSeats: forTeam ? teamBookingMaxSeats : 1, graceMinutes: grace });
       return send(res, 201, made.map(publicReservation));
     }
     if (parts[1] === 'reservations' && parts[2] && parts[3] === 'cancel' && parts.length === 4 && method === 'POST') {

@@ -12,6 +12,7 @@
     "simulate": "node scripts/simulate.js",
     "simulate:fresh": "node scripts/simulate.js --reset",
     "demo": "node scripts/demo.js",
+    "demo:video": "node scripts/demo.js --video",
     "test": "node --test",
     "labels": "node scripts/labels.js",
     "codespace": "bash scripts/codespace.sh start",

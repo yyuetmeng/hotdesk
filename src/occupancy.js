@@ -967,7 +967,7 @@ export class OccupancyEngine extends EventEmitter {
    * `reservationMaxPerWeek` a week; a project lead can book several desks for their team
    * (`forTeam`), which anyone in that project confirms by checking in. All or nothing.
    */
-  reserve(seatIds, user, { team, date, slot, forTeam = false, maxSeats = MAX_BOOKING_SEATS } = {}) {
+  reserve(seatIds, user, { team, date, slot, forTeam = false, maxSeats = MAX_BOOKING_SEATS, graceMinutes = this.rules.reservationGraceMinutes } = {}) {
     user = String(user ?? '').trim();
     if (!user) throw new ValidationError('user is required');
     team = this.projectTeam(team);
@@ -1007,7 +1007,7 @@ export class OccupancyEngine extends EventEmitter {
     const out = ids.map((id) => {
       const r = {
         id: randomUUID().slice(0, 8), seatId: id, user, team, date, slot, start, end,
-        deadline: Math.max(start, now) + this.rules.reservationGraceMinutes * MINUTE,
+        deadline: Math.max(start, now) + graceMinutes * MINUTE,
         status: 'booked', createdAt: now, forTeam: Boolean(forTeam), group,
       };
       this.reservations.set(r.id, r);
