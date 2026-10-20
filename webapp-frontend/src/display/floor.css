@@ -5,6 +5,7 @@
   --fd-chair: #cbd5e1; --fd-chair-edge: #94a3b8; --fd-chair-back: #64748b;
   --fd-text: #0f172a; --fd-muted: #64748b; --fd-plant: #16a34a; --fd-tile: #e2e8f0; --fd-tile-edge: #94a3b8;
   --fd-person: #475569; --fd-plate: rgb(248 250 252/.85); --fd-furniture: #ffffff;
+  --fd-assign-plate: #ffffff; --fd-assign-text: #0f172a;
 }
 :root[data-theme="dark"] .fd {
   --fd-bg: #11161d; --fd-wall: #c3cad4; --fd-window: #3b6ea5; --fd-door: #c3cad4; --fd-corridor: #161c25;
@@ -12,6 +13,7 @@
   --fd-chair: #4b5563; --fd-chair-edge: #6b7280; --fd-chair-back: #9ca3af;
   --fd-text: #e5e7eb; --fd-muted: #94a3b8; --fd-plant: #4ade80; --fd-tile: #3a414d; --fd-tile-edge: #6b7280;
   --fd-person: #d1d5db; --fd-plate: rgb(17 22 29/.85); --fd-furniture: #1f2630;
+  --fd-assign-plate: #1f2630; --fd-assign-text: #f1f5f9;
 }
 .fd .fd-bg { fill: var(--fd-bg); }
 .fd .fd-wall { fill: var(--fd-wall); }
@@ -38,6 +40,11 @@
 .fd .fd-chair.state-booked { fill: #f59e0b; stroke: #fde68a; }
 .fd .fd-chair.state-occupied { fill: #ef4444; stroke: #fecaca; }
 .fd .fd-chair.state-not_bookable { opacity: .45; stroke-dasharray: 3 2; }
+.fd .fd-chair.assign-ok { stroke-width: 2; stroke-dasharray: none; }
+.fd .fd-chair.assign-soon { fill: #f59e0b; }
+.fd .fd-chair.assign-left { fill: #ef4444; }
+.fd .fd-assign-plate { fill: var(--fd-assign-plate); stroke: var(--fd-chair-edge); stroke-width: 1; }
+.fd .fd-assign-text { fill: var(--fd-assign-text); stroke: none; }
 .fd .fd-chair-back { stroke: var(--fd-chair-back); stroke-width: 1.2; }
 .fd .fd-dot { fill: #16a34a; stroke: var(--fd-bg); stroke-width: 1.5; }
 .fd .fd-initials { fill: #fff; }

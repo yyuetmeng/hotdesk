@@ -111,20 +111,28 @@ function Element({ el, catalog }) {
 
 // A seat as a rounded chair: available = chair with a green dot, booked = amber, occupied = red with initials,
 // not bookable = faded and dashed. Selection ring and the Colleague Finder pulse are kept.
-function Seat({ el, seat, onClick, selected, highlight, onHover }) {
+function Seat({ el, seat, onClick, selected, highlight, onHover, note = null, drawingWidth = 0 }) {
   const { w, h } = footprint(el);
   const cx = (el.x + w / 2) * C, cy = (el.y + h / 2) * C, s = Math.min(w, h) * C * 0.66;
   const who = seat.occupant?.name ?? seat.booking?.booked_for?.name;
   const label = [seat.label, seat.department, who].filter(Boolean).join(' · ');
   const ring = (cls, pad, extra = {}) => <rect className={cls} x={cx - s / 2 - pad} y={cy - s / 2 - pad} width={s + pad * 2} height={s + pad * 2}
     rx={6 + pad / 2} fill="none" {...extra} />;
-  const show = () => onHover?.({ seat, cx, top: cy - s / 2, bottom: cy + s / 2 });
+  const show = () => onHover?.({ seat, cx, top: cy - s / 2, bottom: cy + s / 2, lines: note?.tip });
+  // Assignment plate (name and end date) beside the chair: right side, flipped left when it would leave the drawing.
+  const plateW = note ? Math.max(note.name.length * 5.4, note.date.length * 4.8) + 8 : 0;
+  const plateX = note ? (cx + s / 2 + 2 + plateW <= drawingWidth ? cx + s / 2 + 2 : cx - s / 2 - 2 - plateW) : 0;
   const hide = () => onHover?.(null);
   return <g className={`disp-seat${highlight ? ' is-found' : ''}`} onClick={() => onClick?.(seat)} role="button" tabIndex={0} aria-label={label}
     onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(seat); }} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
     {selected && ring('fd-selected', 4, { strokeWidth: 3 })}
     {highlight && <>{ring('disp-found-ring fd-found', 3, { strokeWidth: 3.5 })}{ring('disp-found-ring late fd-found', 3, { strokeWidth: 3.5 })}</>}
-    <rect className={`fd-chair state-${seat.state}${seat.open_to_all ? ' ffa' : ''}`} x={cx - s / 2} y={cy - s / 2} width={s} height={s} rx="5" />
+    {note && <g pointerEvents="none">
+      <rect x={plateX} y={cy - 11} width={plateW} height="22" rx="3" className="fd-assign-plate" />
+      <text x={plateX + plateW / 2} y={cy - 1.5} textAnchor="middle" fontSize="9" fontWeight="600" className="fd-assign-text">{note.name}</text>
+      {note.date && <text x={plateX + plateW / 2} y={cy + 8} textAnchor="middle" fontSize="8" className="fd-assign-text">{note.date}</text>}
+    </g>}
+    <rect className={`fd-chair state-${seat.state}${seat.open_to_all ? ' ffa' : ''}${note ? ` assign-${note.tone}` : ''}`} x={cx - s / 2} y={cy - s / 2} width={s} height={s} rx="5" />
     {who
       ? <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={s * 0.48} fontWeight="800" className="fd-initials">{initials(who)}</text>
       : <rect className="fd-chair-back" x={cx - s * 0.28} y={cy - s * 0.28} width={s * 0.56} height={s * 0.56} rx="2.5" fill="none" />}
@@ -169,7 +177,7 @@ function ZoneLabel({ zone }) {
 // Hover / keyboard-focus tip over a seat (owner 2026-10-16): seat number and team, then who and when. Drawn in the
 // SVG above everything, kept inside the drawing, flipped below the seat when there is no room above.
 function SeatTip({ tip, width, top }) {
-  const [a, b] = seatTip(tip.seat);
+  const [a, b] = tip.lines ?? seatTip(tip.seat);
   const w = Math.max(a.length * 6.3, b.length * 5.7) + 18, h = 36;
   const x = Math.min(Math.max(tip.cx - w / 2, 2), width - w - 2);
   const above = tip.top - h - 6;
@@ -181,7 +189,7 @@ function SeatTip({ tip, width, top }) {
   </g>;
 }
 
-export default function FloorDrawing({ floor, onSeatClick, selectedId = null, selectedIds = [], highlightId = null }) {
+export default function FloorDrawing({ floor, onSeatClick, selectedId = null, selectedIds = [], highlightId = null, notes = null }) {
   const catalog = Object.fromEntries((floor.catalog ?? []).map((c) => [c.type, c]));
   const seats = Object.fromEntries(floor.seats.map((s) => [s.id, s]));
   const order = (el) => (el.type === 'corridor' ? 0 : el.type === 'seat' ? 3 : ['wall', 'window', 'door'].includes(el.type) ? 2 : 1);
@@ -192,7 +200,8 @@ export default function FloorDrawing({ floor, onSeatClick, selectedId = null, se
     <rect y={-top} width={floor.cols * C} height={floor.rows * C + top} className="fd-bg" />
     {(floor.zones ?? []).map((z) => <ZoneOutline key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
-      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId || selectedIds.includes(el.id)} highlight={el.id === highlightId} onHover={setTip} />
+      ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId || selectedIds.includes(el.id)} highlight={el.id === highlightId} onHover={setTip}
+        note={notes?.[el.id] ?? null} drawingWidth={floor.cols * C} />
       : <Element key={el.id} el={el} catalog={catalog} />))}
     {(floor.zones ?? []).map((z) => <ZoneLabel key={`${z.id}-label`} zone={z} />)}
     {tip && <SeatTip tip={tip} width={floor.cols * C} top={top} />}
