@@ -159,7 +159,13 @@ def test_checking_in_to_own_free_for_all_booking_is_allowed(client, world, monke
 def test_booked_team_seat_later_today_still_counts_as_free_now(client, world, monkeypatch):
     assert book(client, world, "erin", "E1", "pm").status_code == 201
     set_now(monkeypatch, sg(DAY, 9))
-    assert check_in(client, world, "dina", "F2").get_json()["suggestion"]["seat_label"] == "E1"
+    body = check_in(client, world, "dina", "F2").get_json()
+    assert body["suggestion"]["seat_label"] == "E1" and body["suggestion"]["until"] == sg(DAY, 13).isoformat()
+    assert body["error"].endswith("Check in there instead. It is free until 13:00.")
+
+
+def test_book_suggestions_carry_no_until(app, world):
+    assert all("until" not in s for s in _suggest(app, world, "dina")["seats"])
 
 
 def test_checked_in_elsewhere_gets_give_up_message_not_team_first(client, world, monkeypatch):
@@ -212,3 +218,29 @@ def test_suggest_endpoint_and_permission(client, world):
     assert r.status_code == 403 and r.get_json()["error"] == "you can only book for colleagues in your project teams"
     assert client.get(q + f"&user_id={world['users']['bob']}", headers=hdr(world["tok"]["root"])).status_code == 200
     assert client.get(q + "&purpose=nap", headers=hdr(world["tok"]["dina"])).status_code == 400
+
+
+def test_holding_the_slot_is_refused_before_team_first(client, world):
+    assert book(client, world, "dina", "E1", "am").status_code == 201
+    r = book(client, world, "dina", "F1", "full")
+    assert r.status_code == 409 and r.get_json() == {"error": "You already have a booking at that time."}
+    r = book(client, world, "ali", "F1", "full", for_user="dina")
+    assert r.status_code == 409 and r.get_json()["error"] == "Dina Koh already has a booking at that time."
+
+
+def test_floor_and_suggest_offer_no_team_seat_for_a_held_slot(client, world):
+    assert book(client, world, "dina", "E1", "am").status_code == 201
+    body = _floor(client, world, "dina", DAY, "am")
+    assert body["team_first"]["am"] is None and body["team_first"]["full"] is None
+    assert body["team_first"]["pm"]["seat_label"] == "E1"                       # dina's am booking leaves pm open
+    q = f"/api/desk/suggest?date={DAY.isoformat()}&preset="
+    for preset, tier in (("am", "none"), ("full", "none"), ("pm", "team")):
+        assert client.get(q + preset, headers=hdr(world["tok"]["dina"])).get_json()["tier"] == tier, preset
+    got = client.get(q + f"full&user_id={world['users']['dina']}", headers=hdr(world["tok"]["ali"])).get_json()
+    assert got == {"tier": "none", "seats": []}                                  # the colleague row hint gets nothing too
+
+
+def test_floor_can_check_in_follows_team_first(client, world, monkeypatch):
+    set_now(monkeypatch, sg(DAY, 9))
+    seats = {s["label"]: s for s in _floor(client, world, "dina", DAY)["seats"]}
+    assert seats["F1"]["can_check_in"] is False and seats["E1"]["can_check_in"] is True

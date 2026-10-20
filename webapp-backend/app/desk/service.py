@@ -224,10 +224,20 @@ def _window(day: date, preset: str | None, at: datetime) -> tuple[datetime, date
     return current, at + rules.EARLY_CHECKIN
 
 
-def _blocks_in(seat_ids, starts: datetime, ends: datetime) -> list[SeatBookingBlock]:
+def _blocks_in(seat_ids, starts: datetime, ends: datetime, booked_for=None) -> list[SeatBookingBlock]:
+    """Blocks in [starts, ends) on `seat_ids`, plus (with `booked_for`) that person's blocks on any seat."""
+    where = SeatBookingBlock.seat_id.in_(seat_ids)
+    if booked_for is not None:
+        where = or_(where, SeatBookingBlock.booked_for == booked_for)
     return orm_session().scalars(select(SeatBookingBlock).where(
-        SeatBookingBlock.seat_id.in_(seat_ids), SeatBookingBlock.block_start >= starts,
-        SeatBookingBlock.block_start < ends)).all()
+        where, SeatBookingBlock.block_start >= starts, SeatBookingBlock.block_start < ends)).all()
+
+
+def _holds_time(user: User, starts: datetime, ends: datetime) -> bool:
+    """Whether `user` already holds a booking block in [starts, ends): one query."""
+    return bool(orm_session().scalar(select(select(SeatBookingBlock.seat_id).where(
+        SeatBookingBlock.booked_for == user.id, SeatBookingBlock.block_start >= starts,
+        SeatBookingBlock.block_start < ends).exists())))
 
 
 def open_checkins(seat_ids) -> dict[uuid.UUID, SeatCheckin]:
@@ -245,10 +255,14 @@ def _booking_view(booking: SeatBooking) -> dict:
 
 
 def floor_context(seat_ids, day: date, at: datetime, viewer: User | None = None) -> dict:
-    """Everything the floor view needs for `day`, loaded with a fixed number of queries."""
+    """Everything the floor view needs for `day`, loaded with a fixed number of queries. With a viewer,
+    "my_blocks" holds the viewer's own booking blocks that day on any seat (same query)."""
     session = orm_session()
     day_start, day_end = _day_bounds(day)
-    blocks = _blocks_in(seat_ids, day_start, day_end)
+    seats = set(seat_ids)
+    found = _blocks_in(seat_ids, day_start, day_end, viewer.id if viewer is not None else None)
+    blocks = [b for b in found if b.seat_id in seats]
+    my_blocks = [b for b in found if viewer is not None and b.booked_for == viewer.id]
     held_ids = {b.booking_id for b in blocks}
     active_by_seat: dict = {}
     held: dict = {}
@@ -266,8 +280,7 @@ def floor_context(seat_ids, day: date, at: datetime, viewer: User | None = None)
         blocks_by_seat.setdefault(block.seat_id, []).append(block)
     who = [SeatCheckin.seat_id.in_(seat_ids)] + ([SeatCheckin.user_id == viewer.id] if viewer is not None else [])
     open_now = session.scalars(select(SeatCheckin).where(SeatCheckin.checked_out_at.is_(None), or_(*who))).all()
-    seats = set(seat_ids)
-    return {"blocks_by_seat": blocks_by_seat, "held": held, "active_by_seat": active_by_seat,
+    return {"blocks_by_seat": blocks_by_seat, "held": held, "active_by_seat": active_by_seat, "my_blocks": my_blocks,
             "open": {c.seat_id: c for c in open_now if c.seat_id in seats},
             "mine": next((c for c in open_now if viewer is not None and c.user_id == viewer.id), None)}
 
@@ -299,7 +312,9 @@ def floor_view(plan: FloorPlan, day: date, preset: str | None, at: datetime, vie
     team_first = team_now = None
     if viewer is not None:
         first = lambda free: suggestion(free[0]) if free else None   # noqa: E731
-        team_first = {p: first(rank_seats(free_to_book(team, day, p, at, ctx), usual)) for p in rules.PRESETS}
+        # None while the viewer already holds part of that slot: the team seat could not be booked either.
+        team_first = {p: None if ranges[p] and any(ranges[p][0] <= b.block_start < ranges[p][1] for b in ctx["my_blocks"])
+                      else first(rank_seats(free_to_book(team, day, p, at, ctx), usual)) for p in rules.PRESETS}
         team_now = first(rank_seats(free_to_check_in(viewer, team, at, ctx), usual)) if is_today else None
     out = []
     for el in seats:
@@ -359,7 +374,11 @@ def published_seats(departments: set[uuid.UUID] = frozenset(), open_to_all: bool
 
 
 def suggestion(seat: dict) -> dict:
-    return {k: seat[k] for k in ("seat_id", "seat_label", "plan_id", "plan_name", "zone")}
+    """The suggestion dict; a check-in suggestion also carries `until`, when the walk-in there would end (spec §2)."""
+    out = {k: seat[k] for k in ("seat_id", "seat_label", "plan_id", "plan_name", "zone")}
+    if "until" in seat:
+        out["until"] = seat["until"].astimezone(rules.TZ).isoformat()
+    return out
 
 
 def rank_seats(seats: list[dict], usual: dict | None) -> list[dict]:
@@ -395,12 +414,14 @@ def free_to_book(seats: list[dict], day: date, preset: str, at: datetime, ctx: d
 
 
 def free_to_check_in(person: User, seats: list[dict], at: datetime, ctx: dict | None = None) -> list[dict]:
-    """The `published_seats` items `person` may check in to now (without the team-first step)."""
+    """The `published_seats` items `person` may check in to now (without the team-first step), each with
+    `until`: when a walk-in there would end."""
     if not seats:
         return []
     if ctx is None:
         ctx = floor_context([s["el"].element_id for s in seats], rules.local_today(at), at, person)
-    return [s for s in seats if _base_decision(person, s["el"], at, ctx)["ok"]]
+    decided = ((s, _base_decision(person, s["el"], at, ctx)) for s in seats)
+    return [{**s, "until": d["ends_at"]} for s, d in decided if d["ok"]]
 
 
 def _free_for(person: User, purpose: str, seats: list[dict], at: datetime, day: date | None, preset: str | None,
@@ -437,15 +458,26 @@ def team_first_seat(person: User, purpose: str, at: datetime, day: date | None =
     return suggestion(free[0]) if free else None
 
 
-def team_first_message(person: User, viewer: User, s: dict, purpose: str) -> str:
+def team_first_message(person: User, viewer: User, s: dict, purpose: str, at: datetime | None = None) -> str:
     whose = "Your" if person.id == viewer.id else f"{person.full_name}'s"
     then = "Check in there instead." if purpose == "checkin" else "Book that one instead."
-    return f"{whose} project team has a free seat: {s['seat_label']} on {s['plan_name']}. {then}"
+    text = f"{whose} project team has a free seat: {s['seat_label']} on {s['plan_name']}. {then}"
+    until = datetime.fromisoformat(s["until"]) if purpose == "checkin" and s.get("until") else None
+    if until is not None and at is not None and until < rules.walk_in_ends_at(at, None):   # booked later today
+        text += f" It is free until {_hhmm(until)}."
+    return text
 
 
 def suggest_seats(person: User, day: date, preset: str | None, at: datetime, purpose: str = "book",
                   limit: int = 5) -> dict:
-    """Seats to offer `person`: free team seats, else free-for-all seats only when no team seat is free."""
+    """Seats to offer `person`: free team seats, else free-for-all seats only when no team seat is free.
+    None to book while `person` already holds part of the slot (they could not book any seat for it)."""
+    if purpose == "book":
+        try:
+            if _holds_time(person, *rules.preset_range(day, preset, at)):
+                return {"tier": "none", "seats": []}
+        except rules.BookingRuleError:
+            return {"tier": "none", "seats": []}
     free, usual = _free_team_seats(person, purpose, at, day, preset)
     tier = "team"
     if not free:
@@ -512,6 +544,9 @@ def create_booking(viewer: User, plan_id, seat_id, day_text, preset, for_user_id
     checkin = open_checkins([el.element_id]).get(el.element_id)
     if checkin and checkin.checked_in_at < ends and checkin.ends_at > starts:
         raise DeskError("seat is occupied at that time", 409)
+    if _holds_time(target, starts, ends):          # before team first: no team seat could be booked either
+        raise DeskError("You already have a booking at that time." if target.id == viewer.id
+                        else f"{target.full_name} already has a booking at that time.", 409)
     if el.open_to_all:                            # team seats first (spec 2026-10-19-team-seats-first)
         s = team_first_seat(target, "book", at, day, str(preset))
         if s is not None:
@@ -591,7 +626,7 @@ def checkin_decision(viewer: User, el: FloorPlanVersionElement, at: datetime, ct
     if decision["ok"] and decision["booking"] is None and el.open_to_all:
         s = team_first_seat(viewer, "checkin", at) if team_seat == "lookup" else team_seat
         if s is not None:
-            return _refuse(team_first_message(viewer, viewer, s, "checkin"), 409, s)
+            return _refuse(team_first_message(viewer, viewer, s, "checkin", at), 409, s)
     return decision
 
 
