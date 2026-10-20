@@ -136,6 +136,24 @@ export function toiletGender(el) {
 
 const hhmm = (iso) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
 
+/** Grid cells ("x,y") covered by the given seat footprints {x, y, w, h}. */
+export function seatCells(rects) {
+  const cells = new Set();
+  for (const r of rects) for (let dx = 0; dx < r.w; dx += 1) for (let dy = 0; dy < r.h; dy += 1) cells.add(`${r.x + dx},${r.y + dy}`);
+  return cells;
+}
+
+/** Where a seat's assignment plate goes (seat assignments page), chosen from the element grid: the right-hand cell,
+ * else the left-hand one, else (a crowded row) below the chair, else above it. A cell is free when it is inside the
+ * floor and holds no seat; `rect` is the seat's footprint {x, y, w, h}. */
+export function plateSide(rect, cells, cols, rows) {
+  const free = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows && !cells.has(`${x},${y}`);
+  if (free(rect.x + rect.w, rect.y)) return 'right';
+  if (free(rect.x - 1, rect.y)) return 'left';
+  if (rect.y + rect.h < rows) return 'below';
+  return 'above';
+}
+
 /** Two short lines for a seat's hover tip (owner 2026-10-16): seat number and team, then who and when. */
 export function seatTip(seat) {
   const head = [seat.label || 'Seat', seat.department].filter(Boolean).join(' · ');

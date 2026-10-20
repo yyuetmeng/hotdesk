@@ -22,10 +22,10 @@ export default function SeatAssignmentsEndingCard() {
     return () => { alive = false; };
   }, []);
 
-  if (!rows && !error) return <Loading label="Loading seat assignments..." />;
   return <section className="card sa-ending">
     <h2>Seat assignments ending</h2>
     <p className="sa-ending-sub">Assigned seats ending in the next 14 days, or ended in the last 14 days.</p>
+    {!rows && !error && <Loading label="Loading seat assignments..." />}
     {error && <Notice kind="error">{error}</Notice>}
     {rows && !rows.length && <p className="state">No seat assignments ending in the next 14 days.</p>}
     {rows && GROUPS.map(([status, label]) => {

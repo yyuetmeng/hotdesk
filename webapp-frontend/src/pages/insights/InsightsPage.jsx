@@ -11,5 +11,6 @@ export function InsightsPage() {
   return <main className="page"><PageTitle title="Insights"><p>Project teams today, recent activity, occupancy over time, live seat use by zone and seat assignments ending.</p></PageTitle>
     <div className="insights-grid insights-top"><TeamsCard /><ActivityCard /></div>
     <div className="insights-funnel"><FunnelCard /></div>
-    <div className="insights-grid"><OccupancyCard /><ZoneUtilisationCard /><SeatAssignmentsEndingCard /></div></main>;
+    <div className="insights-grid"><OccupancyCard /><ZoneUtilisationCard /></div>
+    <div className="insights-ending"><SeatAssignmentsEndingCard /></div></main>;
 }

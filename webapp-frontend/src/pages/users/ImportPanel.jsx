@@ -3,7 +3,8 @@
 // is saved), then upload. Rows with errors are left out and listed; rows whose email already exists are skipped,
 // so uploading a fixed file again is safe. Project teams come from each row's "Project teams" column.
 // holder: an account manager's upload. Teams must be ones they manage, and new users always get an invitation
-// (the server ignores the three admin options for them), so those options are hidden and never sent.
+// (the server refuses "Create missing project teams" and a default password from them with a 403, and always sends
+// invitations whatever the checkbox says), so those options are hidden and never sent.
 import { useState } from 'react';
 import { apiUrl, readFlaskToken } from '../../api.js';
 import { Notice } from '../../components.jsx';

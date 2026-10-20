@@ -66,3 +66,10 @@
 .sa-ending li small { display: block; color: var(--muted); font-size: 12px; }
 .sa-ending time { flex: none; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .sa-ending .leaving_soon time { color: #b45309; } .sa-ending .left time { color: #b91c1c; }
+:root[data-theme="dark"] .sa-ending .leaving_soon time { color: #fbbf24; } :root[data-theme="dark"] .sa-ending .left time { color: #fca5a5; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sa-ending .leaving_soon time { color: #fbbf24; }
+  :root:not([data-theme="light"]) .sa-ending .left time { color: #fca5a5; }
+}
+/* Its own full-width row below Occupancy + Utilisation by zone, so that grid keeps its two columns. */
+.insights-ending { margin-top: 16px; }

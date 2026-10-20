@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { initialDisplayState, nextFloorIndex, overall, overviewConfig, overviewOptions, reduceRefresh, resolvePick, rotationKey, seatTip, sgDateTime, sgTime, slugify, tableLabel } from '../src/display/displayLogic.js';
+import { initialDisplayState, nextFloorIndex, overall, overviewConfig, overviewOptions, plateSide, reduceRefresh, resolvePick, rotationKey, seatCells, seatTip, sgDateTime, sgTime, slugify, tableLabel } from '../src/display/displayLogic.js';
 
 assert.deepEqual(
   overall([{ bookable: 3, available: 1, booked: 1, occupied: 1 }, { bookable: 5, available: 2, booked: 0, occupied: 3 }]),
@@ -121,3 +121,16 @@ assert.equal(tableLabel('', 84), '');
 assert.equal(tableLabel(null, 84), '');
 assert.equal(tableLabel('T1', 18), '');                                      // no room on a tiny table
 console.log('table label smoke OK');
+
+// Assignment plate side, from the grid: right, else left, else below (crowded row), else above (bottom row).
+const cell = (x, y, w = 1, h = 1) => ({ x, y, w, h });
+const grid = seatCells([cell(0, 0), cell(1, 0), cell(2, 0), cell(4, 0), cell(0, 9), cell(1, 9), cell(2, 9), cell(5, 5, 2, 1)]);
+assert.deepEqual([...seatCells([cell(5, 5, 2, 1)])], ['5,5', '6,5']);
+assert.equal(plateSide(cell(2, 0), grid, 10, 10), 'right');       // (3,0) is empty
+assert.equal(plateSide(cell(4, 0), grid, 10, 10), 'right');
+assert.equal(plateSide(cell(0, 0), grid, 10, 10), 'below');       // right is a seat, left is off the floor
+assert.equal(plateSide(cell(1, 0), grid, 10, 10), 'below');       // seats on both sides
+assert.equal(plateSide(cell(1, 9), grid, 10, 10), 'above');       // crowded bottom row: no room below
+assert.equal(plateSide(cell(9, 3), grid, 10, 10), 'left');        // right edge of the floor
+assert.equal(plateSide(cell(5, 5, 2, 1), grid, 10, 10), 'right'); // a two-cell seat looks past its own footprint
+console.log('plate side smoke OK');

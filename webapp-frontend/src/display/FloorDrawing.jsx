@@ -6,7 +6,7 @@
 import { footprint, initials, zoneCaption } from '../desk/deskLogic.js';
 import { iconPath } from './icons.js';
 import { useState } from 'react';
-import { monitorMarks, plantRadius, seatTip, tableLabel, thinBar, toiletGender } from './displayLogic.js';
+import { monitorMarks, plantRadius, plateSide, seatCells, seatTip, tableLabel, thinBar, toiletGender } from './displayLogic.js';
 import './floor.css';
 
 const C = 28;  // drawing units per grid cell
@@ -111,33 +111,57 @@ function Element({ el, catalog }) {
 
 // A seat as a rounded chair: available = chair with a green dot, booked = amber, occupied = red with initials,
 // not bookable = faded and dashed. Selection ring and the Colleague Finder pulse are kept.
-function Seat({ el, seat, onClick, selected, highlight, onHover, note = null, drawingWidth = 0 }) {
+function seatBox(el) {
   const { w, h } = footprint(el);
-  const cx = (el.x + w / 2) * C, cy = (el.y + h / 2) * C, s = Math.min(w, h) * C * 0.66;
+  return { cx: (el.x + w / 2) * C, cy: (el.y + h / 2) * C, s: Math.min(w, h) * C * 0.66 };
+}
+
+function Seat({ el, seat, onClick, selected, highlight, onHover, note = null }) {
+  const { cx, cy, s } = seatBox(el);
   const who = seat.occupant?.name ?? seat.booking?.booked_for?.name;
-  const label = [seat.label, seat.department, who].filter(Boolean).join(' · ');
+  const base = [seat.label, seat.department, who].filter(Boolean).join(' · ');
+  const label = note ? `${base}. ${note.tip.join('. ')}` : base;
   const ring = (cls, pad, extra = {}) => <rect className={cls} x={cx - s / 2 - pad} y={cy - s / 2 - pad} width={s + pad * 2} height={s + pad * 2}
     rx={6 + pad / 2} fill="none" {...extra} />;
   const show = () => onHover?.({ seat, cx, top: cy - s / 2, bottom: cy + s / 2, lines: note?.tip });
-  // Assignment plate (name and end date) beside the chair: right side, flipped left when it would leave the drawing.
-  const plateW = note ? Math.max(note.name.length * 5.4, note.date.length * 4.8) + 8 : 0;
-  const plateX = note ? (cx + s / 2 + 2 + plateW <= drawingWidth ? cx + s / 2 + 2 : cx - s / 2 - 2 - plateW) : 0;
   const hide = () => onHover?.(null);
   return <g className={`disp-seat${highlight ? ' is-found' : ''}`} onClick={() => onClick?.(seat)} role="button" tabIndex={0} aria-label={label}
     onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(seat); }} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
     {selected && ring('fd-selected', 4, { strokeWidth: 3 })}
     {highlight && <>{ring('disp-found-ring fd-found', 3, { strokeWidth: 3.5 })}{ring('disp-found-ring late fd-found', 3, { strokeWidth: 3.5 })}</>}
-    {note && <g pointerEvents="none">
-      <rect x={plateX} y={cy - 11} width={plateW} height="22" rx="3" className="fd-assign-plate" />
-      <text x={plateX + plateW / 2} y={cy - 1.5} textAnchor="middle" fontSize="9" fontWeight="600" className="fd-assign-text">{note.name}</text>
-      {note.date && <text x={plateX + plateW / 2} y={cy + 8} textAnchor="middle" fontSize="8" className="fd-assign-text">{note.date}</text>}
-    </g>}
     <rect className={`fd-chair state-${seat.state}${seat.open_to_all ? ' ffa' : ''}${note ? ` assign-${note.tone}` : ''}`} x={cx - s / 2} y={cy - s / 2} width={s} height={s} rx="5" />
     {who
       ? <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={s * 0.48} fontWeight="800" className="fd-initials">{initials(who)}</text>
       : <rect className="fd-chair-back" x={cx - s * 0.28} y={cy - s * 0.28} width={s * 0.56} height={s * 0.56} rx="2.5" fill="none" />}
     {seat.state === 'available' && <circle className="fd-dot" cx={cx + s / 2 - 1} cy={cy - s / 2 + 1} r={s * 0.2} />}
   </g>;
+}
+
+// Assignment plate (first name and end date) for the seat assignments page. Drawn in its own layer after every seat,
+// so a neighbouring chair never paints over it. The side comes from the grid (plateSide): right, left, or below /
+// above the chair on a crowded row.
+const PLATE_H = 22;
+function AssignmentPlate({ el, note, side, width }) {
+  const { cx, cy, s } = seatBox(el);
+  const plateW = Math.max(note.name.length * 5.4, note.date.length * 4.8) + 8;
+  const sideways = side === 'right' || side === 'left';
+  const rawX = side === 'right' ? cx + s / 2 + 2 : side === 'left' ? cx - s / 2 - 2 - plateW : cx - plateW / 2;
+  const x = Math.max(0, Math.min(rawX, width - plateW));
+  const y = sideways ? cy - PLATE_H / 2 : side === 'below' ? cy + s / 2 + 2 : cy - s / 2 - 2 - PLATE_H;
+  return <g pointerEvents="none">
+    <rect x={x} y={y} width={plateW} height={PLATE_H} rx="3" className="fd-assign-plate" />
+    <text x={x + plateW / 2} y={y + 9.5} textAnchor="middle" fontSize="9" fontWeight="600" className="fd-assign-text">{note.name}</text>
+    {note.date && <text x={x + plateW / 2} y={y + 19} textAnchor="middle" fontSize="8" className="fd-assign-text">{note.date}</text>}
+  </g>;
+}
+
+// All plates, after every seat. Sides are read from where the seats are on the grid, not from the text width.
+function Plates({ elements, seats, notes, cols, rows }) {
+  const seatEls = elements.filter((el) => el.type === 'seat');
+  const rect = (el) => ({ x: el.x, y: el.y, ...footprint(el) });
+  const cells = seatCells(seatEls.map(rect));
+  return seatEls.filter((el) => seats[el.id] && notes[el.id]).map((el) => <AssignmentPlate key={`${el.id}-plate`} el={el} note={notes[el.id]}
+    side={plateSide(rect(el), cells, cols, rows)} width={cols * C} />);
 }
 
 // Legend key: the same chair as Seat, drawn small, so the legend matches the floor.
@@ -201,8 +225,9 @@ export default function FloorDrawing({ floor, onSeatClick, selectedId = null, se
     {(floor.zones ?? []).map((z) => <ZoneOutline key={z.id} zone={z} />)}
     {elements.map((el) => (el.type === 'seat' && seats[el.id]
       ? <Seat key={el.id} el={el} seat={seats[el.id]} onClick={onSeatClick} selected={el.id === selectedId || selectedIds.includes(el.id)} highlight={el.id === highlightId} onHover={setTip}
-        note={notes?.[el.id] ?? null} drawingWidth={floor.cols * C} />
+        note={notes?.[el.id] ?? null} />
       : <Element key={el.id} el={el} catalog={catalog} />))}
+    {notes && <Plates elements={elements} seats={seats} notes={notes} cols={floor.cols} rows={floor.rows} />}
     {(floor.zones ?? []).map((z) => <ZoneLabel key={`${z.id}-label`} zone={z} />)}
     {tip && <SeatTip tip={tip} width={floor.cols * C} top={top} />}
   </svg>;
