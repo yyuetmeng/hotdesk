@@ -29,7 +29,7 @@ from . import admin_bp
 
 PAGE_SIZE = 50
 EXPORT_LIMIT = 5000
-CATEGORIES = {"security": ("auth.", "account.", "password_reset.", "audit."), "users": ("user.",), "teams": ("department.",),
+CATEGORIES = {"security": ("auth.", "account.", "password_reset.", "audit."), "users": ("user.", "seat_assignment."), "teams": ("department.",),
               "floor_plans": ("floorplan.",), "displays": ("display.",), "desks": ("booking.", "checkin."),
               "exports": ("insights.", "desk_label.")}
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -197,6 +197,9 @@ def _describe(e: AuditLog, target: str | None, places) -> str:
         "checkin.end": f"{who} gave up {where}",
         "checkin.auto_ended": f"{person or 'Someone'} was checked out of {where} automatically",
         "checkin.plan_changed": f"Ended {person or 'a'}{chr(39) + 's' if person else ''} check-in at {where} (floor plan changed)",
+        "seat_assignment.create": f"{who} assigned {d.get('person_name', 'someone')} to {where}" + (f" until {d['end_date']}" if d.get("end_date") else ""),
+        "seat_assignment.change": f"{who} changed the assignment of {d.get('person_name', 'someone')} at {where}" + (f" (until {d['end_date']})" if d.get("end_date") else " (no end date)"),
+        "seat_assignment.clear": f"{who} removed {d.get('person_name', 'someone')} from {where}",
         "insights.exported": f"{who} exported {str(d.get('kind', 'data')).replace('_', ' ')} to Excel",
         "audit.cleared": f"{who} cleared {d.get('count', '?')} audit entr{'y' if d.get('count') == 1 else 'ies'} older than {d.get('before', '?')}"
                          + (f" ({', '.join(str(c).replace('_', ' ') for c in d['categories'])})" if d.get("categories") else " (all categories)"),
