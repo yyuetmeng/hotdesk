@@ -16,7 +16,7 @@ have to name it team lead")**.
 - An admin chooses who has the permission and for which of their project teams **(owner)**.
 - People with it can look after their teammates' accounts without asking an admin.
 
-**Non-goals.** New roles; letting them import (Upload Users) or delete users; changing the team membership of existing
+**Non-goals.** New roles; letting them delete users; changing the team membership of existing
 users; audit-log access.
 
 **Anti-goals.**
@@ -41,10 +41,11 @@ Allowed, for manageable people only **(owner)**:
 - edit **name**, **access start/end dates**, **usual seat** and **booking allowance**;
 - **turn the account on or off**;
 - **resend the invitation** email;
-- **create a user** for the teams they manage **(owner, 2026-10-20)**: see 3.1.
+- **create a user** for the teams they manage **(owner, 2026-10-20)**: see 3.1;
+- **upload users** from the template for the teams they manage **(owner, 2026-10-20)**: see 3.2.
 
 Refused (admin only) **(owner)**: role, changing an existing user's email or username, setting a password, delete,
-changing an existing user's project-team membership, Upload Users. Any request for these, or for a person outside the holder's scope, is refused by
+changing an existing user's project-team membership. Any request for these, or for a person outside the holder's scope, is refused by
 the server: 403 "You can only manage accounts in your project teams." for out-of-scope people, 403 "Only an
 administrator can change this." for a refused field *(call: wording)*.
 
@@ -59,8 +60,17 @@ Booking allowance is capped at what an admin could set; there is no extra cap fo
 - Email and username are set at creation only; after that they are admin-only, as for any other user *(call)*.
 - A username or email already in use is refused with the admin's existing message. The holder learns only that
   it is taken, never whose it is *(call)*.
-- Upload Users (bulk import) stays admin-only *(call: the owner asked for creating users; bulk import is a
-  separate tool)*.
+
+### 3.2 Uploading users
+- Same template, preview (dry run) and import as an admin's **Upload Users**. The upload still creates new normal
+  users only and skips emails that already exist **(owner)**.
+- **Every row must name at least one project team, and only teams the holder manages.** A row with no team or
+  with any other team is an error row: "You can only add people to the teams you manage." Valid rows still import,
+  as for admins *(call)*.
+- **Create missing project teams** is not offered to holders; making teams stays admin-only *(call)*.
+- **Default password** is not offered to holders. Their new users always get the invitation email, as with 3.1
+  *(call: holders never set passwords)*.
+- The template's Instructions sheet lists only the holder's managed teams *(call)*.
 
 ## 4. Screens
 
@@ -74,8 +84,8 @@ Booking allowance is capped at what an admin could set; there is no extra cap fo
 - The **Manage Users** menu item appears for holders as well as admins.
 - They see only the top part: filters and the users table, limited to manageable people, and the edit panel
   **(owner: "just the top part")**.
-- **New user** is shown, opening the cut-down create form in 3.1.
-- Hidden for holders: the security summary tiles (they come from the admin-only audit log), **Upload Users**, the **Project Teams** section, the edit panel's **History** tab, and the role, email,
+- **New user** and **Upload Users** are shown, in the cut-down forms of 3.1 and 3.2.
+- Hidden for holders: the security summary tiles (they come from the admin-only audit log), the **Project Teams** section, the edit panel's **History** tab, and the role, email,
   username, password, teams and delete controls *(call: tiles and History follow from "no audit access")*.
 - A line at the top: "You can manage accounts in: Engineering, Design." *(call)*.
 
@@ -90,8 +100,10 @@ Booking allowance is capped at what an admin could set; there is no extra cap fo
 - A holder cannot grant themselves or others the permission.
 - A holder can create a user in a managed team (role user, invitation sent). Creating with no team, with an
   unmanaged team, or with role admin is refused.
+- A holder's upload imports rows in managed teams; rows with no team or an unmanaged team are error rows;
+  create_teams and default_password are refused; their template lists only managed teams.
 - Losing team membership ends the permission for that team.
-- Admin pages and endpoints that holders must not reach (departments editing, audit, import, delete)
+- Admin pages and endpoints that holders must not reach (departments editing, audit, delete)
   stay 403 for them.
 
 ## 7. Settled details *(all calls)*
