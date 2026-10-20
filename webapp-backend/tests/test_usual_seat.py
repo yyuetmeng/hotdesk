@@ -122,6 +122,13 @@ def test_auto_book_reports_a_taken_seat(client, world):
     assert (friday["ok"], friday["seat_label"], friday["usual_seat_label"]) == (True, "F2", "F1")
 
 
+def test_auto_book_skips_today_when_too_late_for_a_full_day(client, world, monkeypatch):
+    _set_usual(client, world, "jane", "F1")
+    _auto_on(client, world, "jane")
+    set_now(monkeypatch, sg(THU, 18, 45))                                                # too late today: no note for it
+    assert [(n["date"], n["ok"]) for n in _dash(client, world, "jane")["auto_book"]] == [(DAY.isoformat(), True)]
+
+
 def test_auto_book_skips_weekends(client, world, monkeypatch):
     _set_usual(client, world, "jane", "F1")
     _auto_on(client, world, "jane")

@@ -3,7 +3,8 @@
 With auto-booking on, signing in and opening the dashboard book a full day for today and tomorrow when those
 are working days and the user has nothing booked yet. The seat is the first `suggest_seats` pick: the usual
 seat when allowed and free, else the user's team seats, else a free-for-all seat (spec 2026-10-19-team-seats-first).
-A usual seat is optional. Normal booking rules apply; a refusal (nothing free, too late today) is reported, never raised.
+A usual seat is optional. Normal booking rules apply; a refusal (nothing free) is reported, never raised, and a day
+already too late for a full day is skipped.
 """
 from datetime import datetime
 
@@ -49,6 +50,10 @@ def run_auto_book(user: User, at: datetime, places: dict) -> list[dict]:
     for day in rules.bookable_days(at):
         if day.weekday() >= 5 or _has_booking(user, day) or (day == today and _checked_in_today(user, day)):
             continue
+        try:
+            rules.preset_range(day, "full", at)
+        except rules.BookingRuleError:
+            continue                                  # too late for a full day today: skip it, no note
         note = {"date": day.isoformat(), "seat_label": None, "ok": False, "message": "no free seat",
                 "usual_seat_label": usual["seat_label"] if usual else None}
         seats = service.suggest_seats(user, day, "full", at)["seats"]   # per day: an earlier booking changes what's free
