@@ -121,17 +121,21 @@ def _team_names() -> list[str]:
 @account_manager_required
 def users_template():
     g.jwt_uid = get_jwt_identity()
-    teams = _team_names() if g.team_scope is None else [d["name"] for d in managed_departments(g.jwt_uid)]
+    holder = g.team_scope is not None
+    teams = [d["name"] for d in managed_departments(g.jwt_uid)] if holder else _team_names()
+    teams_row = (["Project teams", "Yes", "One or more of the teams you manage, separated by ; (e.g. Eng; Design)."] if holder else
+                 ["Project teams", "No", "One or more project team names, separated by ; (e.g. Bolt On; DDAP). Names must match an existing team, unless you tick 'Create missing project teams' when uploading."])
     rules = [["Column", "Required", "What to enter"],
              ["Full name", "Yes", "The person's name, e.g. Tan Mei Ling"],
              ["Email", "Yes", "Their work email; it is also how they sign in. Rows whose email already exists are skipped."],
              ["Username", "No", "Letters, digits or _ (at least 2). Left empty: made from the email, e.g. mei.tan@x.com -> meitan"],
-             ["Project teams", "No", "One or more project team names, separated by ; (e.g. Bolt On; DDAP). Names must match an existing team, unless you tick 'Create missing project teams' when uploading."],
+             teams_row,
              ["Booking allowance", "No", "How many colleagues they may book for per day (0 if empty)"],
              ["Access from", "No", "First day they can sign in, YYYY-MM-DD (empty = straight away)"],
              ["Access until", "No", "Last day they can sign in, YYYY-MM-DD (empty = no end)"],
              [], ["Row 2 of the Users sheet (Andy Lau) is a sample showing how to fill a row in. "
                   "You can leave it or delete it; it is ignored when you upload."],
+             ["Everyone uploaded is a normal user."] if holder else
              ["Everyone uploaded is a normal user. To make someone an admin, edit them in Manage Users afterwards."],
              [], ["Existing project teams"]] + [[n] for n in teams]
     return _template("Users", USER_COLUMNS, rules, _sample_row(teams))

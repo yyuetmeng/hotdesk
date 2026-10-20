@@ -173,6 +173,21 @@ def test_deleting_the_team_refuses_the_holder_next_request(client, held):
     assert client.get("/api/admin/users", headers=hdr(tok)).status_code == 403
 
 
+def test_disabled_holder_refused_with_old_token(client, held):
+    tok = held["hana_tok"]
+    assert client.get("/api/admin/users", headers=hdr(tok)).status_code == 200
+    client.patch(f"/api/admin/users/{held['hana']}", headers=hdr(held["root_tok"]), json={"is_active": False})
+    r = client.get("/api/admin/users", headers=hdr(tok))
+    assert (r.status_code, r.get_json()["error"]) == (403, "admin required")
+
+
+@pytest.mark.parametrize("column,value", [("end_date", "2000-01-01"), ("start_date", "2999-01-01")])
+def test_holder_outside_access_dates_refused_with_old_token(client, held, column, value):
+    run_one(f"update users set {column} = :d where id = :i returning id", {"d": value, "i": held["hana"]})
+    r = client.get("/api/admin/users", headers=hdr(held["hana_tok"]))
+    assert (r.status_code, r.get_json()["error"]) == (403, "admin required")
+
+
 def test_holder_still_blocked_from_admin_only_endpoints(client, held):
     tok, eve = held["hana_tok"], held["eve"]
     assert client.delete(f"/api/admin/users/{eve}", headers=hdr(tok)).status_code == 403
@@ -267,3 +282,12 @@ def test_holder_template_lists_only_managed_teams(client, hana_manages_eng):
     instructions, users = cells("xl/worksheets/sheet2.xml"), cells("xl/worksheets/sheet1.xml")
     assert r.status_code == 200 and instructions[-1] == "Eng" and "Ops" not in instructions and "Design" not in instructions
     assert "Eng" in users and "Ops" not in users
+    teams_row = instructions[instructions.index("Project teams"):][:3]
+    assert teams_row == ["Project teams", "Yes", "One or more of the teams you manage, separated by ; (e.g. Eng; Design)."]
+    assert not any("Create missing project teams" in t or "make someone an admin" in t for t in instructions)
+
+
+def test_admin_template_keeps_admin_instructions(client, world):
+    r = client.get("/api/admin/users/import-template.xlsx", headers=hdr(world["root_tok"]))
+    text = " ".join(re.findall(r"<t[^>]*>([^<]*)</t>", zipfile.ZipFile(io.BytesIO(r.data)).read("xl/worksheets/sheet2.xml").decode()))
+    assert "Create missing project teams" in text and "make someone an admin" in text

@@ -164,6 +164,19 @@ def test_deleted_person_history_kept(client, monkeypatch, db):
     assert run_one("select person_name, user_id from seat_assignments") == {"person_name": "Carl Lim", "user_id": None}
 
 
+def test_listing_and_insights_show_the_current_name(client, monkeypatch, db):
+    w = build_world(client, monkeypatch); h = hdr(w["tok"]["root"])
+    put(client, w, "E1", "jane", end_date="2026-10-20"); put(client, w, "F1", "carl", end_date="2026-10-20")
+    put(client, w, "F2", "bob", end_date="2026-10-21")
+    client.patch(f"/api/admin/users/{w['users']['carl']}", headers=h, json={"full_name": "Zed Lim"})   # stored: Carl Lim
+    client.delete(f"/api/admin/users/{w['users']['bob']}", headers=h)
+    listed = client.get(f"/api/admin/seat-assignments?plan_id={w['plan']}", headers=h).get_json()["items"]
+    assert sorted(i["person_name"] for i in listed) == ["Bob Ong", "Jane Tan", "Zed Lim"]   # deleted: stored name
+    ending = client.get("/api/admin/insights/seat-assignments-ending", headers=h).get_json()["items"]
+    assert [i["person_name"] for i in ending] == ["Jane Tan", "Zed Lim", "Bob Ong"]   # same day: ordered by shown name
+    assert run_one("select person_name from seat_assignments where user_id = :u", {"u": w["users"]["carl"]}) ==         {"person_name": "Carl Lim"}                                                   # the stored snapshot is kept
+
+
 def test_assignment_changes_nothing_elsewhere(client, monkeypatch, db):
     w = build_world(client, monkeypatch); h = hdr(w["tok"]["jane"])
     urls = [f"/api/desk/floors/{w['plan']}?date=2026-10-16", "/api/desk/suggest?date=2026-10-16&preset=am",

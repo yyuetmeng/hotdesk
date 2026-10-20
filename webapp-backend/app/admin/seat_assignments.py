@@ -36,6 +36,11 @@ def status_of(end_date: dt.date | None, today: dt.date) -> str:
     return "leaving_soon" if end_date <= today + dt.timedelta(days=WINDOW_DAYS) else "assigned"
 
 
+def display_name(a: SeatAssignment) -> str:
+    """The person's current name; the stored person_name (a snapshot taken at assignment time) once the account is deleted."""
+    return a.user.full_name if a.user is not None else a.person_name
+
+
 def assignment_dto(a: SeatAssignment, places: dict, today: dt.date) -> dict:
     place = places.get(a.seat_id)
     user = a.user
@@ -45,7 +50,7 @@ def assignment_dto(a: SeatAssignment, places: dict, today: dt.date) -> dict:
             "plan_name": place["plan_name"] if place else a.plan_name,
             "seat_removed": place is None,
             "user": {"id": str(user.id), "full_name": user.full_name, "is_active": user.is_active} if user else None,
-            "person_name": a.person_name,
+            "person_name": display_name(a),
             "end_date": a.end_date.isoformat() if a.end_date else None,
             "note": a.note, "status": status_of(a.end_date, today),
             "created_at": a.created_at.isoformat() if a.created_at else None}
@@ -161,7 +166,7 @@ def clear_seat_assignment(assignment_id):
     row.closed_at, row.closed_by, row.closed_reason = func.now(), uuid.UUID(str(actor)), "cleared"
     audit_row(actor, "seat_assignment.clear", row.id, {"seat_id": str(row.seat_id), "seat_label": row.seat_label,
                                                        "plan_name": row.plan_name, "user_id": str(row.user_id) if row.user_id else None,
-                                                       "person_name": row.person_name})
+                                                       "person_name": display_name(row)})
     session.commit()
     return "", 204
 
@@ -172,7 +177,9 @@ def seat_assignments_ending():
     """Current assignments ending within WINDOW_DAYS ahead, or ended within WINDOW_DAYS behind, soonest end first."""
     today = _today()
     window = dt.timedelta(days=WINDOW_DAYS)
-    rows = orm_session().scalars(_current().where(SeatAssignment.end_date.between(today - window, today + window))
-                                 .order_by(SeatAssignment.end_date, SeatAssignment.person_name))
+    rows = orm_session().scalars(_current().outerjoin(User, User.id == SeatAssignment.user_id)
+                                 .where(SeatAssignment.end_date.between(today - window, today + window))
+                                 .order_by(SeatAssignment.end_date, func.coalesce(User.full_name, SeatAssignment.person_name),
+                                           SeatAssignment.id))
     places = seat_places()
     return jsonify(today=today.isoformat(), items=[assignment_dto(a, places, today) for a in rows])
