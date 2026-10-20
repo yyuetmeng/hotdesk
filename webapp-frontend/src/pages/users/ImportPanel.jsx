@@ -2,6 +2,8 @@
 // which upload ignores), fill it in, choose the file, check it (a row-by-row preview; nothing
 // is saved), then upload. Rows with errors are left out and listed; rows whose email already exists are skipped,
 // so uploading a fixed file again is safe. Project teams come from each row's "Project teams" column.
+// holder: an account manager's upload. Teams must be ones they manage, and new users always get an invitation
+// (the server ignores the three admin options for them), so those options are hidden and never sent.
 import { useState } from 'react';
 import { apiUrl, readFlaskToken } from '../../api.js';
 import { Notice } from '../../components.jsx';
@@ -21,7 +23,7 @@ async function upload(file, options) {
   return data;
 }
 
-export default function ImportPanel({ onClose, onDone }) {
+export default function ImportPanel({ holder = false, onClose, onDone }) {
   const [file, setFile] = useState(null);
   const [createTeams, setCreateTeams] = useState(false);
   const [invite, setInvite] = useState(false);
@@ -30,9 +32,10 @@ export default function ImportPanel({ onClose, onDone }) {
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState(null);
-  const options = { create_teams: createTeams, send_invitations: invite, default_password: usePassword ? password : '' };
+  const options = holder ? {}
+    : { create_teams: createTeams, send_invitations: invite, default_password: usePassword ? password : '' };
   const passwordCheck = usePasswordCheck(password);
-  const passwordProblem = usePassword && !passwordCheck.ok ? 'The default password does not meet the password rules.' : '';
+  const passwordProblem = !holder && usePassword && !passwordCheck.ok ? 'The default password does not meet the password rules.' : '';
 
   const run = async (label, fn) => { setBusy(label); setError(null); try { await fn(); } catch (err) { setError(err.message); } finally { setBusy(''); } };
   const check = () => run('check', async () => setPreview(await upload(file, { ...options, dry_run: true })));
@@ -50,7 +53,9 @@ export default function ImportPanel({ onClose, onDone }) {
         onClick={() => run('template', () => downloadFile('/api/admin/users/import-template.xlsx', 'users-template.xlsx'))}>Download the Excel template</button>
         <span className="muted"> Row 2 (Andy Lau) is a sample and is ignored on upload. Everyone uploaded is a normal user. The Instructions sheet explains each column and lists the project teams.</span></li>
       <li>Fill it in, then choose the file: <input type="file" accept=".xlsx,.csv" onChange={changed((e) => setFile(e.target.files?.[0] ?? null))} /></li>
-      <li className="users-import-options">
+      {holder
+        ? <li>New users get an invitation email to set their password.</li>
+        : <li className="users-import-options">
         <label><input type="checkbox" checked={createTeams} onChange={changed((e) => setCreateTeams(e.target.checked))} />Create missing project teams</label>
         <label><input type="checkbox" checked={invite} onChange={changed((e) => setInvite(e.target.checked))} />Send invitation emails to new users</label>
         <label><input type="checkbox" checked={usePassword} onChange={changed((e) => setUsePassword(e.target.checked))} />Set a default password</label>
@@ -59,7 +64,7 @@ export default function ImportPanel({ onClose, onDone }) {
             onChange={changed((e) => setPassword(e.target.value))} /></label>}
         {usePassword && <PasswordStrength check={passwordCheck} />}
         {usePassword && <small className="muted">Every new user can sign in with this password straight away; ask them to change it in My account.</small>}
-      </li>
+      </li>}
       <li><button type="button" className="button primary" disabled={!file || Boolean(busy) || Boolean(passwordProblem)} onClick={check}>{busy === 'check' ? 'Checking…' : 'Check file'}</button>
         <span className="muted"> Shows what will happen; nothing is saved yet.</span>
         {passwordProblem && <small className="users-import-bad"> {passwordProblem}</small>}</li>

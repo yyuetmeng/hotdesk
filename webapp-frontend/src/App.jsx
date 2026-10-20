@@ -22,11 +22,13 @@ import logo from './logo.png';
 import FloorPlansPage from './floorplan/FloorPlansPage.jsx';
 import EditorPage from './floorplan/EditorPage.jsx';
 import ThemeSettings from './ThemeSettings.jsx';
-import { isAdmin } from './roles.js';
+import { canManageAccounts, isAccountManager, isAdmin } from './roles.js';
 import { BOTTOM_LINKS, readCollapsed, saveCollapsed, shellClass } from './layout.js';
 
 const workspaceLinks = [['/', 'Dashboard', 'dashboard'], ['/overview', 'Floor overview', 'overview'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin'], ['/finder', 'Colleague Finder', 'finder']];
 const analyticsLinks = [['/insights', 'Insights', 'insights']];
+// Account managers (non-admins who manage accounts for chosen teams) see only Manage Users.
+const accountManagerLinks = [['/users', 'Manage Users', 'users']];
 const adminLinks = [['/desk-labels', 'Print Desk Labels', 'labels'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users'], ['/audit', 'Audit Log', 'audit']];
 
 function NavIcon({ name }) {
@@ -73,6 +75,9 @@ function Sidebar({ collapsed, onToggleCollapsed, onClose }) {
         <p className="nav-label">Analytics</p>{nav(analyticsLinks)}
         <p className="nav-label">Administration</p>{nav(adminLinks)}
       </>}
+      {isAccountManager(user) && <>
+        <p className="nav-label">Administration</p>{nav(accountManagerLinks)}
+      </>}
     </nav>
     <div className="sidebar-footer">
       <ThemeSettings />
@@ -99,6 +104,12 @@ export default function App() {
 function AdminOnly({ children }) {
   const { user } = useAuth();
   return isAdmin(user) ? children : <Navigate to="/" replace />;
+}
+
+// Manage Users is for admins and for account managers; anyone else is sent to the floor plan.
+function AccountManagersOnly({ children }) {
+  const { user } = useAuth();
+  return canManageAccounts(user) ? children : <Navigate to="/" replace />;
 }
 
 // The old per-plan QR sheet now lives in Print Desk Labels, filtered to that floor.
@@ -141,7 +152,7 @@ function Workspace() {
       <Route path="/floor-plans/:id" element={<AdminOnly><EditorPage /></AdminOnly>} />
       <Route path="/floor-plans/:id/qr" element={<AdminOnly><OldQrLink /></AdminOnly>} />
       <Route path="/desk-labels" element={<AdminOnly><DeskLabelsPage /></AdminOnly>} />
-      <Route path="/users" element={<AdminOnly><UsersPage /></AdminOnly>} />
+      <Route path="/users" element={<AccountManagersOnly><UsersPage /></AccountManagersOnly>} />
       <Route path="/audit" element={<AdminOnly><AuditLogPage /></AdminOnly>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></div>

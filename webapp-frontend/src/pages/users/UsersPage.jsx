@@ -10,6 +10,8 @@ import './users.css';
 import { seatGroups, seatName } from './usualSeat.js';
 import AuditTimeline from '../audit/AuditTimeline.jsx';
 import { relativeTime } from '../audit/auditLogic.js';
+import { isAccountManager } from '../../roles.js';
+import { errorText, holderChanges, managedLine, teamsOwnFirst } from './teamAccess.js';
 
 const PAGE_SIZE = 20;
 const EMPTY_FORM = { email: '', username: '', full_name: '', role: 'user', start_date: '', end_date: '',
@@ -26,18 +28,16 @@ function statusOf(user) {
   return user.is_active ? 'active' : 'disabled';
 }
 
-function messageOf(err) {
-  if (err.status === 401) return 'Session expired — sign in again.';
-  if (err.status === 403) return 'You need an administrator account to manage users.';
-  return err.message;
-}
-
 export function UsersPage() {
   const { user: me } = useAuth();
+  // An account manager sees only the people in the teams they manage, and none of the admin-only parts.
+  const holder = isAccountManager(me);
   const [filters, setFilters] = useState({ q: '', role: '', status: '', department: '' });
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
-  const [departments, setDepartments] = useState([]);
+  const [adminDepartments, setDepartments] = useState([]);
+  // An account manager can't fetch /api/admin/departments; their teams are the ones they manage.
+  const departments = holder ? (me.manages ?? []) : adminDepartments;
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [editing, setEditing] = useState(null); // null | 'new' | user object
@@ -46,13 +46,14 @@ export function UsersPage() {
     const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
     Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
     try { setData(await flaskRequest(`/api/admin/users?${params}`)); setError(null); }
-    catch (err) { setError(messageOf(err)); }
+    catch (err) { setError(errorText(err)); }
   }, [filters, page]);
 
   const loadDepartments = useCallback(async () => {
+    if (holder) return;
     try { setDepartments((await flaskRequest('/api/admin/departments')).items); }
-    catch (err) { setError(messageOf(err)); }
-  }, []);
+    catch (err) { setError(errorText(err)); }
+  }, [holder]);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
   useEffect(() => { loadDepartments(); }, [loadDepartments]);
@@ -73,7 +74,9 @@ export function UsersPage() {
     setChanges((n) => n + 1);
   };
 
-  const title = <PageTitle title="Manage Users / Project Teams"><p>Invite people, set their role and project teams, and control access.</p></PageTitle>;
+  const title = holder
+    ? <PageTitle title="Manage Users"><p>{managedLine(me.manages)}</p></PageTitle>
+    : <PageTitle title="Manage Users / Project Teams"><p>Invite people, set their role and project teams, and control access.</p></PageTitle>;
   if (error && !data) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
   if (!data) return <main className="page">{title}<Loading label="Loading users..." /></main>;
 
@@ -82,17 +85,17 @@ export function UsersPage() {
     {title}
     {error && <Notice kind="error">{error}</Notice>}
     {notice && <Notice kind={notice.kind}>{notice.message}</Notice>}
-    <SecurityStrip refreshKey={changes} onFilter={(status) => setFilter('status', status)} />
-    {importing && <ImportPanel onClose={() => setImporting(false)} onDone={(message) => afterChange(message)} />}
+    {!holder && <SecurityStrip refreshKey={changes} onFilter={(status) => setFilter('status', status)} />}
+    {importing && <ImportPanel holder={holder} onClose={() => setImporting(false)} onDone={(message) => afterChange(message)} />}
 
     <div className="content-split users-layout">
       <section className="card">
         <div className="toolbar">
           <label>Search <input type="search" placeholder="Name, username or email" value={filters.q}
             onChange={(e) => setFilter('q', e.target.value)} /></label>
-          <label>Role <select value={filters.role} onChange={(e) => setFilter('role', e.target.value)}>
+          {!holder && <label>Role <select value={filters.role} onChange={(e) => setFilter('role', e.target.value)}>
             <option value="">All</option><option value="user">User</option><option value="admin">Admin</option>
-          </select></label>
+          </select></label>}
           <label>Status <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)}>
             <option value="">All</option><option value="active">Active</option><option value="inactive">Disabled</option>
             <option value="locked">Locked</option><option value="pending">Not activated</option>
@@ -117,6 +120,7 @@ export function UsersPage() {
                     <small>{u.last_login_at ? `Last sign-in ${relativeTime(u.last_login_at)}` : 'Never signed in'}</small>
                     {u.locked && <span className="users-badge red">Locked</span>}
                     {u.failed_logins_7d > 0 && <span className="users-badge amber">{u.failed_logins_7d} failed sign-in{u.failed_logins_7d === 1 ? '' : 's'} (7 days)</span>}
+                    {!holder && u.manages?.length > 0 && <span className="users-badge manages" title={u.manages.map((d) => d.name).join(', ')}>Manages accounts</span>}
                   </span></td>
                 <td>{u.email}</td>
                 <td className="users-role">{u.role}</td>
@@ -141,24 +145,26 @@ export function UsersPage() {
       <aside className="card detail">
         {editing
           ? <UserForm floors={floors} key={editing === 'new' ? 'new' : editing.id} user={editing === 'new' ? null : editing}
-              departments={departments} isSelf={editing !== 'new' && editing.id === me?.id}
+              departments={departments} holder={holder} isSelf={editing !== 'new' && editing.id === me?.id}
               onClose={() => setEditing(null)} onChanged={afterChange}
               onSaved={(saved) => setEditing(saved)} />
           : <p className="state">Select a user to edit, or choose <b>New user</b>.</p>}
       </aside>
     </div>
 
-    <DepartmentsSection departments={departments} onChanged={afterChange} refreshKey={changes} />
+    {!holder && <DepartmentsSection departments={departments} onChanged={afterChange} refreshKey={changes} />}
   </main>;
 }
 
-function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSaved }) {
+// holder: the account manager's cut-down form (spec 2026-10-19-team-account-management §4.2).
+function UserForm({ user, departments, floors, holder, isSelf, onClose, onChanged, onSaved }) {
   const isNew = !user;
   const [form, setForm] = useState(() => (isNew ? EMPTY_FORM : {
     email: user.email, username: user.username, full_name: user.full_name, role: user.role,
     start_date: user.start_date || '', end_date: user.end_date || '',
     department_ids: user.departments.map((d) => d.id), is_active: user.is_active,
     booking_allowance: user.booking_allowance ?? 0, usual_seat_id: user.usual_seat_id ?? '',
+    ...(holder ? {} : { manages_department_ids: (user.manages ?? []).map((d) => d.id) }),
   }));
   const [fields, setFields] = useState({});
   const [message, setMessage] = useState(null);
@@ -166,17 +172,18 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
   const [password, setPassword] = useState('');
   const passwordCheck = usePasswordCheck(password, { username: user?.username, email: user?.email });
   const [tab, setTab] = useState('details');
+  const readOnly = holder && !isNew;   // an account manager can't change username, email or teams
 
   const set = (key, value) => setForm((old) => ({ ...old, [key]: value }));
-  const toggleDept = (id) => set('department_ids', form.department_ids.includes(id)
-    ? form.department_ids.filter((d) => d !== id) : [...form.department_ids, id]);
+  const toggleIn = (key, id) => set(key, form[key].includes(id) ? form[key].filter((d) => d !== id) : [...form[key], id]);
+  const toggleDept = (id) => toggleIn('department_ids', id);
 
   const run = async (action) => {
     setBusy(true); setMessage(null); setFields({});
     try { await action(); }
     catch (err) {
       if (err.fields) setFields(err.fields);
-      setMessage(messageOf(err));
+      setMessage(errorText(err));
     } finally { setBusy(false); }
   };
 
@@ -186,8 +193,11 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
       const body = { ...form, start_date: form.start_date || null, end_date: form.end_date || null };
       if (body.booking_allowance !== undefined) body.booking_allowance = Number(body.booking_allowance);
       if (body.usual_seat_id !== undefined) body.usual_seat_id = body.usual_seat_id || null;
+      // The grant section is hidden for admins (they already manage every account), so don't send it.
+      if (body.role === 'admin') delete body.manages_department_ids;
       if (isNew) {
         delete body.is_active;
+        if (holder) body.role = 'user';
         const created = await flaskRequest('/api/admin/users', { method: 'POST', body });
         await onChanged(created.invitation_sent
           ? `Created ${created.full_name}. An invitation email was sent to ${created.email}.`
@@ -196,9 +206,10 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
         created.invitation_sent ? 'success' : 'error');
         onSaved(created);
       } else {
-        const changed = Object.fromEntries(Object.entries(body).filter(([key, value]) => {
+        const changed = holder ? holderChanges(form, user) : Object.fromEntries(Object.entries(body).filter(([key, value]) => {
           const before = key === 'department_ids' ? user.departments.map((d) => d.id)
-            : (user[key] ?? (key.endsWith('_date') || key === 'usual_seat_id' ? null : ''));
+            : key === 'manages_department_ids' ? (user.manages ?? []).map((d) => d.id)
+              : (user[key] ?? (key.endsWith('_date') || key === 'usual_seat_id' ? null : ''));
           return JSON.stringify(value) !== JSON.stringify(before);
         }));
         if (!Object.keys(changed).length) { setMessage('Nothing to save.'); return; }
@@ -236,7 +247,7 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
       <h2>{isNew ? 'New user' : user.full_name}</h2>
       <button type="button" className="button" onClick={onClose}>Close</button>
     </div>
-    {!isNew && <div className="users-tabs" role="tablist">
+    {!isNew && !holder && <div className="users-tabs" role="tablist">
       <button type="button" role="tab" aria-selected={tab === 'details'} className={tab === 'details' ? 'active' : ''} onClick={() => setTab('details')}>Details</button>
       <button type="button" role="tab" aria-selected={tab === 'history'} className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>History</button>
     </div>}
@@ -247,23 +258,39 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
     {message && <Notice kind="error">{message}</Notice>}
 
     <label>Full name <input value={form.full_name} onChange={(e) => set('full_name', e.target.value)} required />{err('full_name')}</label>
-    <label>Username <input value={form.username} onChange={(e) => set('username', e.target.value)} required />{err('username')}</label>
-    <label>Email <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} required />{err('email')}</label>
-    <label>Role <select value={form.role} onChange={(e) => set('role', e.target.value)} disabled={isSelf}>
+    {readOnly
+      ? <dl className="users-readonly">
+        <dt>Username</dt><dd>@{user.username}</dd>
+        <dt>Email</dt><dd>{user.email}</dd>
+      </dl>
+      : <>
+        <label>Username <input value={form.username} onChange={(e) => set('username', e.target.value)} required />{err('username')}</label>
+        <label>Email <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} required />{err('email')}</label>
+      </>}
+    {!holder && <label>Role <select value={form.role} onChange={(e) => set('role', e.target.value)} disabled={isSelf}>
       <option value="user">User</option><option value="admin">Admin</option>
-    </select>{err('role')}</label>
+    </select>{err('role')}</label>}
     <div className="users-dates">
       <label>Access from <input type="date" value={form.start_date} onChange={(e) => set('start_date', e.target.value)} />{err('start_date')}</label>
       <label>Access until <input type="date" value={form.end_date} onChange={(e) => set('end_date', e.target.value)} />{err('end_date')}</label>
     </div>
-    <fieldset className="users-depts">
-      <legend>Project teams</legend>
-      {departments.length
-        ? departments.map((d) => <label key={d.id} className="users-check">
-          <input type="checkbox" checked={form.department_ids.includes(d.id)} onChange={() => toggleDept(d.id)} />{d.name}</label>)
-        : <small>No project teams yet — add one below the user list.</small>}
-      {err('department_ids')}
-    </fieldset>
+    {readOnly
+      ? <dl className="users-readonly"><dt>Project teams</dt><dd>{user.departments.map((d) => d.name).join(', ') || '—'}</dd></dl>
+      : <fieldset className="users-depts">
+        <legend>Project teams</legend>
+        {departments.length
+          ? departments.map((d) => <label key={d.id} className="users-check">
+            <input type="checkbox" checked={form.department_ids.includes(d.id)} onChange={() => toggleDept(d.id)} />{d.name}</label>)
+          : <small>No project teams yet — add one below the user list.</small>}
+        {err('department_ids')}
+      </fieldset>}
+    {!isNew && !holder && form.role !== 'admin' && <fieldset className="users-depts">
+      <legend>Can manage accounts for</legend>
+      {teamsOwnFirst(departments, form.department_ids).map((d) => <label key={d.id} className="users-check">
+        <input type="checkbox" checked={form.manages_department_ids.includes(d.id)} onChange={() => toggleIn('manages_department_ids', d.id)} />{d.name}</label>)}
+      <small className="users-hint">They can add people to these teams and edit or turn off their non-admin accounts. Untick all to remove this.</small>
+      {err('manages_department_ids')}
+    </fieldset>}
     {!isNew && <label>Usual seat <select value={form.usual_seat_id} onChange={(e) => set('usual_seat_id', e.target.value)}>
       <option value="">None</option>
       {form.usual_seat_id && !seatName(floors, form.usual_seat_id) && <option value={form.usual_seat_id}>Seat no longer published</option>}
@@ -272,7 +299,7 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
     </select><small className="users-hint">Shown in Colleague Finder and on their dashboard. It does not reserve the seat.</small>
       {err('usual_seat_id')}</label>}
     {!isNew && <label>Can book seats for others (0–20 colleagues per day)
-      <input type="number" min="0" max="20" value={form.booking_allowance}
+      <input type="number" min="0" max="20" required value={form.booking_allowance}
         onChange={(e) => set('booking_allowance', e.target.value)} />{err('booking_allowance')}</label>}
     {!isNew && <label className="users-check">
       <input type="checkbox" checked={form.is_active} disabled={isSelf}
@@ -282,7 +309,12 @@ function UserForm({ user, departments, floors, isSelf, onClose, onChanged, onSav
       <button className="button primary" disabled={busy}>{isNew ? 'Create and invite' : 'Save changes'}</button>
     </div>
 
-    {!isNew && <div className="users-actions">
+    {!isNew && holder && user.status === 'pending_activation' && <div className="users-actions">
+      <h3>Account actions</h3>
+      <button type="button" className="button" disabled={busy} onClick={resend}>Resend invitation</button>
+    </div>}
+
+    {!isNew && !holder && <div className="users-actions">
       <h3>Account actions</h3>
       <div className="inline-form">
         <label>New password <input type="password" minLength={8} autoComplete="new-password" value={password}
@@ -303,7 +335,7 @@ function DepartmentsSection({ departments, onChanged, refreshKey }) {
 
   const run = async (action) => {
     setMessage(null);
-    try { await action(); } catch (err) { setMessage(err.fields ? Object.values(err.fields).join('; ') : messageOf(err)); }
+    try { await action(); } catch (err) { setMessage(err.fields ? Object.values(err.fields).join('; ') : errorText(err)); }
   };
   const add = (event) => {
     event.preventDefault();

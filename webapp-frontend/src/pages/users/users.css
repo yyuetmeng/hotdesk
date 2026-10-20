@@ -62,3 +62,9 @@
 .users-import-table tr.imp-error td { background: color-mix(in srgb, #dc2626 6%, transparent); }
 .users-import-password { display: inline-flex; align-items: center; gap: 8px; }
 .users-import-password input { width: 220px; }
+
+/* Team account management (spec 2026-10-19-team-account-management §4). */
+.users-badge.manages { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.users-readonly { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 14px; }
+.users-readonly dt { color: var(--muted); font-size: 13px; }
+.users-readonly dd { margin: 0; overflow-wrap: anywhere; }
