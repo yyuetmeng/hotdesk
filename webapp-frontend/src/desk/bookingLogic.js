@@ -48,6 +48,19 @@ export function rowTeamHint(row, result, takenIds = []) {
   return result.seats.find((s) => s.seat_id !== row.seat.id && !takenIds.includes(s.seat_id)) ?? null;
 }
 
+/** "Find a seat for {name}" (One seat only, and not beside a row hint): the colleague's first suggested seat when
+ * it is a team seat other than the row's, or when the row's seat is not free for the slot; else null.
+ * A row seat without `free` came from a suggestion, so it counts as free. */
+export function findSeatFor({ row, result, preset, multi = false, hint = null }) {
+  const s = !multi && !hint && result && result.tier !== 'none' ? result.seats[0] : null;
+  if (!s || s.seat_id === row.seat.id) return null;
+  return result.tier === 'team' || !(row.seat.free?.[preset] ?? true) ? s : null;
+}
+
+/** Acting on a failed row's suggestion while Both days is on: the day offset to switch to (that row's day, so
+ * Confirm retries only the failed day), or null to leave the days as they are. */
+export const retryDayOffset = (both, days, date) => (both ? Math.max(0, days.indexOf(date)) : null);
+
 /** A suggestion as a row seat. */
 export const toRowSeat = (s) => ({ id: s.seat_id, label: s.seat_label, plan_id: s.plan_id, open_to_all: false });
 

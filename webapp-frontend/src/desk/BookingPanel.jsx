@@ -3,11 +3,11 @@
 // Team first (spec 2026-10-19-team-seats-first §6): a free team seat is offered instead of a free-for-all one,
 // for you (jump to it) and for each colleague (swap the row's seat). Rules live in bookingLogic.js; the server
 // re-checks every booking.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flaskRequest } from '../api.js';
 import { Notice } from '../components.jsx';
 import { formatDate } from '../format.js';
-import { bookBlock, bookingProblem, bookingRequests, confirmLabel, dayDates, firstName, resultSummary, rowTeamHint, toRowSeat } from './bookingLogic.js';
+import { bookBlock, bookingProblem, bookingRequests, confirmLabel, dayDates, findSeatFor, firstName, resultSummary, retryDayOffset, rowTeamHint, toRowSeat } from './bookingLogic.js';
 import { PRESETS, nextDayName, presetLabel, teamSeatText } from './deskLogic.js';
 
 function Segment({ label, options, value, onChange }) {
@@ -61,8 +61,10 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
     flaskRequest(`/api/desk/colleagues?date=${dates[0]}&q=`).then((d) => setAllowance(d.allowance)).catch(() => setAllowance(null));
   }, [forWho, dates[0]]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setResults(null); setSwaps({}); }, [seat.id]);
-  // A new day or slot: drop seats and hints found for the previous one (declared before the fetch below).
-  useEffect(() => { setSwaps({}); setSuggested({}); }, [dates[0], preset]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A new day or slot: drop seats and hints found for the previous one (declared before the fetch below),
+  // except a swap made while switching to a failed row's day (keepSwap).
+  const keepSwap = useRef(false);
+  useEffect(() => { if (!keepSwap.current) setSwaps({}); keepSwap.current = false; setSuggested({}); }, [dates[0], preset]); // eslint-disable-line react-hooks/exhaustive-deps
   // Each picked colleague's best free seat for the day and slot (their team's first).
   const personIds = Object.values(people).filter(Boolean).map((p) => p.id).join(',');
   useEffect(() => {
@@ -85,6 +87,12 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
   const pick = (key, p) => {
     setPeople((all) => ({ ...all, [key]: p }));
     if (!p) setSwaps((all) => { const { [key]: _, ...rest } = all; return rest; });   // the swap was for that person
+  };
+  // A failed row's suggestion: with Both days on, retry only that row's day.
+  const retryWith = (r) => {
+    const offset = retryDayOffset(both, days, r.date);
+    if (offset !== null) { keepSwap.current = forWho !== 'me' && days[offset] !== dates[0]; setBoth(false); setDayOffset(offset); }
+    if (forWho === 'me') jumpTo(r.suggestion); else swap(r.key, r.suggestion);
   };
   const chooseDay = (key) => { setBoth(key === 'both'); if (key !== 'both') setDayOffset(key === 'second' ? 1 : 0); };
   const dayName = (date) => (date === days[0] ? 'Today' : nextDayName(date, days[0]));
@@ -112,7 +120,7 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
       {results.some((r) => !r.ok) && <ul className="bk-failed">{results.filter((r) => !r.ok).map((r, i) =>
         <li key={i}>{r.who} · {r.seat} · {dayName(r.date)}: {r.error}
           {r.suggestion && <> <button type="button" className="button"
-            onClick={() => (forWho === 'me' ? jumpTo(r.suggestion) : swap(r.key, r.suggestion))}>Use {r.suggestion.seat_label}</button></>}</li>)}</ul>}
+            onClick={() => retryWith(r)}>Use {r.suggestion.seat_label}</button></>}</li>)}</ul>}
     </div>}
 
     <Segment label="For" value={forWho} onChange={chooseFor}
@@ -125,7 +133,7 @@ export default function BookingPanel({ planId, seat, picked, multi, setMulti, on
       {rows.map((r) => {
         const sug = r.person ? suggested[r.person.id] : null;
         const hint = r.person ? rowTeamHint(r, sug, rows.filter((o) => o.key !== r.key).map((o) => o.seat.id)) : null;
-        const find = !multi && !hint && sug && sug.tier !== 'none' && sug.seats[0].seat_id !== r.seat.id ? sug.seats[0] : null;
+        const find = findSeatFor({ row: r, result: sug, preset, multi, hint });
         return <div key={r.key} className="bk-field">
           <div className="bk-row">
             <span className="bk-seat"><span className="bk-dot" />{r.seat.label}</span>

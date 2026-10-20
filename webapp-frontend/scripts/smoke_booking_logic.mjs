@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { bookBlock, bookingProblem, bookingRequests, canAddSeat, firstName, rowTeamHint, toRowSeat, confirmLabel, dayDates, resultSummary } from '../src/desk/bookingLogic.js';
+import { findSeatFor, retryDayOffset, bookBlock, bookingProblem, bookingRequests, canAddSeat, firstName, rowTeamHint, toRowSeat, confirmLabel, dayDates, resultSummary } from '../src/desk/bookingLogic.js';
 
 // Booking panel (owner 2026-10-16, preview v3): Myself = one seat; Someone else = one or several seats,
 // one colleague per seat; Day = first / second (next working day) / both; then Confirm.
@@ -67,4 +67,20 @@ assert.equal(rowTeamHint({ seat: f1 }, { tier: 'team', seats: [e1s] }, ['e1']), 
 assert.equal(rowTeamHint({ seat: f1 }, { tier: 'team', seats: [e1s, e2s] }, ['f2']), e1s);
 assert.deepEqual(toRowSeat(e1s), { id: 'e1', label: 'E1', plan_id: 'p1', open_to_all: false });
 assert.equal(firstName('Jane Tan'), 'Jane');
+// Find a seat for a colleague: only when it adds something (a team seat other than the row's, or the row's seat is not free).
+const team = { tier: 'team', seats: [e1s] }, open = { tier: 'open', seats: [{ ...e1s, seat_id: 'f2', seat_label: 'F2' }] };
+const freeF1 = { ...f1, free: { am: true } }, busyF1 = { ...f1, free: { am: false } };
+assert.equal(findSeatFor({ row: { seat: freeF1 }, result: team, preset: 'am' }), e1s);
+assert.equal(findSeatFor({ row: { seat: { id: 'e1', free: { am: true } } }, result: team, preset: 'am' }), null);   // already that seat
+assert.equal(findSeatFor({ row: { seat: freeF1 }, result: open, preset: 'am' }), null);                             // free seat, open tier: nothing to add
+assert.equal(findSeatFor({ row: { seat: busyF1 }, result: open, preset: 'am' }), open.seats[0]);                    // row's seat taken
+assert.equal(findSeatFor({ row: { seat: toRowSeat(open.seats[0]) }, result: open, preset: 'am' }), null);           // a suggested seat counts as free
+assert.equal(findSeatFor({ row: { seat: busyF1 }, result: { tier: 'none', seats: [] }, preset: 'am' }), null);
+assert.equal(findSeatFor({ row: { seat: freeF1 }, result: team, preset: 'am', multi: true }), null);
+assert.equal(findSeatFor({ row: { seat: freeF1 }, result: team, preset: 'am', hint: e1s }), null);
+assert.equal(findSeatFor({ row: { seat: freeF1 }, result: undefined, preset: 'am' }), null);
+// A failed Both-days row's suggestion retries only its own day.
+assert.equal(retryDayOffset(false, days, '2026-10-19'), null);
+assert.equal(retryDayOffset(true, days, '2026-10-19'), 1);
+assert.equal(retryDayOffset(true, days, '2026-10-16'), 0);
 console.log('booking logic smoke OK');
