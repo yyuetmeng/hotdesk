@@ -83,9 +83,8 @@ def _validate(seat_id, body, places):
         user = orm_session().get(User, uuid.UUID(str(body.get("user_id"))))
     except ValueError:
         user = None
-    if user is None or not user.is_active:
+    if user is None:
         fields["user_id"] = "choose an active account"
-        user = None
     raw = body.get("end_date")
     if raw not in (None, ""):
         try:
@@ -112,8 +111,12 @@ def put_seat_assignment(seat_id):
         return error("validation failed", 400, fields=fields)
     place = places[seat_id]
     session = orm_session()
-    seat_row = session.scalars(_current().where(SeatAssignment.seat_id == seat_id)).first()
-    person_row = session.scalars(_current().where(SeatAssignment.user_id == user.id)).first()
+    # Lock the rows we may close or change; Postgres re-checks "current" after a wait, so a row closed meanwhile is not seen.
+    seat_row = session.scalars(_current().where(SeatAssignment.seat_id == seat_id).with_for_update()).first()
+    person_row = session.scalars(_current().where(SeatAssignment.user_id == user.id).with_for_update()).first()
+    if not user.is_active and not (seat_row is not None and seat_row.user_id == user.id):
+        # Only a new assignment needs an active account; a leaver's end date and note can still be changed.
+        return error("validation failed", 400, fields={"user_id": "choose an active account"})
     other = person_row if person_row is not None and person_row is not seat_row else None
     if other is not None and body.get("move") is not True:
         label = (places.get(other.seat_id) or {}).get("seat_label") or other.seat_label
@@ -152,7 +155,7 @@ def clear_seat_assignment(assignment_id):
     actor = get_jwt_identity()
     g.jwt_uid = actor
     session = orm_session()
-    row = session.scalars(_current().where(SeatAssignment.id == assignment_id)).first()
+    row = session.scalars(_current().where(SeatAssignment.id == assignment_id).with_for_update()).first()
     if row is None:
         return error("assignment not found", 404)
     row.closed_at, row.closed_by, row.closed_reason = func.now(), uuid.UUID(str(actor)), "cleared"

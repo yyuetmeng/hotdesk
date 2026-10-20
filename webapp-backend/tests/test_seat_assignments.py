@@ -90,3 +90,48 @@ def test_non_admin_403_everywhere(client, monkeypatch, db):
     assert client.get(f"/api/admin/seat-assignments?plan_id={w['plan']}", headers=h).status_code == 403
     assert client.put(f"/api/admin/seat-assignments/seats/{sid}", headers=h, json={"user_id": w["users"]["jane"]}).status_code == 403
     assert client.delete(f"/api/admin/seat-assignments/{sid}", headers=h).status_code == 403
+
+
+def test_deactivated_person_keeps_their_seat_editable_but_cannot_get_a_new_one(client, monkeypatch, db):
+    w = build_world(client, monkeypatch); put(client, w, "E1", "jane")
+    run_write("update users set is_active = false where username = 'jane'")
+    assert put(client, w, "E1", "jane", end_date="2026-11-30").status_code == 200
+    assert str(current_rows()[0]["end_date"]) == "2026-11-30"
+    r = put(client, w, "U1", "jane", move=True)
+    assert r.status_code == 400 and "user_id" in r.get_json()["fields"]
+
+
+def _closed_while_waiting(admin_conn, row_id, do_request):
+    """Hold the row's lock, start a request that must wait for it, close the row, release; return the response."""
+    import threading
+    from sqlalchemy import text
+    result = {}
+    with admin_conn.connect() as conn:
+        conn.execute(text("begin"))
+        conn.execute(text("select 1 from seat_assignments where id = cast(:i as uuid) for update"), {"i": row_id})
+        t = threading.Thread(target=lambda: result.update(r=do_request()))
+        t.start()
+        t.join(1.5)
+        assert t.is_alive(), "the request did not wait for the row lock"
+        conn.execute(text("update seat_assignments set closed_at = now(), closed_reason = 'moved' where id = cast(:i as uuid)"), {"i": row_id})
+        conn.execute(text("commit"))
+        t.join(10)
+    return result["r"]
+
+
+def test_clear_of_a_row_closed_meanwhile_is_404_and_keeps_the_first_close(client, monkeypatch, db, admin_conn, app):
+    w = build_world(client, monkeypatch); a = put(client, w, "E1", "jane").get_json()
+    h = hdr(w["tok"]["root"])
+    r = _closed_while_waiting(admin_conn, a["id"], lambda: app.test_client().delete(f"/api/admin/seat-assignments/{a['id']}", headers=h))
+    assert r.status_code == 404
+    assert run_one("select closed_reason from seat_assignments")["closed_reason"] == "moved"
+
+
+def test_change_of_a_row_closed_meanwhile_does_not_touch_the_closed_row(client, monkeypatch, db, admin_conn, app):
+    w = build_world(client, monkeypatch); a = put(client, w, "E1", "jane", end_date="2026-11-01").get_json()
+    h = hdr(w["tok"]["root"])
+    r = _closed_while_waiting(admin_conn, a["id"], lambda: app.test_client().put(
+        f"/api/admin/seat-assignments/seats/{w['seats']['E1']}", headers=h, json={"user_id": w["users"]["jane"], "end_date": "2026-12-31"}))
+    assert r.status_code == 200
+    old = run_one("select end_date::text as d, closed_reason from seat_assignments where id = cast(:i as uuid)", {"i": a["id"]})
+    assert old == {"d": "2026-11-01", "closed_reason": "moved"}
