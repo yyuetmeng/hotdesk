@@ -186,3 +186,84 @@ def test_holder_resend_invitation_in_scope(client, held, stub_email):
     run_one("update users set password_hash = null where id = :i returning id", {"i": held["eve"]})
     r = client.post(f"/api/admin/users/{held['eve']}/resend-invitation", headers=hdr(held["hana_tok"]))
     assert r.status_code == 204 and len(stub_email) == 1
+
+
+# ---- holder create and upload ------------------------------------------------------------------------------------
+
+import io
+import re
+import zipfile
+
+from app.core.xlsx import write_xlsx
+
+UPLOAD_HEAD = ["Full name", "Email", "Username", "Project teams", "Booking allowance", "Access from", "Access until"]
+
+
+@pytest.fixture()
+def hana_manages_eng(client, world):
+    grant(client, world["root_tok"], world["hana"], [world["eng"]])
+    return world
+
+
+def upload(client, tok, rows, **form):
+    data = {"file": (io.BytesIO(write_xlsx([("Sheet1", [UPLOAD_HEAD] + rows)])), "people.xlsx"), **form}
+    return client.post("/api/admin/users/import", data=data, content_type="multipart/form-data", headers=hdr(tok))
+
+
+def test_holder_creates_user_in_managed_team(client, hana_manages_eng, stub_email):
+    world = hana_manages_eng
+    r = client.post("/api/admin/users", headers=hdr(world["hana_tok"]),
+                    json={"email": "neo@x.com", "username": "neo", "full_name": "Neo", "department_ids": [world["eng"]]})
+    assert r.status_code == 201 and r.get_json()["role"] == "user" and r.get_json()["invitation_sent"]
+    assert stub_email[-1][0] == "neo@x.com"
+    assert run_one("select actor_id::text as a from audit_logs where action = 'user.create'")["a"] == world["hana"]
+
+
+@pytest.mark.parametrize("extra,status,message", [
+    ({"department_ids": []}, 400, None),
+    ({"department_ids": ["<eng>", "<ops>"]}, 403, "You can only add people to the teams you manage."),
+    ({"department_ids": ["<eng>"], "role": "admin"}, 403, "Only an administrator can change this."),
+])
+def test_holder_create_refusals(client, hana_manages_eng, extra, status, message):
+    world = hana_manages_eng
+    body = {"email": "neo@x.com", "username": "neo", "full_name": "Neo", "role": "user",
+            **{k: [world[x.strip("<>")] for x in v] if k == "department_ids" else v for k, v in extra.items()}}
+    r = client.post("/api/admin/users", headers=hdr(world["hana_tok"]), json=body)
+    assert r.status_code == status and (message is None or r.get_json()["error"] == message)
+    assert not run_one("select 1 as x from users where email = 'neo@x.com'")
+
+
+def test_holder_create_taken_email_uses_admin_message(client, hana_manages_eng):
+    world = hana_manages_eng
+    r = client.post("/api/admin/users", headers=hdr(world["hana_tok"]),
+                    json={"email": "oli@x.com", "username": "neo", "full_name": "Neo", "department_ids": [world["eng"]]})
+    assert (r.status_code, r.get_json()["error"]) == (409, "email already exists")
+
+
+def test_holder_upload_rows(client, hana_manages_eng, stub_email):
+    world = hana_manages_eng
+    rows = [["Ann", "ann@x.com", "", "Eng", "", "", ""], ["Ben", "ben@x.com", "", "", "", "", ""],
+            ["Cat", "cat@x.com", "", "Eng; Ops", "", "", ""]]
+    body = upload(client, world["hana_tok"], rows).get_json()
+    assert [r["status"] for r in body["rows"]] == ["create", "error", "error"]
+    assert body["rows"][1]["messages"] == ["You can only add people to the teams you manage."]
+    assert body["rows"][2]["messages"] == ["You can only add people to the teams you manage."]
+    assert body["imported"] == 1 and [c[0] for c in stub_email] == ["ann@x.com"]   # invited without asking
+
+
+@pytest.mark.parametrize("form", [{"create_teams": "1"}, {"default_password": "<new>"}])
+def test_holder_upload_admin_only_options_refused(client, hana_manages_eng, form):
+    world = hana_manages_eng
+    form = {k: new_secret() if v == "<new>" else v for k, v in form.items()}
+    r = upload(client, world["hana_tok"], [["Ann", "ann@x.com", "", "Eng", "", "", ""]], **form)
+    assert (r.status_code, r.get_json()["error"]) == (403, "Only an administrator can change this.")
+
+
+def test_holder_template_lists_only_managed_teams(client, hana_manages_eng):
+    world = hana_manages_eng
+    r = client.get("/api/admin/users/import-template.xlsx", headers=hdr(world["hana_tok"]))
+    z = zipfile.ZipFile(io.BytesIO(r.data))
+    cells = lambda part: re.findall(r"<t[^>]*>([^<]*)</t>", z.read(part).decode())   # read_xlsx reads only sheet 1
+    instructions, users = cells("xl/worksheets/sheet2.xml"), cells("xl/worksheets/sheet1.xml")
+    assert r.status_code == 200 and instructions[-1] == "Eng" and "Ops" not in instructions and "Design" not in instructions
+    assert "Eng" in users and "Ops" not in users

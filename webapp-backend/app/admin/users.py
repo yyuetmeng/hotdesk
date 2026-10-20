@@ -90,9 +90,19 @@ def _role_id(name: str):
 
 
 @admin_bp.post("/users")
-@admin_required
+@account_manager_required
 def create_user():
     body = request.get_json(silent=True) or {}
+    if g.team_scope is not None:                     # an account manager: normal users, in their own teams only
+        body.setdefault("role", "user")
+        if body["role"] != "user":
+            return error(ADMIN_ONLY, 403)
+        wanted = body.get("department_ids")
+        if not wanted:
+            return error("validation failed", 400, fields={"department_ids": "choose at least one of your project teams"})
+        parsed = _parse_ids(wanted)
+        if parsed is not None and not set(parsed) <= {str(t) for t in g.team_scope}:
+            return error(TEAM_LIMIT, 403)
     fields = VALIDATION_ERRORS(body)
     dept_ids = body.get("department_ids") or []
     if not _departments_exist(dept_ids):
@@ -145,6 +155,7 @@ def _send_invitation(user_id: str, email_addr: str, full_name: str, username: st
 HOLDER_FIELDS = ("full_name", "start_date", "end_date", "usual_seat_id", "booking_allowance", "is_active")
 OUT_OF_SCOPE = "You can only manage accounts in your project teams."
 ADMIN_ONLY = "Only an administrator can change this."
+TEAM_LIMIT = "You can only add people to the teams you manage."
 
 
 def _out_of_scope(user_id: str) -> bool:

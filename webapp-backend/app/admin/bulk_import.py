@@ -24,12 +24,14 @@ from app.core.auth_models import Department, Role, User
 from app.core.errors import error
 from app.core.orm import orm_session
 from app.core.passwords import password_problem
-from app.core.security import admin_required, hash_password
+from app.core.security import account_manager_required, admin_required, hash_password
 from app.core.xlsx import write_xlsx
 from app.core.xlsx_read import read_xlsx
 
 from . import admin_bp
-from .users import _send_invitation, _valid_email
+from app.core.team_scope import managed_departments
+
+from .users import ADMIN_ONLY, TEAM_LIMIT, _send_invitation, _valid_email
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MAX_BYTES = 5 * 1024 * 1024
@@ -99,9 +101,8 @@ def _summary(rows: list[dict]) -> dict:
     return {k: sum(1 for r in rows if r["status"] == k) for k in ("create", "skip", "error")}
 
 
-def _sample_row() -> list:
+def _sample_row(teams: list[str]) -> list:
     """Row 2 of the template: a made-up person showing how to fill a row in (the first project team, if any)."""
-    teams = _team_names()
     return [SAMPLE["Full name"], SAMPLE["Email"], SAMPLE["Username"], teams[0] if teams else None, 0, None, None]
 
 
@@ -117,9 +118,10 @@ def _team_names() -> list[str]:
 
 
 @admin_bp.get("/users/import-template.xlsx")
-@admin_required
+@account_manager_required
 def users_template():
     g.jwt_uid = get_jwt_identity()
+    teams = _team_names() if g.team_scope is None else [d["name"] for d in managed_departments(g.jwt_uid)]
     rules = [["Column", "Required", "What to enter"],
              ["Full name", "Yes", "The person's name, e.g. Tan Mei Ling"],
              ["Email", "Yes", "Their work email; it is also how they sign in. Rows whose email already exists are skipped."],
@@ -131,8 +133,8 @@ def users_template():
              [], ["Row 2 of the Users sheet (Andy Lau) is a sample showing how to fill a row in. "
                   "You can leave it or delete it; it is ignored when you upload."],
              ["Everyone uploaded is a normal user. To make someone an admin, edit them in Manage Users afterwards."],
-             [], ["Existing project teams"]] + [[n] for n in _team_names()]
-    return _template("Users", USER_COLUMNS, rules, _sample_row())
+             [], ["Existing project teams"]] + [[n] for n in teams]
+    return _template("Users", USER_COLUMNS, rules, _sample_row(teams))
 
 
 def _username_from(email: str) -> str:
@@ -140,7 +142,7 @@ def _username_from(email: str) -> str:
     return base if len(base) >= 2 else f"user{base}"
 
 
-def _check_users(rows, create_teams: bool) -> list[dict]:
+def _check_users(rows, create_teams: bool, allowed_teams: set[str] | None = None) -> list[dict]:
     session = orm_session()
     emails = set(session.scalars(select(func.lower(User.email))))
     usernames = set(session.scalars(select(func.lower(User.username))))
@@ -171,17 +173,21 @@ def _check_users(rows, create_teams: bool) -> list[dict]:
             while username in usernames:
                 n += 1
                 username = f"{base}{n}"
-        picked = []
+        picked, limited = [], False
         for part in (p.strip() for p in SPLIT.split(_text(r["Project teams"]))):
             if not part:
                 continue
-            if part.lower() in teams:
+            if allowed_teams is not None and part.lower() not in allowed_teams:
+                limited = True
+            elif part.lower() in teams:
                 picked.append(teams[part.lower()])
             elif create_teams:
                 picked.append(part)
                 notes.append(f"Creates project team {part}.")
             else:
                 problems.append(f"Unknown project team: {part}.")
+        if allowed_teams is not None and (limited or not picked):
+            problems.append(TEAM_LIMIT)
         allowance = _text(r["Booking allowance"]) or "0"
         if not allowance.isdigit():
             problems.append("Booking allowance must be 0 or a whole number.")
@@ -212,16 +218,20 @@ def _public(rows):
 
 
 @admin_bp.post("/users/import")
-@admin_required
+@account_manager_required
 def import_users():
     actor = get_jwt_identity()
     g.jwt_uid = actor
+    holder = g.team_scope is not None
     password = request.form.get("default_password") or ""
+    if holder and (_flag("create_teams") or password):
+        return error(ADMIN_ONLY, 403)
+    allowed = {d["name"].lower() for d in managed_departments(actor)} if holder else None
     problem = password_problem(password) if password else None
     if problem:
         return error(f"Default password: {problem}", 400)
     try:
-        rows = _check_users(_read_upload(USER_COLUMNS), _flag("create_teams"))
+        rows = _check_users(_read_upload(USER_COLUMNS), _flag("create_teams"), allowed)
     except ImportFileError as exc:
         return error(str(exc), 400)
     if _flag("dry_run"):
@@ -247,7 +257,7 @@ def import_users():
                                                      "default_password": bool(password)})
         created.append((user, r))
     session.commit()
-    if _flag("send_invitations"):
+    if holder or _flag("send_invitations"):
         for user, r in created:
             _send_invitation(str(user.id), r["email"], r["full_name"], r["username"])
     return jsonify(rows=_public(rows), summary=_summary(rows), imported=len(created))
