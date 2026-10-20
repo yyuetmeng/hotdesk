@@ -6,8 +6,8 @@ call and is marked *(call)*.
 ## 1. Intent
 
 Admins want to hand day-to-day account upkeep to each project team instead of doing every change themselves
-**(owner)**. An admin can give an ordinary user an extra permission, "manage team accounts", for one or more of
-that user's project teams. That user then gets a cut-down Manage Users page for the people in those teams.
+**(owner)**. An admin can give an ordinary user an extra permission, "manage team accounts", for one or more
+project teams, whether or not the user is in them. That user then gets a cut-down Manage Users page for the people in those teams.
 
 It is a permission, not a role or a title: the person stays a normal user everywhere else **(owner: "you dont
 have to name it team lead")**.
@@ -26,9 +26,11 @@ users; audit-log access.
 
 ## 2. Who and whose accounts
 
-- **The permission** is per user and per project team: an admin ticks, for a user, which of **that user's own**
-  project teams they may manage **(owner)**. Only teams the user belongs to can be ticked *(call)*.
-- If the user later leaves a team, or the team is deleted, their permission for that team ends with it *(call)*.
+- **The permission** is per user and per project team: an admin ticks, for a user, which project teams they may
+  manage **(owner)**. **Any team can be ticked**, including teams the user is not in, e.g. an HR person looking
+  after Engineering **(owner, 2026-10-20)**.
+- The permission does not depend on the holder's own team membership: joining or leaving a team changes nothing.
+  It ends for a team only when an admin unticks it or the team is deleted *(call)*.
 - Admins don't need it: they already manage everyone.
 - **Manageable people** for a holder: users who belong to at least one of the holder's chosen teams, **never**
   admin accounts and **never** the holder's own account **(owner)**.
@@ -75,8 +77,8 @@ Booking allowance is capped at what an admin could set; there is no extra cap fo
 ## 4. Screens
 
 ### 4.1 Admin: granting it (Manage Users → edit a user)
-- In the edit panel, under the user's project teams, a section **"Can manage accounts for"** with a checkbox per
-  team the user belongs to *(call: placement)*. Unticking all removes the permission.
+- In the edit panel, under the user's project teams, a section **"Can manage accounts for"** with a checkbox for
+  every project team *(call: placement)*; the user's own teams are listed first *(call)*. Unticking all removes the permission.
 - Not shown for admin accounts.
 - The users table shows a small marker for holders *(call)*.
 
@@ -102,7 +104,8 @@ Booking allowance is capped at what an admin could set; there is no extra cap fo
   unmanaged team, or with role admin is refused.
 - A holder's upload imports rows in managed teams; rows with no team or an unmanaged team are error rows;
   create_teams and default_password are refused; their template lists only managed teams.
-- Losing team membership ends the permission for that team.
+- A holder can manage a team they are not in; leaving or joining a team does not change their permission;
+  deleting a team ends it.
 - Admin pages and endpoints that holders must not reach (departments editing, audit, delete)
   stay 403 for them.
 
