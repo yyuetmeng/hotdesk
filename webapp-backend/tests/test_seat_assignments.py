@@ -174,3 +174,24 @@ def test_assignment_changes_nothing_elsewhere(client, monkeypatch, db):
     assert [client.get(u, headers=h).get_json() for u in urls] == before
     assert book(client, w, "dina", "E1").status_code == 201      # jane's assigned seat is still bookable by its team
     assert book(client, w, "jane", "F2").status_code == 201      # and jane is not steered to her assigned seat
+
+
+def test_insights_window(client, monkeypatch, db):
+    w = build_world(client, monkeypatch)
+    add_floor(client, w, "Level 2", [{"label": l, "x": i * 2, "y": 0, "open_to_all": True} for i, l in enumerate("ABCD")])
+    put(client, w, "A", "jane", end_date="2026-10-01")    # ended 14 days ago: listed
+    put(client, w, "B", "ali", end_date="2026-09-30")     # 15 days ago: not listed
+    put(client, w, "C", "carl", end_date="2026-10-29")    # today + 14: listed
+    put(client, w, "D", "bob", end_date="2026-10-30")     # today + 15: not listed
+    put(client, w, "E1", "dina")                          # no end: not listed
+    body = client.get("/api/admin/insights/seat-assignments-ending", headers=hdr(w["tok"]["root"])).get_json()
+    assert [(i["person_name"], i["status"]) for i in body["items"]] == [("Jane Tan", "left"), ("Carl Lim", "leaving_soon")]
+    a = body["items"][0]["id"]
+    client.delete(f"/api/admin/seat-assignments/{a}", headers=hdr(w["tok"]["root"]))          # cleared: drops off at once
+    assert [i["person_name"] for i in client.get("/api/admin/insights/seat-assignments-ending",
+            headers=hdr(w["tok"]["root"])).get_json()["items"]] == ["Carl Lim"]
+
+
+def test_insights_non_admin_403(client, monkeypatch, db):
+    w = build_world(client, monkeypatch)
+    assert client.get("/api/admin/insights/seat-assignments-ending", headers=hdr(w["tok"]["jane"])).status_code == 403

@@ -164,3 +164,15 @@ def clear_seat_assignment(assignment_id):
                                                        "person_name": row.person_name})
     session.commit()
     return "", 204
+
+
+@admin_bp.get("/insights/seat-assignments-ending")
+@admin_required
+def seat_assignments_ending():
+    """Current assignments ending within WINDOW_DAYS ahead, or ended within WINDOW_DAYS behind, soonest end first."""
+    today = _today()
+    window = dt.timedelta(days=WINDOW_DAYS)
+    rows = orm_session().scalars(_current().where(SeatAssignment.end_date.between(today - window, today + window))
+                                 .order_by(SeatAssignment.end_date, SeatAssignment.person_name))
+    places = seat_places()
+    return jsonify(today=today.isoformat(), items=[assignment_dto(a, places, today) for a in rows])
