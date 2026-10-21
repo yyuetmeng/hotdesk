@@ -1,34 +1,30 @@
 // Print Desk Labels (admins): QR labels for the seats of published floors, with filters, and
 // download one label as PNG or the selected labels as a ZIP. Labels are shown by zone (with a select-all per
 // zone), and the ZIP has a folder per floor and zone.
-// Each QR encodes only the seat link; checking in still requires signing in.
-import QRCode from 'qrcode';
+// Each QR encodes only the seat link; checking in still requires signing in. The artwork is in labelArt.js.
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { filterRows, groupByZone, isNewLabel, labelFileNames, labelZipPaths, seatRows, teamOptions, withDownloaded, zoneOptions } from './qrLogic.js';
 import { makeZip } from './zip.js';
+import { codeSvg, labelSvg, LABEL_HEIGHT, LABEL_WIDTH, qrMatrix } from './labelArt.js';
 import './qr.css';
 import { formatDateTime } from '../format.js';
 
 const seatLink = (id) => `${window.location.origin}/checkin/${id}`;
 
-// A printable label as PNG bytes: the QR code with the seat name and floor underneath.
+const svgUrl = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+const place = (row) => `${row.floorName}${row.zone ? ` · ${row.zone}` : ''}`;
+
+// A printable label as PNG bytes: the label artwork drawn onto a canvas at twice its size, for sharp printing.
 async function labelPng(row) {
-  const size = 600, qr = 480;
+  const img = new Image();
+  img.src = svgUrl(labelSvg(qrMatrix(seatLink(row.id)), { label: row.label, place: place(row) }));
+  await img.decode();
   const canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = 680;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const code = document.createElement('canvas');
-  await QRCode.toCanvas(code, seatLink(row.id), { margin: 1, width: qr });
-  ctx.drawImage(code, (size - qr) / 2, 24, qr, qr);
-  ctx.fillStyle = '#0f172a'; ctx.textAlign = 'center';
-  ctx.font = '700 44px Inter, system-ui, sans-serif';
-  ctx.fillText(row.label, size / 2, 570, size - 40);
-  ctx.fillStyle = '#475569'; ctx.font = '26px Inter, system-ui, sans-serif';
-  ctx.fillText(`${row.floorName}${row.zone ? ` · ${row.zone}` : ''} · scan to check in`, size / 2, 620, size - 40);
+  canvas.width = LABEL_WIDTH * 2; canvas.height = LABEL_HEIGHT * 2;
+  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
   return new Uint8Array(await blob.arrayBuffer());
 }
@@ -69,13 +65,8 @@ export function DeskLabelsPage() {
   // Preview images for the rows on screen, made once per seat.
   useEffect(() => {
     if (!rows) return;
-    let alive = true;
-    (async () => {
-      const missing = rows.filter((r) => !images[r.id]);
-      const made = await Promise.all(missing.map(async (r) => [r.id, await QRCode.toDataURL(seatLink(r.id), { margin: 1, width: 320 })]));
-      if (alive && made.length) setImages((old) => ({ ...old, ...Object.fromEntries(made) }));
-    })();
-    return () => { alive = false; };
+    const made = rows.filter((r) => !images[r.id]).map((r) => [r.id, svgUrl(codeSvg(qrMatrix(seatLink(r.id)), 320))]);
+    if (made.length) setImages((old) => ({ ...old, ...Object.fromEntries(made) }));
   }, [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onFloor = rows ? rows.filter((r) => filters.floor === 'all' || r.floorId === filters.floor) : [];
