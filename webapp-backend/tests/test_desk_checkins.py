@@ -97,3 +97,19 @@ def test_seat_activity_today_with_names(client, world, monkeypatch):
     assert [i["kind"] for i in items] == ["checked_in", "gave_up"]          # yesterday's booking omitted
     assert "Carl Lim" in items[0]["text"] and "Ali Rahman" in items[0]["text"]
     assert items[0]["at"] == sg(DAY, 8, 10).isoformat()
+
+
+def test_give_up_frees_the_rest_of_a_booked_slot(client, world, monkeypatch):
+    # Regression check (bug found 2026-10-20 in the Node prototype): after someone checks in on their
+    # booking and then gives the seat up, the rest of the booked slot must be bookable and usable again.
+    assert book(client, world, "jane", "F1").status_code == 201          # AM, booked the day before
+    set_now(monkeypatch, sg(DAY, 8))
+    assert check_in(client, world, "jane", "F1").status_code == 201
+    set_now(monkeypatch, sg(DAY, 9, 30))
+    assert give_up(client, world, "jane", "F1").status_code == 204
+    assert run_one("select count(*) as n from seat_booking_blocks")["n"] == 0   # no time left held
+    r = book(client, world, "carl", "F1", "am", day=DAY)                 # the rest of the morning, same day
+    assert r.status_code == 201, r.get_json()
+    set_now(monkeypatch, sg(DAY, 9, 40))
+    r = check_in(client, world, "carl", "F1")
+    assert r.status_code == 201 and r.get_json()["method"] == "booking", r.get_json()
