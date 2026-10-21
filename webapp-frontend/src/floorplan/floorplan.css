@@ -1,7 +1,7 @@
 .fp-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin: 0 0 16px; }
 .fp-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .fp-form input { padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
-.fp-form input[placeholder] { min-width: 220px; }
+.fp-form input[placeholder] { min-width: min(340px, 100%); }
 .fp-table { width: 100%; border-collapse: collapse; }
 .fp-table th, .fp-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
 .fp-table .button.subtle { background: none; border: 1px solid var(--border); color: var(--muted); }
@@ -10,6 +10,8 @@
 .fp-editor .fp-toolbar input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
 .fp-editor .fp-toolbar label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
 .fp-editor .fp-toolbar label input[type="number"] { width: 64px; }
+/* The plan name: room for a long floor name, but it gives way on a narrow screen. */
+.fp-editor .fp-toolbar input.fp-plan-name { width: min(420px, 100%); }
 .fp-spacer { flex: 1; }
 .fp-panes { display: grid; grid-template-columns: 180px minmax(0, 1fr) 220px; gap: 14px; align-items: start; }
 .fp-palette .fp-chip { display: flex; align-items: center; gap: 8px; padding: 8px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); cursor: grab; }
@@ -112,3 +114,8 @@
   background: var(--surface-2); border: 1px solid var(--border); }
 .fp-versions li.latest .fp-version-dot { background: var(--accent); border-color: var(--accent); color: #fff; }
 .fp-versions small { display: block; color: var(--muted); font-size: 12px; }
+
+/* Manage Floor Display: Delete in the table row, marked as destructive like Delete user. */
+.button.displays-delete { color: #a21c1c; border-color: #ffc4c4; }
+:root[data-theme="dark"] .button.displays-delete { color: #fca5a5; border-color: #7f1d1d; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .button.displays-delete { color: #fca5a5; border-color: #7f1d1d; } }

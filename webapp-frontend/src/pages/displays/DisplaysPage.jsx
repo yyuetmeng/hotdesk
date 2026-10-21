@@ -31,7 +31,11 @@ export function DisplaysPage() {
   };
   const remove = async (d) => {
     if (!window.confirm(`Delete display "${d.name}"? TVs using its link will show "Display not found".`)) return;
-    try { await flaskRequest(`/api/admin/displays/${d.id}`, { method: 'DELETE' }); setEditing(null); await load(); }
+    try {
+      await flaskRequest(`/api/admin/displays/${d.id}`, { method: 'DELETE' });
+      setEditing((e) => (e && e !== 'new' && e.id === d.id ? null : e));   // close the form only if it shows this display
+      await load();
+    }
     catch (err) { setError(err.message); }
   };
 
@@ -56,6 +60,7 @@ export function DisplaysPage() {
               <a className="button" href={`/display/${d.slug}`} target="_blank" rel="noreferrer">Open</a>
               <button className="button" onClick={() => copy(d.slug)}>Copy link</button>
               <button className="button" onClick={() => { setNotice(null); setEditing(d); }}>Edit</button>
+              <button className="button displays-delete" onClick={() => remove(d)}>Delete</button>
             </div></td></tr>)}</tbody></table></div>
           : <p className="state">No displays yet. Create one per location.</p>}
       </section>
