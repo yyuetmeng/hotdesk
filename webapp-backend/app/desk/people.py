@@ -21,9 +21,9 @@ def _hhmm(at: datetime | None) -> str | None:
     return at.astimezone(rules.TZ).strftime("%H:%M") if at else None
 
 
-def find_people(q: str, at: datetime, team_id=None) -> list[dict]:
-    """Active colleagues matching `q` (name or username; empty = everyone), optionally in one project team.
-    At most MAX_RESULTS, by name."""
+def find_people(q: str, at: datetime, team_id=None, viewer_id=None) -> list[dict]:
+    """Active colleagues matching `q` (name or username; empty = everyone), optionally in one project team, never the
+    person searching (owner 2026-10-21). At most MAX_RESULTS, by name."""
     q = (q or "").strip()
     session = orm_session()
     today, tomorrow = rules.bookable_days(at)     # "tomorrow" is the next working day
@@ -31,6 +31,8 @@ def find_people(q: str, at: datetime, team_id=None) -> list[dict]:
     # Administrators are not listed: Colleague Finder is for finding colleagues (owner decision 2026-10-16).
     query = (select(User).join(Role, Role.id == User.role_id)
              .where(User.is_active.is_(True), Role.name != "admin", or_(User.full_name.ilike(like), User.username.ilike(like))))
+    if viewer_id is not None:
+        query = query.where(User.id != viewer_id)
     if team_id is not None:
         query = query.join(UserDepartment, UserDepartment.user_id == User.id).where(UserDepartment.department_id == team_id)
     users = session.scalars(query.order_by(User.full_name).limit(MAX_RESULTS * 2)).unique().all()

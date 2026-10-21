@@ -25,12 +25,12 @@ def test_requires_sign_in(client, world):
 
 def test_empty_query_lists_everyone_active(client, world):
     names = [p["name"] for p in _find(client, world, "  ")]
-    assert names == ["Ali Rahman", "Bob Ong", "Carl Lim", "Dina Koh", "Jane Tan"]       # dave is inactive; Root Admin is an admin
+    assert names == ["Ali Rahman", "Bob Ong", "Carl Lim", "Dina Koh"]       # not Jane (searching); dave is inactive; Root is an admin
 
 
 def test_team_filter(client, world):
     assert [p["name"] for p in _find(client, world, "", team=world["ops"])] == ["Bob Ong"]
-    assert [p["name"] for p in _find(client, world, "a", team=world["eng"])] == ["Ali Rahman", "Carl Lim", "Dina Koh", "Jane Tan"]
+    assert [p["name"] for p in _find(client, world, "a", team=world["eng"])] == ["Ali Rahman", "Carl Lim", "Dina Koh"]
     assert client.get(URL, query_string={"team": "nope"}, headers=hdr(world["tok"]["jane"])).status_code == 400
 
 
@@ -54,7 +54,7 @@ def test_statuses(client, world, monkeypatch):
     assert (ali["status"], ali["seat"]["seat_label"], ali["preset"]) == ("booked", "F2", "pm")
     [bob] = _find(client, world, "bob")
     assert (bob["status"], bob["seat"]["seat_label"], bob["date"]) == ("tomorrow", "F1", (DAY + timedelta(days=3)).isoformat())
-    [jane] = _find(client, world, "jane")
+    [jane] = _find(client, world, "jane", who="ali")
     assert (jane["status"], jane["seat"]) == ("away", None)
 
 
@@ -65,9 +65,15 @@ def test_search_by_username_and_inactive_hidden(client, world):
 
 
 def test_results_are_sorted_by_name(client, world):
-    people = _find(client, world, "an")                            # Jane Tan, Ali Rahman
+    people = _find(client, world, "an", who="bob")                 # Jane Tan, Ali Rahman
     assert len(people) == 2
     assert [p["name"] for p in people] == sorted(p["name"] for p in people)
+
+
+def test_you_never_find_yourself(client, world):
+    assert _find(client, world, "jane") == []                                     # by name
+    assert _find(client, world, "jane", who="ali")[0]["name"] == "Jane Tan"         # others still find her
+    assert "Ali Rahman" not in [p["name"] for p in _find(client, world, "", who="ali", team=world["eng"])]
 
 
 def test_administrators_are_not_listed(client, world):

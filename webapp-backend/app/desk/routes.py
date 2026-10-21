@@ -172,7 +172,7 @@ def people(viewer, at):
     team_id = service._uuid(team) if team else None
     if team and team_id is None:
         raise service.DeskError("unknown project team")
-    return jsonify(items=find_people(request.args.get("q", ""), at, team_id))
+    return jsonify(items=find_people(request.args.get("q", ""), at, team_id, viewer.id))
 
 
 @desk_bp.get("/teams")
