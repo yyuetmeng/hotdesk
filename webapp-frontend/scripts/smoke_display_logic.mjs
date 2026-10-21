@@ -72,11 +72,14 @@ console.log('display walls smoke OK');
 
 // New floor style: monitor marks along a table, plants that fit their cell, toilet gender.
 {
-  const { monitorMarks, plantRadius, toiletGender } = await import('../src/display/displayLogic.js');
+  const { monitorMarks, plantRadius, plantSpots, toiletGender } = await import('../src/display/displayLogic.js');
   assert.deepEqual(monitorMarks(0, 0, 28, 84, 28), { vertical: true, at: [14, 42, 70] });   // one per cell along a tall table
   assert.deepEqual(monitorMarks(0, 0, 112, 28, 28), { vertical: false, at: [14, 42, 70, 98] });
   assert.equal(plantRadius(28, 28), 10.08);                                                  // 36% of the smaller side
   assert.ok(plantRadius(28, 25.2) * 2 < 25.2);                                               // always inside its element
+  assert.deepEqual(plantSpots(0, 0, 1, 1, 28), [[14, 14]]);                                  // a single plant, as before
+  assert.deepEqual(plantSpots(28, 0, 3, 1, 28), [[42, 14], [70, 14], [98, 14]]);             // 3 wide: a row of three
+  assert.deepEqual(plantSpots(0, 0, 2, 2, 28), [[14, 14], [42, 14], [14, 42], [42, 42]]);    // 2 x 2: a block of four
   assert.equal(toiletGender({ config: { gender: 'female' } }), 'female');
   assert.equal(toiletGender({ config: { gender: 'male' } }), 'male');
   assert.equal(toiletGender({ config: {} }), 'unisex');
@@ -88,20 +91,30 @@ console.log('display floor style smoke OK');
 // Door swing: the leaf stands open from the hinge, the arc ends on the doorway (opposite the way it opens).
 {
   const { doorSwing, DOOR_SWINGS } = await import('../src/display/displayLogic.js');
-  const at = (swing) => doorSwing({ config: { swing } }, 0, 0, 30, 30);
-  assert.deepEqual(at('up-left'), { swing: 'up-left', hinge: [1, 29], open: [1, 1], shut: [29, 29], radius: 28, sweep: 1 });   // the old drawing
-  assert.deepEqual(at('down-right'), { swing: 'down-right', hinge: [29, 1], open: [29, 29], shut: [1, 1], radius: 28, sweep: 1 });
-  assert.deepEqual(at('left-top'), { swing: 'left-top', hinge: [29, 1], open: [1, 1], shut: [29, 29], radius: 28, sweep: 0 });
-  assert.deepEqual(at('right-bottom'), { swing: 'right-bottom', hinge: [1, 29], open: [29, 29], shut: [1, 1], radius: 28, sweep: 0 });
+  const at = (swing, W = 30, H = 30) => doorSwing({ config: { swing } }, 0, 0, W, H);
+  const one = (swing) => { const d = at(swing); assert.equal(d.leaves.length, 1); return { radius: d.radius, ...d.leaves[0] }; };
+  assert.deepEqual(one('up-left'), { radius: 28, hinge: [1, 29], open: [1, 1], shut: [29, 29], sweep: 1 });   // the old drawing
+  assert.deepEqual(one('down-right'), { radius: 28, hinge: [29, 1], open: [29, 29], shut: [1, 1], sweep: 1 });
+  assert.deepEqual(one('left-top'), { radius: 28, hinge: [29, 1], open: [1, 1], shut: [29, 29], sweep: 0 });
+  assert.deepEqual(one('right-bottom'), { radius: 28, hinge: [1, 29], open: [29, 29], shut: [1, 1], sweep: 0 });
   assert.equal(doorSwing({}, 0, 0, 30, 30).swing, 'up-left');                                 // no setting
   assert.equal(at('sideways').swing, 'up-left');                                                 // unknown setting
-  for (const [swing] of DOOR_SWINGS) {                                                           // all eight stay inside the box
-    const d = at(swing);
-    for (const [px, py] of [d.hinge, d.open, d.shut]) assert.ok(px >= 1 && px <= 29 && py >= 1 && py <= 29, swing);
-    assert.equal(Math.hypot(d.open[0] - d.hinge[0], d.open[1] - d.hinge[1]), 28);
-    assert.equal(Math.hypot(d.shut[0] - d.hinge[0], d.shut[1] - d.hinge[1]), 28);
+  // Every setting, on a single, a wide and a tall door: leaves stay inside the box and are as long as the radius.
+  for (const [W, H] of [[30, 30], [60, 30], [30, 60], [90, 30]]) for (const [swing] of DOOR_SWINGS) {
+    const { radius, leaves } = at(swing, W, H);
+    for (const d of leaves) {
+      for (const [px, py] of [d.hinge, d.open, d.shut]) assert.ok(px >= 1 && px <= W - 1 && py >= 1 && py <= H - 1, `${swing} ${W}x${H}`);
+      assert.equal(Math.hypot(d.open[0] - d.hinge[0], d.open[1] - d.hinge[1]), radius);
+      assert.equal(Math.hypot(d.shut[0] - d.hinge[0], d.shut[1] - d.hinge[1]), radius);
+    }
   }
-  assert.deepEqual(doorSwing({ config: { swing: 'up-right' } }, 0, 0, 60, 30).hinge, [59, 29]);   // hinge at the box's own corner
+  // A 2-wide door opening up or down is a double door: a leaf from each end, meeting in the middle of the doorway.
+  const wide = at('up-right', 60, 30);
+  assert.equal(wide.radius, 28);
+  assert.deepEqual(wide.leaves.map((d) => [d.hinge, d.shut]), [[[1, 29], [29, 29]], [[59, 29], [31, 29]]]);
+  assert.equal(at('left-top', 30, 60).leaves.length, 2);                                       // tall door opening sideways: double too
+  assert.equal(at('left-top', 60, 30).leaves.length, 1);                                       // wide door opening sideways: one leaf
+  assert.deepEqual(at('up-right', 30, 60).leaves[0].hinge, [29, 59]);                          // deep, narrow door: one leaf at its hinge
 }
 console.log('display door swing smoke OK');
 

@@ -6,7 +6,7 @@
 import { footprint, initials, zoneCaption } from '../desk/deskLogic.js';
 import { iconPath } from './icons.js';
 import { useState } from 'react';
-import { doorSwing, monitorMarks, plantRadius, plateSide, seatCells, seatTip, tableLabel, thinBar, toiletGender } from './displayLogic.js';
+import { doorSwing, monitorMarks, plantRadius, plantSpots, plateSide, seatCells, seatTip, tableLabel, thinBar, toiletGender } from './displayLogic.js';
 import './floor.css';
 
 const C = 28;  // drawing units per grid cell
@@ -49,12 +49,12 @@ function Element({ el, catalog }) {
       return <rect {...thinBar(x, y, W, H, 5)} rx="1.5" className="fd-wall" />;
     case 'window':
       return <rect {...thinBar(x, y, W, H, 5)} rx="1.5" className="fd-window" />;
-    case 'door': {   // thin: the open door leaf from its hinge and a light dashed swing arc (editor: door swing setting)
-      const d = doorSwing(el, x, y, W, H);
-      return <g className="fd-door">
+    case 'door': {   // thin: each open door leaf from its hinge and a light dashed swing arc (editor: door swing setting)
+      const { radius, leaves } = doorSwing(el, x, y, W, H);
+      return <g className="fd-door">{leaves.map((d) => <g key={`${d.hinge}`}>
         <line x1={d.hinge[0]} y1={d.hinge[1]} x2={d.open[0]} y2={d.open[1]} strokeWidth="2.2" strokeLinecap="round" />
-        <path d={`M ${d.open[0]} ${d.open[1]} A ${d.radius} ${d.radius} 0 0 ${d.sweep} ${d.shut[0]} ${d.shut[1]}`} fill="none" strokeWidth="1" strokeDasharray="3 3" opacity=".7" />
-      </g>;
+        <path d={`M ${d.open[0]} ${d.open[1]} A ${radius} ${radius} 0 0 ${d.sweep} ${d.shut[0]} ${d.shut[1]}`} fill="none" strokeWidth="1" strokeDasharray="3 3" opacity=".7" />
+      </g>)}</g>;
     }
     case 'corridor':
       return <rect x={x} y={y} width={W} height={H} className="fd-corridor" />;
@@ -72,8 +72,8 @@ function Element({ el, catalog }) {
         </g>}
       </g>;
     }
-    case 'plant':
-      return <Plant cx={cx} cy={cy} r={plantRadius(W, H)} />;
+    case 'plant':   // one plant per cell, so a resized plant becomes a row or block of them
+      return <g>{plantSpots(x, y, w, h, C).map(([px, py]) => <Plant key={`${px},${py}`} cx={px} cy={py} r={plantRadius(C, C)} />)}</g>;
     case 'stairs': {
       const treads = Math.max(Math.floor((H - 40) / 7), 0);
       return <g className="fd-stairs">
