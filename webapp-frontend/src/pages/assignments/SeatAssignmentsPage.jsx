@@ -218,12 +218,11 @@ export function SeatAssignmentsPage() {
     {title}
     {error && <Notice kind="error">{error}</Notice>}
     {message && <Notice kind="success">{message}</Notice>}
-    <div className="desk-controls">
-      {floors.length > 1 && <label>Floor <select value={planId} onChange={(e) => chooseFloor(e.target.value)}>
+    {floors.length > 1 && <div className="desk-controls">
+      <label>Floor <select value={planId} onChange={(e) => chooseFloor(e.target.value)}>
         {floors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-      </select></label>}
-      <label className="sa-toggle"><input type="checkbox" checked={assignedOnly} onChange={(e) => setAssignedOnly(e.target.checked)} /> Show assigned only</label>
-    </div>
+      </select></label>
+    </div>}
     {(!floor || floor.id !== planId) && !error && <Loading label="Loading the floor…" />}
     {floor && floor.id === planId && <div className="sa-layout">
       <section className="card sa-floor"><h2>{floor.name}</h2>
@@ -233,7 +232,9 @@ export function SeatAssignmentsPage() {
           <li><span className="sa-key ok" />Assigned</li><li><span className="sa-key soon" />Leaving soon (14 days)</li><li><span className="sa-key left" />Left</li>
         </ul></section>
       <section className="card sa-side">
-        <h2>Seats</h2>
+        <div className="sa-side-head"><h2>Seats</h2>
+          <label className="sa-toggle"><input type="checkbox" checked={assignedOnly} onChange={(e) => setAssignedOnly(e.target.checked)} /> Show assigned only</label>
+        </div>
         {!floor.seats.length && <p className="state">This floor has no seats.</p>}
         {rows.length > 0 && <div className="sa-table-wrap" ref={tableRef}><table className="sa-table">
           <thead><tr>

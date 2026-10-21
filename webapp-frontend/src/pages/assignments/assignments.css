@@ -8,6 +8,9 @@
 .sa-drawing { padding: 4px; }
 .sa-drawing .disp-floor { height: auto; max-height: 72vh; min-height: 0; overflow: visible; }
 .sa-toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+/* Seats card header: title on the left, the table filter on the right. */
+.sa-side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 10px; }
+.sa-side-head h2 { margin: 0; }
 .sa-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
 .sa-legend li { display: flex; align-items: center; gap: 6px; }
 .sa-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2px solid var(--fd-chair-edge, #64748b); }
