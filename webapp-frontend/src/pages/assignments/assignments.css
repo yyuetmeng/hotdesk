@@ -1,6 +1,8 @@
 /* Seat assignments page and the Insights card "Seat assignments ending" (spec 2026-10-19-seat-assignments §3, §4). */
-.sa-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 1100px) { .sa-layout { grid-template-columns: 1fr; } }
+/* The floor drawing takes the full width; below it the seats table (left) and the edit form (right). */
+.sa-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); gap: 16px; align-items: start; }
+.sa-floor { grid-column: 1 / -1; }
+@media (max-width: 1000px) { .sa-layout { grid-template-columns: 1fr; } }
 .sa-layout h2 { margin: 0 0 10px; font-size: 20px; }
 /* Plates sit beside the chairs; let them show past the drawing's edge instead of being clipped. */
 .sa-drawing { padding: 4px; }
@@ -11,7 +13,7 @@
 .sa-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2px solid var(--fd-chair-edge, #64748b); }
 .sa-key.soon { background: #f59e0b; } .sa-key.left { background: #ef4444; }
 
-.sa-table-wrap { max-height: 46vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.sa-table-wrap { max-height: 60vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
 .sa-table th { position: sticky; top: 0; background: var(--surface); z-index: 1; white-space: nowrap; }
 .sa-table tbody tr { cursor: pointer; }
 .sa-table tbody tr:hover { background: var(--surface-2); }
@@ -27,9 +29,9 @@
 .sa-removed { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 6px; font-size: 11px; font-weight: 650;
   color: #991b1b; background: #fee2e2; }
 .muted { color: var(--muted); }
-.sa-hint { margin: 14px 0 0; }
+.sa-hint { margin: 0; }
 
-.sa-form { display: grid; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.sa-form { display: grid; gap: 12px; }
 .sa-form h3 { margin: 0; font-size: 17px; }
 .sa-form p { margin: 0; }
 .sa-form .button-row { margin-bottom: 0; }

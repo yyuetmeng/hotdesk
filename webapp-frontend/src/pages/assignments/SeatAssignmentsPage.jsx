@@ -226,7 +226,7 @@ export function SeatAssignmentsPage() {
     </div>
     {(!floor || floor.id !== planId) && !error && <Loading label="Loading the floor…" />}
     {floor && floor.id === planId && <div className="sa-layout">
-      <section className="card"><h2>{floor.name}</h2>
+      <section className="card sa-floor"><h2>{floor.name}</h2>
         <div className="sa-drawing"><FloorDrawing floor={neutralFloor} notes={notes} selectedId={selectedSeatId}
           onSeatClick={(seat) => { setSelectedSeatId(seat.id); setMessage(null); }} /></div>
         <ul className="sa-legend">
@@ -257,10 +257,12 @@ export function SeatAssignmentsPage() {
           })}</tbody>
         </table></div>}
         {floor.seats.length > 0 && !rows.length && <p className="state">No seats on this floor are assigned.</p>}
+      </section>
+      {(selected || floor.seats.length > 0) && <section className="card sa-edit">
         {selected
           ? <AssignForm key={`${selected.seat_id}-${selected.assignment?.id ?? 'none'}`} row={selected} onDone={onDone} onRace={onRace} />
-          : floor.seats.length > 0 && <p className="muted sa-hint">Click a seat on the floor or a row in the table.</p>}
-      </section>
+          : <p className="muted sa-hint">Click a seat on the floor or a row in the table.</p>}
+      </section>}
     </div>}
   </main>;
 }
