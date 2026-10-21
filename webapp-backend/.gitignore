@@ -4,6 +4,3 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
-
-# First-admin script with a password hash (sql_prod/README.md); keep it out of git.
-sql_prod/data/03_root_admin.sql

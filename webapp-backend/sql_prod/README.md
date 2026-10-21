@@ -25,11 +25,8 @@ for f in ddl/*.sql dml/*.sql data/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STO
 
 In the Supabase SQL editor, paste and run each file in the same order.
 
-Then create the first admin. Either:
-
-- run `data/03_root_admin.sql`, which creates `root_admin` / `root@x.com`. The file is kept out of git, so it exists
-  only on the machine where it was made. Change that password after the first sign-in.
-- or run `python scripts/create_admin.py` from `webapp-backend/`, with `.env` pointing at the new database.
+Then create the first admin with `python scripts/create_admin.py`, run from `webapp-backend/` with `.env` pointing at
+the new database.
 
 **Not copied from the old database:** users, bookings, check-ins, seat assignments, desk label downloads, floor
 displays and the audit log. Recreate users (Manage Users → Upload Users) and floor displays in the new environment.
