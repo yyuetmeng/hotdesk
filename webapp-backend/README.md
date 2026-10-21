@@ -146,7 +146,9 @@ shown on the Insights page.
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in Supabase, JWT and Resend values.
-2. Run every `sql/*.sql` script (`0001_...` through the highest number, currently `0018_...`) in the Supabase SQL editor, in order.
+2. Build the database. For a **new** database, run `sql_prod/` (one file per table, plus the project teams and
+   published floors; see `sql_prod/README.md`). For an existing one, run any `sql/*.sql` migrations it doesn't have yet,
+   in number order (currently up to `0031_...`).
 3. `pip install -r requirements.txt`
 4. `python scripts/create_admin.py` to create the first admin.
 5. `python run.py` to start the API; `python -m pytest` to run tests. Tests need a **local**
