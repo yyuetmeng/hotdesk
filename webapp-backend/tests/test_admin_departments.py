@@ -34,6 +34,28 @@ def test_create_list_update_delete(client, db, admin_token):
         assert run_one("select action from audit_logs where action = :a", {"a": action})
 
 
+def test_colour_set_listed_and_cleared(client, db, admin_token):
+    dept = client.post("/api/admin/departments", headers=hdr(admin_token), json={"name": "G&C"}).get_json()
+    assert dept["color"] is None                                                   # automatic until chosen
+    r = client.patch(f"/api/admin/departments/{dept['id']}", headers=hdr(admin_token), json={"color": "#1D4ED8"})
+    assert r.status_code == 200 and r.get_json()["color"] == "#1D4ED8"
+    listed = client.get("/api/admin/departments", headers=hdr(admin_token)).get_json()["items"]
+    assert [d["color"] for d in listed] == ["#1D4ED8"]
+    r = client.patch(f"/api/admin/departments/{dept['id']}", headers=hdr(admin_token), json={"color": None})
+    assert r.status_code == 200 and r.get_json()["color"] is None
+    created = client.post("/api/admin/departments", headers=hdr(admin_token), json={"name": "STREAM", "color": "#0d9488"})
+    assert created.status_code == 201 and created.get_json()["color"] == "#0d9488"
+
+
+@pytest.mark.parametrize("value", ["red", "#12345", "#1234567", "1d4ed8", 7, ""])
+def test_bad_colour_400(client, db, admin_token, value):
+    dept = client.post("/api/admin/departments", headers=hdr(admin_token), json={"name": "Ops"}).get_json()
+    r = client.patch(f"/api/admin/departments/{dept['id']}", headers=hdr(admin_token), json={"color": value})
+    assert r.status_code == 400 and r.get_json()["fields"] == {"color": "colour must be #rrggbb"}
+    r = client.post("/api/admin/departments", headers=hdr(admin_token), json={"name": "Ops2", "color": value})
+    assert r.status_code == 400
+
+
 def test_duplicate_name_409(client, db, admin_token):
     client.post("/api/admin/departments", headers=hdr(admin_token), json={"name": "Ops"})
     r = client.post("/api/admin/departments", headers=hdr(admin_token), json={"name": "ops"})

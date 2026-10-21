@@ -1,3 +1,5 @@
+import re
+
 from flask import g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import func, select
@@ -11,6 +13,14 @@ from app.core.security import admin_required
 
 from . import admin_bp
 
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _color_problem(body: dict) -> str | None:
+    """The colour must be "#rrggbb" or null (automatic)."""
+    color = body.get("color")
+    return None if color is None or (isinstance(color, str) and COLOR_RE.match(color)) else "colour must be #rrggbb"
+
 
 def _user_count():
     return (select(func.count()).select_from(UserDepartment)
@@ -19,11 +29,11 @@ def _user_count():
 
 
 def _select_depts():
-    return select(Department.id, Department.name, Department.description, _user_count())
+    return select(Department.id, Department.name, Department.description, Department.color, _user_count())
 
 
 def _dto(row) -> dict:
-    return {"id": str(row.id), "name": row.name, "description": row.description,
+    return {"id": str(row.id), "name": row.name, "description": row.description, "color": row.color,
             "user_count": row.user_count}
 
 
@@ -47,8 +57,10 @@ def create_department():
     name = (body.get("name") or "").strip()
     if not name:
         return error("validation failed", 400, fields={"name": "name is required"})
+    if problem := _color_problem(body):
+        return error("validation failed", 400, fields={"color": problem})
     session = orm_session()
-    dept = Department(name=name, description=body.get("description") or None)
+    dept = Department(name=name, description=body.get("description") or None, color=body.get("color"))
     session.add(dept)
     try:
         session.commit()
@@ -79,6 +91,10 @@ def update_department(dept_id):
         changes["name"] = name
     if "description" in body:
         changes["description"] = body["description"]
+    if "color" in body:
+        if problem := _color_problem(body):
+            return error("validation failed", 400, fields={"color": problem})
+        changes["color"] = body["color"]
     if not changes:
         return error("no fields provided", 400)
     for key, value in changes.items():

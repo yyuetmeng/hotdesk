@@ -288,6 +288,7 @@ export default function EditorPage() {
   const selected = elements.find((el) => el.id === selectedId);
   const selectedSeatIds = selectedIds.filter((sid) => elements.some((el) => el.id === sid && isSeat(el)));
   const deptName = Object.fromEntries(departments.map((d) => [d.id, d.name]));
+  const teamColor = (id) => departmentColor(id, departments.find((d) => d.id === id)?.color);
   const tagLabel = (el) => (tagOf(el) === 'all' ? 'Free for all' : tagOf(el) === 'none' ? 'No project team'
     : deptName[el.department_id] ?? 'Unknown project team');
   const applyTag = (ids, tag) => { if (tag !== 'mixed') commit(setTag(elements, ids, tag)); };
@@ -299,7 +300,7 @@ export default function EditorPage() {
   return <main className="page fp-editor">
     <PageTitle title={plan.name} action={<Link className="button subtle" to="/floor-plans">← All floor plans</Link>} />
     <header className="fp-toolbar">
-      <input aria-label="Plan label" value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} />
+      <input className="fp-plan-name" aria-label="Plan label" value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} />
       <span className="fp-spacer" />
       <button className="button" onClick={() => setShowHistory(true)}>History</button>
       <button className="button" onClick={() => setShowPreview(true)}>Preview</button>
@@ -399,7 +400,7 @@ Zone (${el.x},${el.y})`, rect: e.currentTarget.getBoundingClientRect() }),
                 {el.label}
               </span>}
               {isSeat(el) && tagOf(el) !== 'none' && <span className={`fp-tag${tagOf(el) === 'all' ? ' fp-tag-all' : ''}`}
-                style={tagOf(el) === 'all' ? undefined : { background: departmentColor(el.department_id) }} />}
+                style={tagOf(el) === 'all' ? undefined : { background: teamColor(el.department_id) }} />}
             </div>;
           })}
           {preview && <div className={`fp-preview ${preview.valid ? 'ok' : 'bad'}`}
@@ -411,7 +412,7 @@ Zone (${el.x},${el.y})`, rect: e.currentTarget.getBoundingClientRect() }),
             width: (Math.abs(box.x2 - box.x1) + 1) * cell, height: (Math.abs(box.y2 - box.y1) + 1) * cell }} />}
         </div>
         <ul className="fp-key" aria-label="Project team key">
-          {usedDepartments.map((d) => <li key={d.id}><span className="fp-tag" style={{ background: departmentColor(d.id) }} />{d.name}</li>)}
+          {usedDepartments.map((d) => <li key={d.id}><span className="fp-tag" style={{ background: teamColor(d.id) }} />{d.name}</li>)}
           <li><span className="fp-tag fp-tag-all" />Free for all</li>
           <li><span className="fp-key-untagged" />Untagged ({untagged})</li>
         </ul>

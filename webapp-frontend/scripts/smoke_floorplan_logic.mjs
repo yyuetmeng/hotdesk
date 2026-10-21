@@ -116,6 +116,8 @@ console.log('floorplan meta smoke OK');
   assert.equal(countUntagged(dept), 1);                                                    // s3 only
   assert.equal(departmentColor('d-eng'), departmentColor('d-eng'));
   assert.match(departmentColor('d-eng'), /^#[0-9a-f]{6}$/);
+  assert.equal(departmentColor('d-eng', '#1d4ed8'), '#1d4ed8');                           // a chosen colour wins
+  assert.equal(departmentColor('d-eng', null), departmentColor('d-eng'));
 }
 console.log('floorplan selection smoke OK');
 

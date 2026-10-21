@@ -23,6 +23,7 @@ class Department(Base):
                                           server_default=text("gen_random_uuid()"))
     name: Mapped[str] = mapped_column(Text, unique=True)
     description: Mapped[str | None] = mapped_column(Text)
+    color: Mapped[str | None] = mapped_column(Text)   # "#rrggbb", or None for the automatic colour (sql/0031)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False,
                                                     server_default=func.now())
 

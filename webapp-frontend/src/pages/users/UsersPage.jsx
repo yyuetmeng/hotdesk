@@ -1,6 +1,6 @@
 import { PasswordStrength, usePasswordCheck } from '../../PasswordStrength.jsx';
 import ImportPanel from './ImportPanel.jsx';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { flaskRequest } from '../../api.js';
 import { Loading, Notice, PageTitle } from '../../components.jsx';
@@ -12,6 +12,7 @@ import AuditTimeline from '../audit/AuditTimeline.jsx';
 import { relativeTime } from '../audit/auditLogic.js';
 import { isAccountManager } from '../../roles.js';
 import { errorText, holderChanges, managedLine, teamsOwnFirst } from './teamAccess.js';
+import { departmentColor } from '../../floorplan/selection.js';
 
 const PAGE_SIZE = 20;
 const EMPTY_FORM = { email: '', username: '', full_name: '', role: 'user', start_date: '', end_date: '',
@@ -348,6 +349,10 @@ function DepartmentsSection({ departments, onChanged, refreshKey }) {
       await onChanged(`Renamed ${dept.name} to ${next.trim()}.`);
     });
   };
+  const recolor = (dept, color) => run(async () => {
+    await flaskRequest(`/api/admin/departments/${dept.id}`, { method: 'PATCH', body: { color } });
+    await onChanged(color ? `Changed the colour of ${dept.name}.` : `${dept.name} uses an automatic colour again.`);
+  });
   const remove = (dept) => {
     const extra = dept.user_count ? ` ${dept.user_count} user(s) will be removed from it.` : '';
     if (!window.confirm(`Delete ${dept.name}?${extra}`)) return;
@@ -365,9 +370,10 @@ function DepartmentsSection({ departments, onChanged, refreshKey }) {
       <button className="button primary">Add</button>
     </form>
     {departments.length
-      ? <table><thead><tr><th>Project team</th><th>Users</th><th /></tr></thead>
+      ? <table><thead><tr><th>Project team</th><th>Users</th><th>Colour on floor plans</th><th /></tr></thead>
         <tbody>{departments.map((d) => <tr key={d.id}>
           <td>{d.name}</td><td>{d.user_count}</td>
+          <td><TeamColor dept={d} onPick={(color) => recolor(d, color)} /></td>
           <td><div className="row-actions">
             <button className="button" onClick={() => rename(d)}>Rename</button>
             <button className="button users-danger" onClick={() => remove(d)}>Delete</button>
@@ -379,6 +385,26 @@ function DepartmentsSection({ departments, onChanged, refreshKey }) {
       <TeamChanges refreshKey={refreshKey} />
     </details>
   </section>;
+}
+
+// The team's seat-marker colour in the floor plan editor. Saved when the picker closes (the native change event),
+// not on every step of a drag; "Auto" goes back to the colour worked out from the team's id.
+function TeamColor({ dept, onPick }) {
+  const ref = useRef(null);
+  const pick = useRef(onPick);
+  pick.current = onPick;
+  useEffect(() => {
+    const input = ref.current;
+    const changed = () => { if (input.value.toLowerCase() !== (dept.color ?? '').toLowerCase()) pick.current(input.value); };
+    input.addEventListener('change', changed);
+    return () => input.removeEventListener('change', changed);
+  }, [dept.color]);
+  return <span className="users-team-color">
+    <input ref={ref} type="color" key={dept.color ?? 'auto'} defaultValue={departmentColor(dept.id, dept.color)}
+      aria-label={`Colour for ${dept.name}`} title="Choose the colour of this team's seats on floor plans" />
+    {dept.color ? <button type="button" className="button subtle" onClick={() => onPick(null)}>Auto</button>
+      : <small className="muted">Automatic</small>}
+  </span>;
 }
 
 // Everything that happened to or was done by this user (spec 2026-10-16-audit-views §2).

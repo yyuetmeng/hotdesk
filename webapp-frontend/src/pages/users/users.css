@@ -68,3 +68,8 @@
 .users-readonly { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 14px; }
 .users-readonly dt { color: var(--muted); font-size: 13px; }
 .users-readonly dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Project team colour (seat markers on floor plans): a swatch picker plus Auto / Automatic. */
+.users-team-color { display: inline-flex; align-items: center; gap: 8px; }
+.users-team-color input[type="color"] { width: 34px; height: 28px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); cursor: pointer; }
+.users-team-color .muted { color: var(--muted); }

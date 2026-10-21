@@ -50,8 +50,9 @@ export const countUntagged = (elements) => elements.filter((el) => isSeat(el) &&
 const DEPARTMENT_COLORS = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4',
   '#f032e6', '#bfef45', '#469990', '#9a6324', '#800000', '#000075'];
 
-/** Stable colour per department (hash of its id), so it matches across plans and sessions. */
-export function departmentColor(id) {
+/** The team's chosen colour (Project Teams, sql/0031) if it has one, otherwise a stable colour from its id. */
+export function departmentColor(id, chosen = null) {
+  if (chosen) return chosen;
   let hash = 0;
   for (const ch of String(id)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return DEPARTMENT_COLORS[hash % DEPARTMENT_COLORS.length];
