@@ -209,7 +209,7 @@ export function SeatAssignmentsPage() {
     setParams({ floor: id }, { replace: true });
   };
 
-  const title = <PageTitle title="Seat assignments"><p>Who owns which seat, and until when. Click a seat or a row to assign, change or clear it.</p></PageTitle>;
+  const title = <PageTitle title="Seat Assignments"><p>Who owns which seat, and until when. Click a seat or a row to assign, change or clear it.</p></PageTitle>;
   if (!floors && !error) return <main className="page">{title}<Loading label="Loading floors…" /></main>;
   if (!floors) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
   if (!floors.length) return <main className="page">{title}<Notice>No floor plan has been published yet.</Notice></main>;

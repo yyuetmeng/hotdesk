@@ -98,7 +98,7 @@ export function BookDeskPage() {
     catch (err) { setError(err.message); }
   };
 
-  const title = <PageTitle title="Book a desk"><p>Book a seat for today or the next working day, for yourself or a colleague.</p></PageTitle>;
+  const title = <PageTitle title="Book a Desk"><p>Book a seat for today or the next working day, for yourself or a colleague.</p></PageTitle>;
   if (firstLoad({ floors, floor, error })) return <main className="page">{title}<Loading label="Looking for a free desk…" /></main>;
   if (!floors) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
   if (!floors.length) return <main className="page">{title}<Notice>No floor plan has been published yet.</Notice></main>;

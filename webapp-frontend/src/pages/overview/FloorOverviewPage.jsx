@@ -36,7 +36,7 @@ export function FloorOverviewPage() {
   }, [value]);
   const choose = (next) => { setPick(next); savePick(next); };
 
-  const title = <PageTitle title="Floor overview"><p>What the floor displays show, live. Tap a seat to see who is there and today&apos;s activity.</p></PageTitle>;
+  const title = <PageTitle title="Floor Overview"><p>What the floor displays show, live. Tap a seat to see who is there and today&apos;s activity.</p></PageTitle>;
   if (error) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
   if (!options) return <main className="page">{title}<Loading label="Loading the floor overview..." /></main>;
   return <main className="page overview">

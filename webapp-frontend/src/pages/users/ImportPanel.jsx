@@ -64,7 +64,7 @@ export default function ImportPanel({ holder = false, onClose, onDone }) {
           <input type="text" value={password} autoComplete="new-password" placeholder="8+ characters, letters and numbers"
             onChange={changed((e) => setPassword(e.target.value))} /></label>}
         {usePassword && <PasswordStrength check={passwordCheck} />}
-        {usePassword && <small className="muted">Every new user can sign in with this password straight away; ask them to change it in My account.</small>}
+        {usePassword && <small className="muted">Every new user can sign in with this password straight away; ask them to change it in My Account.</small>}
       </li>}
       <li><button type="button" className="button primary" disabled={!file || Boolean(busy) || Boolean(passwordProblem)} onClick={check}>{busy === 'check' ? 'Checking…' : 'Check file'}</button>
         <span className="muted"> Shows what will happen; nothing is saved yet.</span>

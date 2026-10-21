@@ -12,7 +12,7 @@ import { checkInLocation } from './location.js';
 import { checkInOutcome } from './scanLogic.js';
 import './desk.css';
 
-const CheckInTitle = () => <PageTitle title="Desk check-in"><p>Scan the QR code on a desk to check in there, and give the seat up when you leave.</p></PageTitle>;
+const CheckInTitle = () => <PageTitle title="Desk Check-in"><p>Scan the QR code on a desk to check in there, and give the seat up when you leave.</p></PageTitle>;
 
 export function CheckInPage() {
   const { seatId } = useParams();
@@ -67,7 +67,7 @@ function SeatCheckIn({ seatId }) {
       until {formatTime(seat.my_checkin.ends_at).slice(0, 5)}.</Notice>}
     {seat?.can_give_up && <button className="button primary" disabled={busy} onClick={giveUp}>Give up seat</button>}
     {seat && !seat.can_give_up && !seat.can_check_in && seat.reason && !result && <Notice kind="error">{seat.reason}</Notice>}
-    <p><Link to="/book">Book a desk</Link> · <Link to="/checkin">My seat</Link></p>
+    <p><Link to="/book">Book a Desk</Link> · <Link to="/checkin">My seat</Link></p>
   </main>;
 }
 
@@ -150,6 +150,6 @@ function MySeat() {
         <p className="muted">You can also scan the QR code on a desk, or <Link to="/book">pick a seat on the floor</Link> and press
           {' '}<b>Check in now</b>: free-for-all seats and your project team's seats need no booking.</p>
       </>}
-    <p><Link to="/book">Book a desk</Link></p>
+    <p><Link to="/book">Book a Desk</Link></p>
   </main>;
 }

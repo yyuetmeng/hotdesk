@@ -26,11 +26,11 @@ import ThemeSettings from './ThemeSettings.jsx';
 import { canManageAccounts, isAccountManager, isAdmin } from './roles.js';
 import { BOTTOM_LINKS, readCollapsed, saveCollapsed, shellClass } from './layout.js';
 
-const workspaceLinks = [['/', 'Dashboard', 'dashboard'], ['/overview', 'Floor overview', 'overview'], ['/book', 'Book a desk', 'booking'], ['/checkin', 'Desk check-in', 'checkin'], ['/finder', 'Colleague Finder', 'finder']];
+const workspaceLinks = [['/', 'Dashboard', 'dashboard'], ['/overview', 'Floor Overview', 'overview'], ['/book', 'Book a Desk', 'booking'], ['/checkin', 'Desk Check-in', 'checkin'], ['/finder', 'Colleague Finder', 'finder']];
 const analyticsLinks = [['/insights', 'Insights', 'insights']];
 // Account managers (non-admins who manage accounts for chosen teams) see only Manage Users.
 const accountManagerLinks = [['/users', 'Manage Users', 'users']];
-const adminLinks = [['/desk-labels', 'Print Desk Labels', 'labels'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users'], ['/seat-assignments', 'Seat assignments', 'seat'], ['/audit', 'Audit Log', 'audit']];
+const adminLinks = [['/desk-labels', 'Print Desk Labels', 'labels'], ['/displays', 'Manage Floor Display', 'display'], ['/floor-plans', 'Manage Floor Plan', 'planner'], ['/users', 'Manage Users / Project Teams', 'users'], ['/seat-assignments', 'Seat Assignments', 'seat'], ['/audit', 'Audit Log', 'audit']];
 
 function NavIcon({ name }) {
   const paths = {
@@ -84,8 +84,8 @@ function Sidebar({ collapsed, onToggleCollapsed, onClose }) {
     <div className="sidebar-footer">
       <ThemeSettings />
       <nav aria-label="Account">
-        <NavLink to={user ? '/account' : '/login'} title={tip(user ? 'My account' : 'Sign in')}><NavIcon name="account"/><span className="nav-text">{user ? 'My account' : 'Sign in'}</span></NavLink>
-        {user && <button type="button" className="sidebar-signout" title={tip('Sign out')} onClick={() => logout()}><NavIcon name="signout"/><span className="nav-text">Sign out</span></button>}
+        <NavLink to={user ? '/account' : '/login'} title={tip(user ? 'My Account' : 'Sign in')}><NavIcon name="account"/><span className="nav-text">{user ? 'My Account' : 'Sign in'}</span></NavLink>
+        {user && <button type="button" className="sidebar-signout" title={tip('Sign Out')} onClick={() => logout()}><NavIcon name="signout"/><span className="nav-text">Sign Out</span></button>}
       </nav>
     </div>
   </aside>;

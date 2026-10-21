@@ -62,5 +62,5 @@ export function AccountPage() {
   const user = auth.user;
   return <AuthLayout><div className="auth-card"><p className="auth-eyebrow">Your account</p><h1>Welcome, {user.full_name || user.username}</h1><p className="auth-description">You are signed in to Hot Desk.</p><dl className="auth-details"><dt>Email</dt><dd>{user.email}</dd><dt>Username</dt><dd>{user.username}</dd><dt>Role</dt><dd>{user.role}</dd><dt>Project teams</dt><dd>{user.departments?.map((department) => department.name).join(', ') || 'No project teams'}</dd></dl>
     <ChangePassword user={user} />
-    <button className="auth-submit" onClick={() => auth.logout()}>Sign out</button><Link className="auth-secondary" to="/">View workspace</Link></div></AuthLayout>;
+    <button className="auth-submit" onClick={() => auth.logout()}>Sign Out</button><Link className="auth-secondary" to="/">View workspace</Link></div></AuthLayout>;
 }
