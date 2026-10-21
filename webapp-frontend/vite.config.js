@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
       '/api/admin/insights': { target: flaskBackend, changeOrigin: true },
       '/api/admin/desk-labels': { target: flaskBackend, changeOrigin: true },
       '/api/admin/audit': { target: flaskBackend, changeOrigin: true },
+      '/api/admin/seat-assignments': { target: flaskBackend, changeOrigin: true },
       '/api/desk': { target: flaskBackend, changeOrigin: true },
       '/api/public': { target: flaskBackend, changeOrigin: true },
       '/api': { target: backend, changeOrigin: true },
