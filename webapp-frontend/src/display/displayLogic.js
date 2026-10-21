@@ -128,6 +128,28 @@ export function tableLabel(label, length) {
 /** A plant's outer radius: 36% of its element's smaller side, so the flower never spills out of it. */
 export const plantRadius = (W, H) => Math.round(Math.min(W, H) * 0.36 * 100) / 100;
 
+/** Door swing settings (editor dropdown): the side the door opens towards, then the end its hinge is on. */
+export const DOOR_SWINGS = [['up-left', 'Opens up, hinge left'], ['up-right', 'Opens up, hinge right'],
+  ['down-left', 'Opens down, hinge left'], ['down-right', 'Opens down, hinge right'],
+  ['left-top', 'Opens left, hinge top'], ['left-bottom', 'Opens left, hinge bottom'],
+  ['right-top', 'Opens right, hinge top'], ['right-bottom', 'Opens right, hinge bottom']];
+
+/** How to draw a door in the box (x, y, W, H): the open leaf from the hinge, and the dashed arc its edge travels to
+ * the closed position along the doorway (the side opposite the way it opens). Unknown settings draw as 'up-left'. */
+export function doorSwing(el, x, y, W, H) {
+  const swing = DOOR_SWINGS.some(([v]) => v === el?.config?.swing) ? el.config.swing : 'up-left';
+  const [opens, hinge] = swing.split('-');
+  const l = x + 1, t = y + 1, r = x + W - 1, b = y + H - 1, len = Math.min(W, H) - 2;
+  const towards = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[opens];
+  const vertical = opens === 'up' || opens === 'down';
+  const hx = vertical ? (hinge === 'left' ? l : r) : (opens === 'left' ? r : l);
+  const hy = vertical ? (opens === 'up' ? b : t) : (hinge === 'top' ? t : b);
+  const along = vertical ? [hinge === 'left' ? 1 : -1, 0] : [0, hinge === 'top' ? 1 : -1];   // from the hinge along the doorway
+  const open = [hx + towards[0] * len, hy + towards[1] * len], shut = [hx + along[0] * len, hy + along[1] * len];
+  const sweep = towards[0] * along[1] - towards[1] * along[0] > 0 ? 1 : 0;
+  return { swing, hinge: [hx, hy], open, shut, radius: len, sweep };
+}
+
 /** A toilet's gender setting (editor: All-gender / Male / Female); anything else counts as all-gender. */
 export function toiletGender(el) {
   const g = el?.config?.gender;

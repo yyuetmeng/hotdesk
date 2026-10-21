@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { formatDateTime } from '../format.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
+import { DOOR_SWINGS } from '../display/displayLogic.js';
 import { CATALOG, baseSize, catalogByType, isResizable, maxSizeFor, setCatalog, sizeOf } from './palette.js';
 import { addElement, metaChanged, moveElement, placementError, previewFloor, removeElement, resizeElement, rotateElement, seatsInZone, validateAll, zoneName } from './logic.js';
 import { countUntagged, ctrlClickSelection, departmentColor, isSeat, isZone, seatsInBox, setTag, sharedTag, tagOf } from './selection.js';
@@ -55,8 +56,9 @@ function SizeFields({ el, onResize }) {
 // Per-type settings come from the catalog's default config (floor_elements.config).
 const settingValue = (el, key) => el.config?.[key] ?? catalogByType[el.type]?.config?.[key];
 const SETTING_LABELS = {};
-// Settings with a fixed set of values, shown as a dropdown (sql/0025: toilet gender).
-const SETTING_CHOICES = { gender: { label: 'Gender', options: [['unisex', 'All-gender'], ['male', 'Male'], ['female', 'Female']] } };
+// Settings with a fixed set of values, shown as a dropdown (sql/0025: toilet gender; sql/0030: door swing).
+const SETTING_CHOICES = { gender: { label: 'Gender', options: [['unisex', 'All-gender'], ['male', 'Male'], ['female', 'Female']] },
+  swing: { label: 'Opens', options: DOOR_SWINGS } };
 
 // Seat department tag dropdown (spec 2026-10-15-seat-department-tags §3): None, Free for all, departments A–Z.
 function TagSelect({ value, departments, onChange }) {

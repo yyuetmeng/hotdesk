@@ -85,6 +85,26 @@ console.log('display walls smoke OK');
 }
 console.log('display floor style smoke OK');
 
+// Door swing: the leaf stands open from the hinge, the arc ends on the doorway (opposite the way it opens).
+{
+  const { doorSwing, DOOR_SWINGS } = await import('../src/display/displayLogic.js');
+  const at = (swing) => doorSwing({ config: { swing } }, 0, 0, 30, 30);
+  assert.deepEqual(at('up-left'), { swing: 'up-left', hinge: [1, 29], open: [1, 1], shut: [29, 29], radius: 28, sweep: 1 });   // the old drawing
+  assert.deepEqual(at('down-right'), { swing: 'down-right', hinge: [29, 1], open: [29, 29], shut: [1, 1], radius: 28, sweep: 1 });
+  assert.deepEqual(at('left-top'), { swing: 'left-top', hinge: [29, 1], open: [1, 1], shut: [29, 29], radius: 28, sweep: 0 });
+  assert.deepEqual(at('right-bottom'), { swing: 'right-bottom', hinge: [1, 29], open: [29, 29], shut: [1, 1], radius: 28, sweep: 0 });
+  assert.equal(doorSwing({}, 0, 0, 30, 30).swing, 'up-left');                                 // no setting
+  assert.equal(at('sideways').swing, 'up-left');                                                 // unknown setting
+  for (const [swing] of DOOR_SWINGS) {                                                           // all eight stay inside the box
+    const d = at(swing);
+    for (const [px, py] of [d.hinge, d.open, d.shut]) assert.ok(px >= 1 && px <= 29 && py >= 1 && py <= 29, swing);
+    assert.equal(Math.hypot(d.open[0] - d.hinge[0], d.open[1] - d.hinge[1]), 28);
+    assert.equal(Math.hypot(d.shut[0] - d.hinge[0], d.shut[1] - d.hinge[1]), 28);
+  }
+  assert.deepEqual(doorSwing({ config: { swing: 'up-right' } }, 0, 0, 60, 30).hinge, [59, 29]);   // hinge at the box's own corner
+}
+console.log('display door swing smoke OK');
+
 // Floor overview "All floors": the same display view over every published floor, shown together.
 assert.deepEqual(overviewConfig([{ id: 'p1', name: 'L1' }, { id: 'p2', name: 'L2' }]), {
   name: 'All floors', slug: '', show_overall: true, layout: 'grid', rotate_seconds: 20, plan_ids: ['p1', 'p2'],

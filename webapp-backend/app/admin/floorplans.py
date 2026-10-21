@@ -16,8 +16,9 @@ from . import admin_bp
 
 MIN_DIM, MAX_DIM = 5, 80
 MAX_ELEMENT_SIZE = 20
-# Settings that take one of a fixed set of values (sql/0025: toilet gender).
-CONFIG_CHOICES = {"gender": ("unisex", "male", "female")}
+# Settings that take one of a fixed set of values (sql/0025: toilet gender; sql/0030: door swing).
+CONFIG_CHOICES = {"gender": ("unisex", "male", "female"),
+                  "swing": ("up-left", "up-right", "down-left", "down-right", "left-top", "left-bottom", "right-top", "right-bottom")}
 ZONE_TYPE = "zone"  # outline grouping the seats inside it; own layer, up to the grid size
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 ROTATIONS = (0, 90, 180, 270)

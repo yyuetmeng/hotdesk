@@ -6,7 +6,7 @@
 import { footprint, initials, zoneCaption } from '../desk/deskLogic.js';
 import { iconPath } from './icons.js';
 import { useState } from 'react';
-import { monitorMarks, plantRadius, plateSide, seatCells, seatTip, tableLabel, thinBar, toiletGender } from './displayLogic.js';
+import { doorSwing, monitorMarks, plantRadius, plateSide, seatCells, seatTip, tableLabel, thinBar, toiletGender } from './displayLogic.js';
 import './floor.css';
 
 const C = 28;  // drawing units per grid cell
@@ -49,11 +49,11 @@ function Element({ el, catalog }) {
       return <rect {...thinBar(x, y, W, H, 5)} rx="1.5" className="fd-wall" />;
     case 'window':
       return <rect {...thinBar(x, y, W, H, 5)} rx="1.5" className="fd-window" />;
-    case 'door': {   // thin: a door leaf along one side and a light dashed swing arc
-      const r = Math.min(W, H);
+    case 'door': {   // thin: the open door leaf from its hinge and a light dashed swing arc (editor: door swing setting)
+      const d = doorSwing(el, x, y, W, H);
       return <g className="fd-door">
-        <line x1={x + 1} y1={y + H - 1} x2={x + 1} y2={y + H - r} strokeWidth="2.2" strokeLinecap="round" />
-        <path d={`M ${x + 1} ${y + H - r} A ${r} ${r} 0 0 1 ${x + r} ${y + H - 1}`} fill="none" strokeWidth="1" strokeDasharray="3 3" opacity=".7" />
+        <line x1={d.hinge[0]} y1={d.hinge[1]} x2={d.open[0]} y2={d.open[1]} strokeWidth="2.2" strokeLinecap="round" />
+        <path d={`M ${d.open[0]} ${d.open[1]} A ${d.radius} ${d.radius} 0 0 ${d.sweep} ${d.shut[0]} ${d.shut[1]}`} fill="none" strokeWidth="1" strokeDasharray="3 3" opacity=".7" />
       </g>;
     }
     case 'corridor':
