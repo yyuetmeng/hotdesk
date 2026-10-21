@@ -309,12 +309,7 @@ function UserForm({ user, departments, floors, holder, isSelf, onClose, onChange
       <button className="button primary" disabled={busy}>{isNew ? 'Create and invite' : 'Save changes'}</button>
     </div>
 
-    {!isNew && holder && user.status === 'pending_activation' && <div className="users-actions">
-      <h3>Account actions</h3>
-      <button type="button" className="button" disabled={busy} onClick={resend}>Resend invitation</button>
-    </div>}
-
-    {!isNew && !holder && <div className="users-actions">
+    {!isNew && <div className="users-actions">
       <h3>Account actions</h3>
       <div className="inline-form">
         <label>New password <input type="password" minLength={8} autoComplete="new-password" value={password}
@@ -324,7 +319,7 @@ function UserForm({ user, departments, floors, holder, isSelf, onClose, onChange
       </div>
       {user.status === 'pending_activation' &&
         <button type="button" className="button" disabled={busy} onClick={resend}>Resend invitation</button>}
-      {!isSelf && <button type="button" className="button users-danger" disabled={busy} onClick={remove}>Delete user</button>}
+      {!isSelf && !holder && <button type="button" className="button users-danger" disabled={busy} onClick={remove}>Delete user</button>}
     </div>}
   </form>;
 }

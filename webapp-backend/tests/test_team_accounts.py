@@ -1,5 +1,6 @@
 import pytest
 
+from app.auth.routes import MAX_FAILED_ATTEMPTS
 from app.core.db import run_one
 from creds import SECRET, hashed, new_secret, secret_body, sign_in
 
@@ -117,12 +118,13 @@ def test_holder_manages_a_team_they_are_not_in(client, world):
     assert ids_listed(client, world["hana_tok"]) == {world["oli"]}
 
 
-def test_out_of_scope_is_403_for_view_edit_resend_and_unknown_ids(client, held):
+def test_out_of_scope_is_403_for_view_edit_resend_password_and_unknown_ids(client, held):
     tok = held["hana_tok"]
     for uid in (held["oli"], held["ada"], held["hana"], "00000000-0000-0000-0000-000000000000"):
         for r in (client.get(f"/api/admin/users/{uid}", headers=hdr(tok)),
                   client.patch(f"/api/admin/users/{uid}", headers=hdr(tok), json={"full_name": "X"}),
-                  client.post(f"/api/admin/users/{uid}/resend-invitation", headers=hdr(tok))):
+                  client.post(f"/api/admin/users/{uid}/resend-invitation", headers=hdr(tok)),
+                  client.post(f"/api/admin/users/{uid}/password", headers=hdr(tok), json=secret_body(new_secret()))):
             assert (r.status_code, r.get_json()["error"]) == (403, "You can only manage accounts in your project teams.")
 
 
@@ -191,7 +193,6 @@ def test_holder_outside_access_dates_refused_with_old_token(client, held, column
 def test_holder_still_blocked_from_admin_only_endpoints(client, held):
     tok, eve = held["hana_tok"], held["eve"]
     assert client.delete(f"/api/admin/users/{eve}", headers=hdr(tok)).status_code == 403
-    assert client.post(f"/api/admin/users/{eve}/password", headers=hdr(tok), json=secret_body(new_secret())).status_code == 403
     assert client.post("/api/admin/departments", headers=hdr(tok), json={"name": "Z"}).status_code == 403
     assert client.get("/api/admin/audit", headers=hdr(tok)).status_code == 403
     assert client.get("/api/admin/audit/security-summary", headers=hdr(tok)).status_code == 403
@@ -201,6 +202,21 @@ def test_holder_resend_invitation_in_scope(client, held, stub_email):
     run_one("update users set password_hash = null where id = :i returning id", {"i": held["eve"]})
     r = client.post(f"/api/admin/users/{held['eve']}/resend-invitation", headers=hdr(held["hana_tok"]))
     assert r.status_code == 204 and len(stub_email) == 1
+
+
+def test_holder_sets_password_in_scope(client, held):
+    run_one("update users set is_active = false, failed_attempts = :n where id = :i returning id",
+            {"i": held["eve"], "n": MAX_FAILED_ATTEMPTS})     # disabled and locked out
+    value = new_secret()
+    r = client.post(f"/api/admin/users/{held['eve']}/password", headers=hdr(held["hana_tok"]), json=secret_body(value))
+    assert r.status_code == 204
+    assert sign_in(client, "eve@x.com", value).status_code == 200      # enabled and unlocked, as when an admin does it
+    assert run_one("select actor_id::text as a from audit_logs where action = 'user.password_reset'")["a"] == held["hana"]
+
+
+def test_holder_set_password_checks_the_policy(client, held):
+    r = client.post(f"/api/admin/users/{held['eve']}/password", headers=hdr(held["hana_tok"]), json=secret_body("short"))
+    assert r.status_code == 400 and "password" in r.get_json()["fields"]
 
 
 # ---- holder create and upload ------------------------------------------------------------------------------------

@@ -436,9 +436,12 @@ def delete_user(user_id):
 
 
 @admin_bp.post("/users/<uuid:user_id>/password")
-@admin_required
+@account_manager_required
 def admin_set_password(user_id):
+    """Admins, and account managers for people in their teams (owner, 2026-10-21). Also enables and unlocks the account."""
     user_id = str(user_id)
+    if _out_of_scope(user_id):
+        return error(OUT_OF_SCOPE, 403)
     body = request.get_json(silent=True) or {}
     password = body.get("password") or ""
     session = orm_session()

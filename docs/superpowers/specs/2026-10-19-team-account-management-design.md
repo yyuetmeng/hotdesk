@@ -20,7 +20,8 @@ have to name it team lead")**.
 users; audit-log access.
 
 **Anti-goals.**
-- A non-admin able to take over an account (password, email, username) or make anyone an admin.
+- A non-admin able to take over an account (email, username) or make anyone an admin. *(Owner, 2026-10-21: holders may
+  set a password for people they manage, as admins can; the audit log records who did it.)*
 - A non-admin able to widen their own reach (add people to their teams, touch their own account).
 - Anything hidden only in the page and not refused by the server.
 
@@ -43,10 +44,12 @@ Allowed, for manageable people only **(owner)**:
 - edit **name**, **access start/end dates**, **usual seat** and **booking allowance**;
 - **turn the account on or off**;
 - **resend the invitation** email;
+- **set a password** for someone they manage, which also enables and unlocks the account, as for admins
+  **(owner, 2026-10-21)**;
 - **create a user** for the teams they manage **(owner, 2026-10-20)**: see 3.1;
 - **upload users** from the template for the teams they manage **(owner, 2026-10-20)**: see 3.2.
 
-Refused (admin only) **(owner)**: role, changing an existing user's email or username, setting a password, delete,
+Refused (admin only) **(owner)**: role, changing an existing user's email or username, delete,
 changing an existing user's project-team membership. Any request for these, or for a person outside the holder's scope, is refused by
 the server: 403 "You can only manage accounts in your project teams." for out-of-scope people, 403 "Only an
 administrator can change this." for a refused field *(call: wording)*.
@@ -88,7 +91,7 @@ Booking allowance is capped at what an admin could set; there is no extra cap fo
   **(owner: "just the top part")**.
 - **New user** and **Upload Users** are shown, in the cut-down forms of 3.1 and 3.2.
 - Hidden for holders: the security summary tiles (they come from the admin-only audit log), the **Project Teams** section, the edit panel's **History** tab, and the role, email,
-  username, password, teams and delete controls *(call: tiles and History follow from "no audit access")*.
+  username, teams and delete controls *(call: tiles and History follow from "no audit access")*.
 - A line at the top: "You can manage accounts in: Engineering, Design." *(call)*.
 
 ## 5. Audit
