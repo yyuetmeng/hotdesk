@@ -22,7 +22,7 @@ export function BookDeskPage() {
   const [days, setDays] = useState(null);   // [today, next working day] from the server
   const [dayOffset, setDayOffset] = useState(0);
   const [bothDays, setBothDays] = useState(false);   // the panel's Day = Both; the floor then shows `dayOffset`
-  const [preset, setPreset] = useState('am');
+  const [preset, setPreset] = useState(PRESETS[0]);
   const [floor, setFloor] = useState(null);
   const [selected, setSelected] = useState(null);
   const [multi, setMulti] = useState(false);     // booking several seats for colleagues: clicks add seats
