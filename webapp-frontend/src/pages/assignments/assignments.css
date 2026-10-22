@@ -77,4 +77,3 @@
   :root:not([data-theme="light"]) .sa-ending .left time { color: #fca5a5; }
 }
 /* Its own full-width row below Occupancy + Utilisation by zone, so that grid keeps its two columns. */
-.insights-ending { margin-top: 16px; }
