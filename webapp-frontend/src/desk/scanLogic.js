@@ -3,6 +3,11 @@
 // another address still works and a foreign QR code cannot send anyone elsewhere.
 const SEAT = /\/checkin\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:[/?#]|$)/i;
 
+/** Checking in needs a scan (owner 2026-10-23): a seat page checks in only when it was opened by scanning its QR code,
+ * either with the phone's camera (the page loads fresh, so the router location key is 'default') or with the in-app
+ * scanner / sign-in on the way back from a scan (state.scanned). Links inside the app only show the seat. */
+export const openedByScan = (location) => location?.state?.scanned === true || location?.key === 'default';
+
 /** The seat id in a scanned QR code, or null when it is not a Hot Desk seat label. */
 export function seatFromCode(text) {
   const match = SEAT.exec(String(text ?? '').trim());

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { checkInOutcome, seatFromCode } from '../src/desk/scanLogic.js';
+import { checkInOutcome, openedByScan, seatFromCode } from '../src/desk/scanLogic.js';
 
 // Scan QR code (owner 2026-10-16): a desk label holds <site>/checkin/<seat id>; anything else is not a seat code.
 const id = '3f2a8c1e-1d2b-4c3d-9e8f-0a1b2c3d4e5f';
@@ -27,4 +27,9 @@ const e1s = { seat_id: 'e1', seat_label: 'E1', plan_id: 'p1', plan_name: 'Level 
 assert.equal(checkInOutcome({ seat: null, result: { kind: 'error', text: 'x', suggestion: e1s } }).suggestion, e1s);
 assert.equal(checkInOutcome({ seat: null, result: { kind: 'error', text: 'x' } }).suggestion, null);
 assert.equal(checkInOutcome({ seat: { can_check_in: false, can_give_up: false, reason: 'r', suggestion: e1s } }).suggestion, e1s);
+// Check in only by scanning (owner 2026-10-23): a fresh page load (phone camera) or the in-app scanner; not an app link.
+assert.equal(openedByScan({ key: 'default', state: null }), true);
+assert.equal(openedByScan({ key: 'k3x9', state: { scanned: true } }), true);
+assert.equal(openedByScan({ key: 'k3x9', state: null }), false);
+assert.equal(openedByScan({ key: 'k3x9', state: { scanned: 'yes' } }), false);
 console.log('scan logic smoke OK');

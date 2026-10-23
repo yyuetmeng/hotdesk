@@ -16,7 +16,7 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const submitting = useRef(false);
   if (auth.loading || auth.error) return <SessionState />;
-  if (auth.user) return <Navigate to={returnTo} replace />;
+  if (auth.user) return <Navigate to={returnTo} state={reason ? { scanned: true } : undefined} replace />;   // reason: from a desk QR code
 
   async function submit(event) {
     event.preventDefault();

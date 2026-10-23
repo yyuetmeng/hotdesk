@@ -6,9 +6,8 @@ import { Notice } from '../components.jsx';
 import { formatTime } from '../format.js';
 import BookingPanel from './BookingPanel.jsx';
 import { goToLabel, seatAction, stateLabel, teamSeatText, untaggedNote } from './deskLogic.js';
-import { checkInLocation } from './location.js';
 
-// A free team seat to check in at instead (team first): a link to its check-in page, which checks in on arrival.
+// A free team seat to sit at instead (team first): a link to its seat page; checking in there needs a scan.
 const GoTo = ({ s }) => <Link className="button" to={`/checkin/${s.seat_id}`}>{goToLabel(s)}</Link>;
 
 export default function SeatPanel({ planId, seat, isToday, onChanged, booking, teamFirst, jumpTo }) {
@@ -25,37 +24,30 @@ export default function SeatPanel({ planId, seat, isToday, onChanged, booking, t
   }, [seat.id, seat.state]);
 
   const action = seatAction(seat, isToday);
-  const act = async () => {
+  const giveUp = async () => {
     setBusy(true); setMessage(null);
     try {
-      if (action === 'check_in') {
-        const c = await flaskRequest(`/api/desk/seats/${seat.id}/check-in`, { method: 'POST', body: await checkInLocation() });
-        setMessage({ kind: 'success', text: `You're checked in at ${c.seat_label} until ${formatTime(c.ends_at).slice(0, 5)}.${c.warning ? ` ${c.warning}` : ''}` });
-      } else {
-        await flaskRequest(`/api/desk/seats/${seat.id}/give-up`, { method: 'POST' });
-        setMessage({ kind: 'success', text: `You gave up ${seat.label}.` });
-      }
+      await flaskRequest(`/api/desk/seats/${seat.id}/give-up`, { method: 'POST' });
+      setMessage({ kind: 'success', text: `You gave up ${seat.label}.` });
       onChanged();
-    } catch (err) { setMessage({ kind: 'error', text: err.message, suggestion: err.suggestion }); } finally { setBusy(false); }
+    } catch (err) { setMessage({ kind: 'error', text: err.message }); } finally { setBusy(false); }
   };
 
   return <aside className="card desk-panel">
     <h2>{seat.label}</h2>
     <p className="muted">{info?.department ?? (seat.open_to_all ? 'Free for all' : '')} · {stateLabel(seat.state)}</p>
     {message && <Notice kind={message.kind}>{message.text}</Notice>}
-    {message?.suggestion && <div className="desk-actions"><GoTo s={message.suggestion} /></div>}
     {seat.occupant && <p>Checked in: <b>{seat.occupant.name}</b></p>}
     {seat.booking && <p>Booked for <b>{seat.booking.booked_for.name}</b>
       {seat.booking.booked_by && <> by {seat.booking.booked_by.name}</>}
       {' '}({formatTime(seat.booking.starts_at).slice(0, 5)}–{formatTime(seat.booking.ends_at).slice(0, 5)})</p>}
 
-    {action && <div className="desk-actions">
-      <button className={`button${action === 'check_in' ? ' primary' : ''}`} disabled={busy} onClick={act}>
-        {busy ? 'Please wait…' : action === 'check_in' ? 'Check in now' : 'Give up seat'}</button>
-      {action === 'check_in' && <p className="bk-hint">{seat.open_to_all ? 'Free for all' : "Your project team's seat"}: no booking needed. Your device location is recorded with the check-in.</p>}
-    </div>}
-    {isToday && info?.suggestion && !info.can_check_in && !message?.suggestion && <div className="desk-actions">
-      <p className="bk-hint">{teamSeatText(info.suggestion)} Check in there instead.</p><GoTo s={info.suggestion} /></div>}
+    {action === 'give_up' && <div className="desk-actions">
+      <button className="button" disabled={busy} onClick={giveUp}>{busy ? 'Please wait…' : 'Give up seat'}</button></div>}
+    {isToday && seat.can_check_in && !action && <p className="bk-hint">{seat.open_to_all ? 'Free for all' : "Your project team's seat"}: no
+      booking needed. Scan the QR code on the desk to check in.</p>}
+    {isToday && info?.suggestion && !info.can_check_in && <div className="desk-actions">
+      <p className="bk-hint">{teamSeatText(info.suggestion)} Sit there instead.</p><GoTo s={info.suggestion} /></div>}
     {untaggedNote(seat) && <p className="muted">{untaggedNote(seat)}</p>}
     {(seat.open_to_all || seat.department_id) && <BookingPanel planId={planId} seat={seat} onChanged={onChanged}
       teamFirst={teamFirst} jumpTo={jumpTo} {...booking} />}

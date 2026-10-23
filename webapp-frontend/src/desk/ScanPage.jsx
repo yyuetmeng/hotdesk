@@ -2,7 +2,7 @@
 // shows a small square frame with a laser bar sweeping up and down (option A of preview scan-styles-v3);
 // reads desk labels; a seat code goes straight to that seat's check-in (/checkin/<id>, which checks in).
 // Uses the browser's BarcodeDetector where it exists (Chrome, Android) and the jsQR library otherwise (Safari on
-// iPhone). Cameras only work on HTTPS (or localhost); without one the page says so and links to manual check-in.
+// iPhone). Cameras only work on HTTPS (or localhost); without one the page says so (checking in needs a scan).
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageTitle } from '../components.jsx';
@@ -61,7 +61,7 @@ export function ScanPage() {
         if (v.readyState >= 2 && v.videoWidth) {
           const text = await read(v).catch(() => null);
           const seat = text && seatFromCode(text);
-          if (seat) { alive = false; stop(); navigate(`/checkin/${seat}`); return; }
+          if (seat) { alive = false; stop(); navigate(`/checkin/${seat}`, { state: { scanned: true } }); return; }
           if (text) setNotice('That QR code is not a Hot Desk seat label. Scan the label on the desk.');
         }
         timer = setTimeout(tick, 150);                  // about 7 looks a second
@@ -79,6 +79,6 @@ export function ScanPage() {
     </div>
     <p className={state === 'denied' || state === 'unsupported' ? 'desk-scan-msg bad' : 'desk-scan-msg'} role="status">{TEXT[state]}</p>
     {notice && state === 'scanning' && <p className="desk-scan-msg warn">{notice}</p>}
-    <p className="muted">No camera? <Link to="/checkin">Check in without scanning</Link> or <Link to="/book">pick a seat on the floor</Link>.</p>
+    <p className="muted">Checking in needs a scan of the desk's QR code. To plan ahead, <Link to="/book">book a desk</Link>.</p>
   </main>;
 }

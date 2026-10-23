@@ -30,7 +30,7 @@ function RightNow({ data }) {
       <div className="dash-seat">{next ? next.seat_label : "You're not at a desk"}</div>
       <small>{next ? `${where(next)} · ${slotText(next.preset)}` : 'Book a seat, or scan the QR code on a free desk to check in.'}</small></div>
     <div className="row-actions">
-      {next ? <Link className="button" to={`/checkin/${next.seat_id}`}>Check in</Link> : <Link className="button" to="/checkin">Scan to check in</Link>}
+      <Link className="button" to="/scan">Scan to check in</Link>
       <Link className="button primary" to="/book">Book a desk</Link>
     </div>
   </section>;
@@ -117,7 +117,6 @@ function BookAgain({ items: all, usual }) {
       {usual && <div className="dash-chip dash-chip-mine">
         <b>{usual.seat_label} · {usual.plan_name}</b><small>Your seat{usual.zone ? ` · ${usual.zone}` : ''}</small>
         <span className="row-actions">
-          <Link className="button" to={`/checkin/${usual.seat_id}`}>Check in</Link>
           {usual.bookable && <Link className="button" to={`/book?plan=${usual.plan_id}&seat=${usual.seat_id}`}>Book</Link>}
         </span>
       </div>}
