@@ -115,3 +115,9 @@ def test_keep_me_signed_in_gives_a_five_day_token(client, db):
     assert _lifetime(normal) == client.application.config["JWT_ACCESS_TOKEN_EXPIRES"]
     assert _lifetime(kept["token"]) == 5 * 24 * 3600
     assert kept["remember"] is True
+
+
+def test_login_ignores_case_of_email_and_username(client, db):
+    mk_user(db, email="Case@X.com", username="CaseUser")
+    for identity in ("case@x.com", "CASE@X.COM", "caseuser", "CASEUSER", "  CaseUser  "):
+        assert login(client, identity).status_code == 200, identity

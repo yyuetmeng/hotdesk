@@ -18,7 +18,7 @@ def ensure_admin(email: str, username: str, full_name: str, password: str) -> st
     session = orm_session()
     role_id = session.scalar(select(Role.id).where(Role.name == "admin"))
     existing = session.scalars(
-        select(User).where(User.email == email).execution_options(populate_existing=True)
+        select(User).where(func.lower(User.email) == email.strip().lower()).execution_options(populate_existing=True)
     ).unique().first()
     if existing:
         existing.username = username

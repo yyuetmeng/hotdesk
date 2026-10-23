@@ -1,4 +1,4 @@
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from .auth_models import User
 from .orm import orm_session
@@ -26,14 +26,21 @@ def fetch_user(user_id: str):
     return public_user(user) if user else None
 
 
+def _key(value: str) -> str:
+    return (value or "").strip().lower()
+
+
+# Email and username ignore case. The columns are citext, but a bound parameter arrives as text and Postgres then
+# compares as text (case-sensitive), so both sides are lowered here.
 def find_user_by_identity(identity: str):
+    key = _key(identity)
     return orm_session().scalars(
-        select(User).where(or_(User.email == identity, User.username == identity))
+        select(User).where(or_(func.lower(User.email) == key, func.lower(User.username) == key))
     ).unique().first()
 
 
 def _exists(column, value: str, exclude_id: str | None) -> bool:
-    stmt = select(User.id).where(column == value)
+    stmt = select(User.id).where(func.lower(column) == _key(value))
     if exclude_id is not None:
         stmt = stmt.where(User.id != exclude_id)
     return orm_session().scalar(stmt) is not None

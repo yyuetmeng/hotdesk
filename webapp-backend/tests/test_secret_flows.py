@@ -78,3 +78,9 @@ def test_set_secret_rejects_short_and_invalid(client, db, stub_email):
     r = client.post("/api/auth/set-password", json=secret_body(too_short(), token=raw))
     assert r.status_code == 400
     assert "password" in r.get_json().get("fields", {})
+
+
+def test_forgot_ignores_case_of_email(client, db, stub_email):
+    _mk(db, "Mixed@X.com", "mixedfp")
+    assert client.post("/api/auth/forgot-password", json={"email": "MIXED@x.COM"}).status_code == 204
+    assert stub_email and stub_email[0][0] == "Mixed@X.com"
