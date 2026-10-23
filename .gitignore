@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env.local
 .env
+.vercel
 
 # Superpowers brainstorming mockups (local only)
-.superpowers/
+/.superpowers

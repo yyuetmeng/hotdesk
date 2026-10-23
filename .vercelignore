@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+.agents/
+skills/
+docs/
+webapp-backend/tests/
+webapp-backend/sql/
+webapp-backend/sql_prod/
+webapp-backend/scripts/
