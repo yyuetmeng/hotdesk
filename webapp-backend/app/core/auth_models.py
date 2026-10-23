@@ -24,6 +24,10 @@ class Department(Base):
     name: Mapped[str] = mapped_column(Text, unique=True)
     description: Mapped[str | None] = mapped_column(Text)
     color: Mapped[str | None] = mapped_column(Text)   # "#rrggbb", or None for the automatic colour (sql/0031)
+    # Seats the team needs, or None (sql/0032). Deferred: only the team seat planning widget and the team edit load it.
+    seats_required: Mapped[int | None] = mapped_column(SmallInteger, deferred=True)
+    # The team's Try number on the seat planning widget, or None = as allocated (sql/0033). A plan only. Deferred.
+    seats_planned: Mapped[int | None] = mapped_column(SmallInteger, deferred=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False,
                                                     server_default=func.now())
 

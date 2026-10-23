@@ -1,6 +1,6 @@
 # Database setup for a new environment
 
-The 31 migrations in `../sql/` (0001–0031), folded into one file per table. Use this folder to build a **new, empty**
+The 33 migrations in `../sql/` (0001–0033), folded into one file per table. Use this folder to build a **new, empty**
 database, for example production. An existing database that already has the migrations keeps using `../sql/`.
 
 Run the files in this order. Each folder is numbered, and every file is safe to run again.

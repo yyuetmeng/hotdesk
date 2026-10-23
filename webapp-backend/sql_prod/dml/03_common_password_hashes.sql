@@ -1,6 +1,6 @@
 -- common_password_hashes: SHA-256 of the lowercase well-known password (and its letter-for-symbol form).
 -- No password text is kept anywhere; add more by inserting their hashes.
--- Final rows after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final rows after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 insert into common_password_hashes (sha256) values
   ('00890e9122ce1bd3dfc6fcdaae41ca46a8ab3050d07c7d15fa6f19b4164c759c'),

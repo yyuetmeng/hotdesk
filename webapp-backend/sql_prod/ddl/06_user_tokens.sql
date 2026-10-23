@@ -1,5 +1,5 @@
 -- user_tokens: invitation (activate) and password reset links, stored as hashes.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists user_tokens (
   id         uuid primary key default gen_random_uuid(),

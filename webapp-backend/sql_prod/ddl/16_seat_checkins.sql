@@ -1,7 +1,7 @@
 -- seat_checkins: check-ins (walk-in or from a booking). Location columns are kept for later vicinity
 -- checks and are not returned by any endpoint; location_status: captured | denied | unavailable | unsupported |
 -- timeout | invalid, null = the app sent nothing.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists seat_checkins (
   id                  uuid primary key default gen_random_uuid(),

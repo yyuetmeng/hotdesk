@@ -1,6 +1,6 @@
 -- floor_elements: the element catalog. config = the settings each type may carry, with defaults
 -- (toilet gender: unisex | male | female; door swing: up-left ... right-bottom). Re-running resets the catalog.
--- Final rows after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final rows after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 insert into floor_elements (type, label, w, h, color, resizable, config, sort_order) values
   ('wall', 'Wall', 1, 1, '#64748b', true, '{}', 10),

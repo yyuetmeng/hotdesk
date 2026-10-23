@@ -1,6 +1,6 @@
 -- floor_plan_elements: the draft's elements. A seat's id is its permanent seat id (QR links, bookings).
 -- Zones may be up to 80x80 cells; other types are capped at 20 in code.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists floor_plan_elements (
   id            uuid primary key default gen_random_uuid(),

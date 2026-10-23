@@ -1,6 +1,6 @@
 -- seat_booking_blocks: the 30-minute blocks an active booking holds; deleted when the booking ends.
 -- The unique keys stop a seat or a person being double-booked.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists seat_booking_blocks (
   booking_id  uuid not null references seat_bookings(id) on delete cascade,

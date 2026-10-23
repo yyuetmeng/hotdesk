@@ -1,6 +1,6 @@
 -- floor_plan_version_elements: a published version's elements; element_id is the draft element's id,
 -- so a seat keeps one identity across versions.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists floor_plan_version_elements (
   version_id    uuid not null references floor_plan_versions(id) on delete cascade,

@@ -1,6 +1,6 @@
 -- floor_plans: one row per floor (the draft). published_version_id gets its foreign key in
 -- 12_floor_plan_versions.sql, because the versions table refers back to this one.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists floor_plans (
   id                   uuid primary key default gen_random_uuid(),

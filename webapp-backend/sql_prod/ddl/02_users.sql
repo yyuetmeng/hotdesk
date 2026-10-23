@@ -1,5 +1,5 @@
 -- users: accounts. usual_seat_id is a permanent seat id (floor plan element id), not a foreign key.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists users (
   id                uuid primary key default gen_random_uuid(),

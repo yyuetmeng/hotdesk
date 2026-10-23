@@ -22,6 +22,13 @@ def _color_problem(body: dict) -> str | None:
     return None if color is None or (isinstance(color, str) and COLOR_RE.match(color)) else "colour must be #rrggbb"
 
 
+def _seats_problem(body: dict) -> str | None:
+    """Seats required: a whole number 0-500, or null (not set)."""
+    seats = body.get("seats_required")
+    ok = seats is None or (type(seats) is int and 0 <= seats <= 500)
+    return None if ok else "seats required must be a whole number from 0 to 500"
+
+
 def _user_count():
     return (select(func.count()).select_from(UserDepartment)
             .where(UserDepartment.department_id == Department.id)
@@ -95,6 +102,10 @@ def update_department(dept_id):
         if problem := _color_problem(body):
             return error("validation failed", 400, fields={"color": problem})
         changes["color"] = body["color"]
+    if "seats_required" in body:
+        if problem := _seats_problem(body):
+            return error("validation failed", 400, fields={"seats_required": problem})
+        changes["seats_required"] = body["seats_required"]
     if not changes:
         return error("no fields provided", 400)
     for key, value in changes.items():

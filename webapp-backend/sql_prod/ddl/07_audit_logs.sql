@@ -1,5 +1,5 @@
 -- audit_logs: who did what; actor_name keeps entries readable after a user is deleted.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists audit_logs (
   id         bigint generated always as identity primary key,

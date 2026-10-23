@@ -1,7 +1,7 @@
 -- floor_elements: the element catalog (one row per type with its defaults); rows in dml/02.
 -- config holds the default per-element settings: its keys are the settings an element of this type may carry,
 -- and each value's JSON type is the allowed type.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists floor_elements (
   type       text primary key check (type ~ '^[a-z][a-z0-9_]{0,39}$'),

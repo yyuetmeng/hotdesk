@@ -1,6 +1,6 @@
 -- seat_assignments: who is assigned to which seat, until when. A row is current while closed_at is null.
 -- Booking and check-in never read it.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists seat_assignments (
   id            uuid primary key default gen_random_uuid(),

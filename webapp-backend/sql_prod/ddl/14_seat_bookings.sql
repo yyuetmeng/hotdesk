@@ -1,6 +1,6 @@
 -- seat_bookings: bookings in 30-minute blocks; rows are never deleted (statistics). Deleting a user or
 -- plan keeps the row with the reference set null and the name/label snapshots intact.
--- Final shape after sql/0001-0031 (consolidated 2026-10-21). Safe to re-run.
+-- Final shape after sql/0001-0033 (consolidated 2026-10-21). Safe to re-run.
 
 create table if not exists seat_bookings (
   id              uuid primary key default gen_random_uuid(),
