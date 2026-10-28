@@ -190,11 +190,13 @@ def list_users():
     role = (request.args.get("role") or "").strip()
     status = (request.args.get("status") or "").strip()
     department = (request.args.get("department") or "").strip()
+    # page_size=all (Manage Users "Show: All") returns every match on one page.
+    show_all = request.args.get("page_size") == "all"
     try:
-        page = max(int(request.args.get("page", 1)), 1)
-        page_size = min(max(int(request.args.get("page_size", 20)), 1), MAX_PAGE_SIZE)
+        page = 1 if show_all else max(int(request.args.get("page", 1)), 1)
+        page_size = None if show_all else min(max(int(request.args.get("page_size", 20)), 1), MAX_PAGE_SIZE)
     except ValueError:
-        return error("page and page_size must be integers", 400)
+        return error("page must be an integer, and page_size an integer or all", 400)
     conds = []
     if q:
         pattern = f"%{q}%"
@@ -227,7 +229,7 @@ def list_users():
                            .join(Role, Role.id == User.role_id).where(*conds))
     users = session.scalars(
         select(User).join(Role, Role.id == User.role_id).where(*conds)
-        .order_by(User.created_at.desc()).limit(page_size).offset((page - 1) * page_size)
+        .order_by(User.created_at.desc()).limit(page_size).offset((page - 1) * (page_size or 0))
     ).unique().all()
     g.jwt_uid = get_jwt_identity()
     ids = [u.id for u in users]
@@ -253,7 +255,7 @@ def list_users():
     return jsonify(items=[{**public_user(u), "manages": manages.get(u.id, []),
                            "last_login_at": last_login[u.id].isoformat() if u.id in last_login else None,
                            "failed_logins_7d": failed.get(u.id, 0), "locked": u.failed_attempts >= MAX_FAILED_ATTEMPTS}
-                          for u in users], total=total, page=page, page_size=page_size)
+                          for u in users], total=total, page=page, page_size="all" if show_all else page_size)
 
 
 @admin_bp.get("/users/<uuid:user_id>")
@@ -415,6 +417,17 @@ def patch_user(user_id):
     return jsonify({**public_user(user), "manages": managed_departments(user_id)})
 
 
+def _delete_refusal(user, user_id: str, actor: str):
+    """Why this user can't be deleted, as (message, status), or None when they can."""
+    if user is None:
+        return "user not found", 404
+    if user_id == actor:
+        return "you cannot delete your own account", 409
+    if user.role.name == "admin" and user.is_active and is_last_active_admin(user_id):
+        return "cannot remove the last active admin", 409
+    return None
+
+
 @admin_bp.delete("/users/<uuid:user_id>")
 @admin_required
 def delete_user(user_id):
@@ -423,16 +436,46 @@ def delete_user(user_id):
     g.jwt_uid = actor
     session = orm_session()
     user = session.get(User, user_id)
-    if user is None:
-        return error("user not found", 404)
-    if user_id == actor:
-        return error("you cannot delete your own account", 409)
-    if user.role.name == "admin" and user.is_active and is_last_active_admin(user_id):
-        return error("cannot remove the last active admin", 409)
+    refusal = _delete_refusal(user, user_id, actor)
+    if refusal:
+        return error(*refusal)
     session.delete(user)
     session.commit()
     write_audit(actor, "user.delete", user_id, {})
     return ("", 204)
+
+
+MAX_BULK_DELETE = 500
+
+
+@admin_bp.post("/users/bulk-delete")
+@admin_required
+def bulk_delete_users():
+    """Deletes each listed user that the single delete would allow; the rest come back as skipped, with the reason."""
+    actor = get_jwt_identity()
+    g.jwt_uid = actor
+    ids = (request.get_json(silent=True) or {}).get("ids")
+    if not isinstance(ids, list) or not ids or len(ids) > MAX_BULK_DELETE:
+        return error(f"ids must be a list of 1 to {MAX_BULK_DELETE} user ids", 400)
+    try:
+        ids = list(dict.fromkeys(str(uuid.UUID(str(i))) for i in ids))
+    except ValueError:
+        return error("ids must be user ids", 400)
+    session = orm_session()
+    deleted, skipped = [], []
+    for user_id in ids:
+        user = session.get(User, user_id)
+        refusal = _delete_refusal(user, user_id, actor)
+        if refusal:
+            skipped.append({"id": user_id, "reason": refusal[0]})
+            continue
+        session.delete(user)
+        session.flush()   # so the last-admin check on the next id sees this one gone
+        deleted.append(user_id)
+    session.commit()
+    for user_id in deleted:
+        write_audit(actor, "user.delete", user_id, {})
+    return jsonify({"deleted": deleted, "skipped": skipped})
 
 
 @admin_bp.post("/users/<uuid:user_id>/password")

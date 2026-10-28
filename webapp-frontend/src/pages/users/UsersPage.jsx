@@ -1,5 +1,6 @@
 import { PasswordStrength, usePasswordCheck } from '../../PasswordStrength.jsx';
 import ImportPanel from './ImportPanel.jsx';
+import BulkDeletePanel, { resultText } from './BulkDeletePanel.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { flaskRequest } from '../../api.js';
@@ -14,7 +15,7 @@ import { isAccountManager } from '../../roles.js';
 import { errorText, holderChanges, managedLine, teamsOwnFirst } from './teamAccess.js';
 import { departmentColor } from '../../floorplan/selection.js';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZES = ['20', '50', 'all'];   // Show: 20 (default) / 50 / All
 const EMPTY_FORM = { email: '', username: '', full_name: '', role: 'user', start_date: '', end_date: '',
   department_ids: [], is_active: true };
 
@@ -35,6 +36,7 @@ export function UsersPage() {
   const holder = isAccountManager(me);
   const [filters, setFilters] = useState({ q: '', role: '', status: '', department: '' });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState('20');
   const [data, setData] = useState(null);
   const [adminDepartments, setDepartments] = useState([]);
   // An account manager can't fetch /api/admin/departments; their teams are the ones they manage.
@@ -42,13 +44,15 @@ export function UsersPage() {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [editing, setEditing] = useState(null); // null | 'new' | user object
+  const [picked, setPicked] = useState({});   // ticked users by id, kept across pages and filters (admins only)
+  const [confirming, setConfirming] = useState(false);
 
   const loadUsers = useCallback(async () => {
-    const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
+    const params = new URLSearchParams({ page: String(page), page_size: pageSize });
     Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
     try { setData(await flaskRequest(`/api/admin/users?${params}`)); setError(null); }
     catch (err) { setError(errorText(err)); }
-  }, [filters, page]);
+  }, [filters, page, pageSize]);
 
   const loadDepartments = useCallback(async () => {
     if (holder) return;
@@ -81,7 +85,28 @@ export function UsersPage() {
   if (error && !data) return <main className="page">{title}<Notice kind="error">{error}</Notice></main>;
   if (!data) return <main className="page">{title}<Loading label="Loading users..." /></main>;
 
-  const pages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
+  const pages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(data.total / Number(pageSize)));
+  // Admins can tick anyone but themselves; the server refuses self-deletion anyway.
+  const pickable = holder ? [] : data.items.filter((u) => u.id !== me?.id);
+  const pickedList = Object.values(picked);
+  const allPicked = pickable.length > 0 && pickable.every((u) => picked[u.id]);
+  const togglePick = (u) => setPicked((old) => {
+    const next = { ...old };
+    if (next[u.id]) delete next[u.id]; else next[u.id] = u;
+    return next;
+  });
+  const togglePage = () => setPicked((old) => {
+    const next = { ...old };
+    pickable.forEach((u) => { if (allPicked) delete next[u.id]; else next[u.id] = u; });
+    return next;
+  });
+  const clearPicked = () => { setPicked({}); setConfirming(false); };
+  const bulkDone = async (result) => {
+    clearPicked();
+    setPage(1);   // the page they were on may no longer exist
+    if (result.deleted.includes(editing?.id)) setEditing(null);
+    await afterChange(resultText(result, pickedList), result.skipped.length ? 'error' : 'success');
+  };
   return <main className="page">
     {title}
     {error && <Notice kind="error">{error}</Notice>}
@@ -109,13 +134,27 @@ export function UsersPage() {
           <button className="button" onClick={() => { setNotice(null); setImporting(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Upload Users</button>
         </div>
 
+        {!holder && pickedList.length > 0 && <div className="users-bulk-bar">
+          <b>{pickedList.length} selected</b>
+          <button type="button" className="button" onClick={clearPicked}>Clear</button>
+          <button type="button" className="button users-danger" onClick={() => { setNotice(null); setConfirming(true); }}>
+            Delete {pickedList.length} user{pickedList.length === 1 ? '' : 's'}…</button>
+        </div>}
+        {confirming && pickedList.length > 0 && <BulkDeletePanel picked={pickedList} statusLabel={(u) => STATUS[statusOf(u)][0]}
+          onCancel={() => setConfirming(false)} onDone={bulkDone} />}
+
         <div className="users-table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Project teams</th><th>Access</th><th>Status</th></tr></thead>
+            <thead><tr>{!holder && <th className="users-pick"><input type="checkbox" aria-label="Select everyone on this page"
+              checked={allPicked} disabled={!pickable.length} onChange={togglePage} /></th>}<th>Name</th><th>Email</th><th>Role</th><th>Project teams</th><th>Access</th><th>Status</th></tr></thead>
             <tbody>{data.items.map((u) => {
               const [label, cls] = STATUS[statusOf(u)];
-              return <tr key={u.id} className={`users-row${editing?.id === u.id ? ' selected' : ''}`}
+              const isMe = u.id === me?.id;
+              return <tr key={u.id} className={`users-row${editing?.id === u.id ? ' selected' : ''}${picked[u.id] ? ' picked' : ''}`}
                 onClick={() => { setNotice(null); setEditing(u); }}>
+                {!holder && <td className="users-pick" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" aria-label={`Select ${u.full_name}`} checked={Boolean(picked[u.id])} disabled={isMe}
+                    title={isMe ? 'You cannot delete yourself' : undefined} onChange={() => togglePick(u)} /></td>}
                 <td><b>{u.full_name}</b><small>@{u.username}{seatName(floors, u.usual_seat_id) ? ` · seat ${seatName(floors, u.usual_seat_id)}` : ''}</small>
                   <span className="users-badges">
                     <small>{u.last_login_at ? `Last sign-in ${relativeTime(u.last_login_at)}` : 'Never signed in'}</small>
@@ -137,6 +176,9 @@ export function UsersPage() {
         {!data.items.length && <p className="state">No users match these filters.</p>}
         <div className="users-pager">
           <span>{data.total} user{data.total === 1 ? '' : 's'}</span>
+          <label className="users-page-size">Show <select value={pageSize} onChange={(e) => { setPageSize(e.target.value); setPage(1); }}>
+            {PAGE_SIZES.map((size) => <option key={size} value={size}>{size === 'all' ? 'All' : size}</option>)}
+          </select></label>
           <button className="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
           <span>Page {page} of {pages}</span>
           <button className="button" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</button>

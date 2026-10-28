@@ -99,6 +99,17 @@ def test_list_filters_and_pagination(client, db, admin_token):
     assert len(r.get_json()["items"]) == 2
 
 
+def test_list_page_size_all_returns_everyone(client, db, admin_token):
+    for i in range(3):
+        _mk_plain(client, admin_token, f"all{i}@x.com", f"all{i}")
+    r = client.get("/api/admin/users", headers=hdr(admin_token), query_string={"page": 3, "page_size": "all"})
+    body = r.get_json()
+    assert r.status_code == 200 and body["total"] == 4 and len(body["items"]) == 4
+    assert body["page"] == 1 and body["page_size"] == "all"
+    assert client.get("/api/admin/users", headers=hdr(admin_token),
+                      query_string={"page_size": "lots"}).status_code == 400
+
+
 def test_get_one_and_404(client, db, admin_token):
     uid = client.post("/api/admin/users", headers=hdr(admin_token),
                       json={"email": "g@x.com", "username": "g1", "full_name": "G",
@@ -193,6 +204,47 @@ def test_delete_removes_user_and_membership(client, db, admin_token):
     assert client.delete(f"/api/admin/users/{uid}", headers=hdr(admin_token)).status_code == 204
     assert run_one("select 1 from users where id = :i", {"i": uid}) is None
     assert run_one("select action from audit_logs where action = 'user.delete'")
+
+
+def test_bulk_delete_removes_each_and_audits_each(client, db, admin_token):
+    a = _mk_plain(client, admin_token, "b1@x.com", "b1")["id"]
+    b = _mk_plain(client, admin_token, "b2@x.com", "b2", role="admin")["id"]
+    r = client.post("/api/admin/users/bulk-delete", headers=hdr(admin_token), json={"ids": [a, b]})
+    assert r.status_code == 200
+    assert sorted(r.get_json()["deleted"]) == sorted([a, b]) and r.get_json()["skipped"] == []
+    assert run_one("select count(*) as n from users where id in (:a, :b)", {"a": a, "b": b})["n"] == 0
+    assert run_one("select count(*) as n from audit_logs where action = 'user.delete'")["n"] == 2
+
+
+def test_bulk_delete_skips_self_and_unknown(client, db, admin_token):
+    me = run_one("select id::text as id from users where username = 'root'")["id"]
+    a = _mk_plain(client, admin_token, "b3@x.com", "b3")["id"]
+    ghost = "00000000-0000-0000-0000-000000000001"
+    r = client.post("/api/admin/users/bulk-delete", headers=hdr(admin_token), json={"ids": [me, a, ghost]})
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["deleted"] == [a]
+    assert {s["id"]: s["reason"] for s in body["skipped"]} == {
+        me: "you cannot delete your own account", ghost: "user not found"}
+    assert run_one("select 1 from users where id = :i", {"i": me})
+
+
+def test_bulk_delete_keeps_the_last_active_admin(client, db, admin_token):
+    other = _mk_plain(client, admin_token, "b4@x.com", "b4", role="admin")["id"]
+    me = run_one("select id::text as id from users where username = 'root'")["id"]
+    run_write("update users set is_active = false where id = :i", {"i": me})
+    r = client.post("/api/admin/users/bulk-delete", headers=hdr(admin_token), json={"ids": [other]})
+    assert r.get_json() == {"deleted": [], "skipped": [{"id": other, "reason": "cannot remove the last active admin"}]}
+
+
+@pytest.mark.parametrize("body", [{}, {"ids": []}, {"ids": "x"}, {"ids": ["not-a-uuid"]}])
+def test_bulk_delete_rejects_bad_ids_400(client, db, admin_token, body):
+    assert client.post("/api/admin/users/bulk-delete", headers=hdr(admin_token), json=body).status_code == 400
+
+
+def test_bulk_delete_forbidden_for_plain_user(client, db, user_token):
+    r = client.post("/api/admin/users/bulk-delete", headers=hdr(user_token), json={"ids": []})
+    assert r.status_code == 403
 
 
 def test_create_survives_email_failure(client, db, admin_token, monkeypatch):

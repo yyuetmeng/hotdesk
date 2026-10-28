@@ -193,6 +193,7 @@ def test_holder_outside_access_dates_refused_with_old_token(client, held, column
 def test_holder_still_blocked_from_admin_only_endpoints(client, held):
     tok, eve = held["hana_tok"], held["eve"]
     assert client.delete(f"/api/admin/users/{eve}", headers=hdr(tok)).status_code == 403
+    assert client.post("/api/admin/users/bulk-delete", headers=hdr(tok), json={"ids": [eve]}).status_code == 403
     assert client.post("/api/admin/departments", headers=hdr(tok), json={"name": "Z"}).status_code == 403
     assert client.get("/api/admin/audit", headers=hdr(tok)).status_code == 403
     assert client.get("/api/admin/audit/security-summary", headers=hdr(tok)).status_code == 403

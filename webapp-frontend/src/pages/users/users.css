@@ -73,3 +73,27 @@
 .users-team-color { display: inline-flex; align-items: center; gap: 8px; }
 .users-team-color input[type="color"] { width: 34px; height: 28px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); cursor: pointer; }
 .users-team-color .muted { color: var(--muted); }
+
+/* Bulk delete: tick users (any page), then confirm (BulkDeletePanel.jsx). Admins only. */
+.users-pick { width: 32px; }
+.users-row.picked { background: color-mix(in srgb, #dc2626 6%, transparent); }
+.users-bulk-bar { display: flex; align-items: center; gap: 10px; margin: 10px 0; padding: 8px 12px; border-radius: 8px;
+  background: color-mix(in srgb, #dc2626 6%, var(--surface)); border: 1px solid color-mix(in srgb, #dc2626 30%, var(--border)); }
+.users-bulk-bar b { margin-right: auto; }
+.users-bulk-confirm { display: grid; gap: 8px; margin-bottom: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); box-shadow: 0 6px 24px rgb(0 0 0/.08); }
+.users-bulk-confirm h3, .users-bulk-confirm p { margin: 0; }
+.users-bulk-confirm .muted { color: var(--muted); }
+.users-bulk-confirm label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; max-width: 320px; }
+.users-bulk-list { max-height: 260px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.users-bulk-list table { margin: 0; }
+.users-bulk-list td { font-size: 13px; }
+.users-bulk-list th { position: sticky; top: 0; background: var(--surface-2); }
+.users-bulk-list small { color: var(--muted); }
+.users-bulk-note { color: #92400e; background: #fef3c7; padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+:root[data-theme="dark"] .users-bulk-note { background: #33240a; color: #fcd34d; }
+.users-bulk-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.users-bulk-buttons span { flex: 1; }
+.button.users-danger-solid { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+.button.users-danger-solid:disabled { opacity: .5; }
+.users-page-size { display: inline-flex; align-items: center; gap: 6px; }
