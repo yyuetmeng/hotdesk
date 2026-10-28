@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import CapacityBar from './CapacityBar.jsx';
-import FloorDrawing, { SeatKey } from './FloorDrawing.jsx';
+import FloorDrawing, { SeatKey, TeamKeys } from './FloorDrawing.jsx';
 import SeatPopover from './SeatPopover.jsx';
 import { initialDisplayState, nextFloorIndex, overall, reduceRefresh, rotationKey, sgDateTime, sgTime } from './displayLogic.js';
 import './display.css';
@@ -91,6 +91,7 @@ export function DisplayView({ loadConfig, heading = null }) {
       </article>)}
     </section>
     <footer className="disp-foot">
+      <div className="disp-legend disp-team-legend" aria-label="Project team colours"><TeamKeys seats={shown.flatMap((f) => f.seats)} /></div>
       {display.layout === 'rotate' && floors.length > 1 && <nav className="disp-dots" aria-label="Floors">
         {floors.map((f, i) => <button key={f.id} className={i === index % floors.length ? 'active' : ''}
           aria-label={f.name} onClick={() => setIndex(i)} />)}

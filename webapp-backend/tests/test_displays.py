@@ -65,6 +65,15 @@ def test_public_floor_summary_and_department_names(client, world, monkeypatch):
     assert names == {"F1": "Free for all", "F2": "Free for all", "E1": "Design", "U1": None}
 
 
+def test_floors_carry_each_seats_team_colour(client, world):
+    """Seat maps fill available chairs with the project team's colour; null means use the automatic one."""
+    run_one("update departments set color = '#123abc' where id = cast(:d as uuid) returning id", {"d": world["design"]})
+    public = client.get(f"/api/public/floors/{world['plan']}").get_json()["seats"]
+    desk = client.get(f"/api/desk/floors/{world['plan']}", headers=hdr(world["tok"]["dina"])).get_json()["seats"]
+    for seats in (public, desk):
+        assert {s["label"]: s["team_color"] for s in seats} == {"F1": None, "F2": None, "E1": "#123abc", "U1": None}
+
+
 def test_signed_in_users_can_list_displays_for_the_floor_overview(client, world):
     """Floor overview (owner 2026-10-16) shows what a display shows; anyone signed in can pick one."""
     assert _create(client, world, name="Office B", slug="office-b").status_code == 201

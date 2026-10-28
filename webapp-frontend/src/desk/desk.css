@@ -110,3 +110,4 @@
 .desk-scan-frame { width: min(100%, 300px); max-height: 40vh; aspect-ratio: 1; margin: 0 auto; }
 .desk-scan-target { width: min(62%, 180px); }
 .desk-scan .desk-scan-msg, .desk-scan > .muted { text-align: center; }
+.desk-legends { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 24px; }

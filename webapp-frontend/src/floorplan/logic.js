@@ -108,7 +108,7 @@ export function planActions(status) {
 
 /** The draft as staff will see it, shaped like a published floor payload for the display drawing:
  *  every tagged seat shows as available (a draft has no bookings), zones with "N of M free".
- *  `departments` maps project team id to name. */
+ *  `departments` maps project team id to the team ({ name, color }). */
 export function previewFloor(plan, elements, catalog, departments = {}) {
   const byType = Object.fromEntries(catalog.map((c) => [c.type, c]));
   const sized = elements.filter((el) => byType[el.type]).map((el) => {
@@ -120,8 +120,9 @@ export function previewFloor(plan, elements, catalog, departments = {}) {
   const seats = elements.filter(isSeat).map((el) => {
     const tagged = Boolean(el.open_to_all || el.department_id);
     return { id: el.id, label: (el.label ?? '').trim() || `Seat ${el.x},${el.y}`, x: el.x, y: el.y,
-      state: tagged ? 'available' : 'not_bookable', open_to_all: Boolean(el.open_to_all),
-      department: el.open_to_all ? 'Free for all' : (departments[el.department_id] ?? null), occupant: null, booking: null };
+      state: tagged ? 'available' : 'not_bookable', open_to_all: Boolean(el.open_to_all), department_id: el.department_id ?? null,
+      department: el.open_to_all ? 'Free for all' : (departments[el.department_id]?.name ?? null),
+      team_color: departments[el.department_id]?.color ?? null, occupant: null, booking: null };
   });
   const usable = seats.filter((s) => s.state === 'available');
   const zones = sized.filter(isZone).sort((a, b) => zoneName(a).localeCompare(zoneName(b))).map((z) => {

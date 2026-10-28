@@ -63,8 +63,8 @@ export default function FloorPlansPage() {
     try {
       const [catalog, plan, depts] = await Promise.all([flaskRequest('/api/admin/floor-plans/catalog'),
         flaskRequest(`/api/admin/floor-plans/${item.id}`), flaskRequest('/api/admin/departments')]);
-      const names = Object.fromEntries(depts.items.map((d) => [d.id, d.name]));
-      setPreview({ floor: previewFloor(plan, plan.elements, catalog.items, names) });
+      const teams = Object.fromEntries(depts.items.map((d) => [d.id, d]));
+      setPreview({ floor: previewFloor(plan, plan.elements, catalog.items, teams) });
     } catch (err) { setPreview(null); setNotice(`${item.name}: ${err.message}`); }
   };
 

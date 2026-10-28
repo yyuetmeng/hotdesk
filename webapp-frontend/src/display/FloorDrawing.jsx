@@ -7,6 +7,7 @@ import { footprint, initials, zoneCaption } from '../desk/deskLogic.js';
 import { iconPath } from './icons.js';
 import { useState } from 'react';
 import { doorSwing, monitorMarks, plantRadius, plantSpots, plateSide, seatCells, seatTip, tableLabel, thinBar, toiletGender } from './displayLogic.js';
+import { departmentColor } from '../floorplan/selection.js';
 import './floor.css';
 
 const C = 28;  // drawing units per grid cell
@@ -109,8 +110,16 @@ function Element({ el, catalog }) {
   }
 }
 
-// A seat as a rounded chair: available = chair with a green dot, booked = amber, occupied = red with initials,
-// not bookable = faded and dashed. Selection ring and the Colleague Finder pulse are kept.
+// A seat as a rounded chair in its project team's colour (free for all: grey), with a corner dot for its state:
+// green available, orange booked, red occupied (with initials). Not bookable = faded and dashed. Selection ring and the Colleague Finder pulse are kept.
+const DOTTED = new Set(['available', 'booked', 'occupied']);
+
+// Dark or white text, whichever reads on this #rrggbb fill.
+function inkOn(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  return 0.299 * r + 0.587 * g + 0.114 * b > 0.6 ? '#0f172a' : '#fff';
+}
+
 function seatBox(el) {
   const { w, h } = footprint(el);
   return { cx: (el.x + w / 2) * C, cy: (el.y + h / 2) * C, s: Math.min(w, h) * C * 0.66 };
@@ -125,15 +134,19 @@ function Seat({ el, seat, onClick, selected, highlight, onHover, note = null }) 
     rx={6 + pad / 2} fill="none" {...extra} />;
   const show = () => onHover?.({ seat, cx, top: cy - s / 2, bottom: cy + s / 2, lines: note?.tip });
   const hide = () => onHover?.(null);
+  const team = DOTTED.has(seat.state) && seat.department_id && !seat.open_to_all && (!note || note.tone === 'ok')
+    ? departmentColor(seat.department_id, seat.team_color) : null;
   return <g className={`disp-seat${highlight ? ' is-found' : ''}`} onClick={() => onClick?.(seat)} role="button" tabIndex={0} aria-label={label}
     onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(seat); }} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
     {selected && ring('fd-selected', 4, { strokeWidth: 3 })}
     {highlight && <>{ring('disp-found-ring fd-found', 3, { strokeWidth: 3.5 })}{ring('disp-found-ring late fd-found', 3, { strokeWidth: 3.5 })}</>}
-    <rect className={`fd-chair state-${seat.state}${seat.open_to_all ? ' ffa' : ''}${note ? ` assign-${note.tone}` : ''}`} x={cx - s / 2} y={cy - s / 2} width={s} height={s} rx="5" />
+    <rect className={`fd-chair state-${seat.state}${seat.open_to_all ? ' ffa' : ''}${note ? ` assign-${note.tone}` : ''}`} x={cx - s / 2} y={cy - s / 2} width={s} height={s} rx="5"
+      style={team ? { fill: team } : undefined} />
     {who
-      ? <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={s * 0.48} fontWeight="800" className="fd-initials">{initials(who)}</text>
+      ? <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={s * 0.48} fontWeight="800" className="fd-initials"
+        style={team ? { fill: inkOn(team) } : undefined}>{initials(who)}</text>
       : <rect className="fd-chair-back" x={cx - s * 0.28} y={cy - s * 0.28} width={s * 0.56} height={s * 0.56} rx="2.5" fill="none" />}
-    {seat.state === 'available' && <circle className="fd-dot" cx={cx + s / 2 - 1} cy={cy - s / 2 + 1} r={s * 0.2} />}
+    {DOTTED.has(seat.state) && <circle className={`fd-dot dot-${seat.state}`} cx={cx + s / 2 - 1} cy={cy - s / 2 + 1} r={s * 0.2} />}
   </g>;
 }
 
@@ -164,12 +177,24 @@ function Plates({ elements, seats, notes, cols, rows }) {
     side={plateSide(rect(el), cells, cols, rows)} width={cols * C} />);
 }
 
-// Legend key: the same chair as Seat, drawn small, so the legend matches the floor.
-export function SeatKey({ state }) {
+// Project team colours on these seats, then Free for all (grey), for the bottom-left legend. `as`: the item tag.
+export function TeamKeys({ seats, as: Item = 'span' }) {
+  const teams = new Map();
+  seats.filter((s) => s.department_id && !s.open_to_all).forEach((s) => teams.set(s.department_id,
+    { name: s.department ?? 'Project team', color: departmentColor(s.department_id, s.team_color) }));
+  const sorted = [...teams.entries()].sort(([, a], [, b]) => a.name.localeCompare(b.name));
+  return <>
+    {sorted.map(([id, t]) => <Item key={id}><SeatKey color={t.color} />{t.name}</Item>)}
+    {seats.some((s) => s.open_to_all) && <Item><SeatKey />Free for all</Item>}
+  </>;
+}
+
+// Legend key: the same chair as Seat, drawn small, so the legend matches the floor. `color`: a team key, no dot.
+export function SeatKey({ state = 'team', color = null }) {
   return <svg className="fd fd-key" viewBox="0 0 24 24" aria-hidden="true">
-    <rect className={`fd-chair state-${state}`} x="3" y="3" width="18" height="18" rx="4" />
+    <rect className={`fd-chair state-${state}`} x="3" y="3" width="18" height="18" rx="4" style={color ? { fill: color } : undefined} />
     <rect className="fd-chair-back" x="7" y="7" width="10" height="10" rx="2" fill="none" />
-    {state === 'available' && <circle className="fd-dot" cx="20" cy="4" r="3.6" />}
+    {DOTTED.has(state) && <circle className={`fd-dot dot-${state}`} cx="20" cy="4" r="3.6" />}
   </svg>;
 }
 

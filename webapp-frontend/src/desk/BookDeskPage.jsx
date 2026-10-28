@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { flaskRequest } from '../api.js';
 import { Loading, Notice, PageTitle } from '../components.jsx';
 import { formatDate, formatTime } from '../format.js';
-import FloorDrawing, { SeatKey } from '../display/FloorDrawing.jsx';
+import FloorDrawing, { SeatKey, TeamKeys } from '../display/FloorDrawing.jsx';
 import '../display/display.css';
 import SeatPanel from './SeatPanel.jsx';
 import { canAddSeat } from './bookingLogic.js';
@@ -125,9 +125,12 @@ export function BookDeskPage() {
       <section className="card"><h2>{floor.name} <small className="desk-showing">
         · {floor.date === days?.[0] ? 'Today' : nextDayName(floor.date, days?.[0] ?? floor.date)} {formatDate(floor.date)} · {presetLabel(preset)}</small></h2>
         <div className="desk-drawing"><FloorDrawing floor={floor} selectedId={selected?.id} selectedIds={picked.map((p) => p.id)} onSeatClick={clickSeat} /></div>
-        <ul className="desk-legend">
-          {['available', 'booked', 'occupied', 'not_bookable'].map((s) => <li key={s}><SeatKey state={s} />{stateLabel(s)}</li>)}
-        </ul></section>
+        <div className="desk-legends">
+          <ul className="desk-legend" aria-label="Project team colours"><TeamKeys seats={floor.seats} as="li" /></ul>
+          <ul className="desk-legend">
+            {['available', 'booked', 'occupied', 'not_bookable'].map((s) => <li key={s}><SeatKey state={s} />{stateLabel(s)}</li>)}
+          </ul>
+        </div></section>
       {selected
         ? <SeatPanel planId={planId} seat={selected} isToday={dayOffset === 0} onChanged={load} teamFirst={floor.team_first} jumpTo={jumpTo}
           booking={{ picked, multi, setMulti: chooseMulti, onRemovePicked: (id) => setPicked((ps) => ps.filter((p) => p.id !== id)),

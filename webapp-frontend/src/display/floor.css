@@ -37,8 +37,7 @@
 
 /* Chairs by state */
 .fd .fd-chair { fill: var(--fd-chair); stroke: var(--fd-chair-edge); stroke-width: 1.5; }
-.fd .fd-chair.state-booked { fill: #f59e0b; stroke: #fde68a; }
-.fd .fd-chair.state-occupied { fill: #ef4444; stroke: #fecaca; }
+/* Booked and occupied keep the chair's own colour (team, or grey); the corner dot shows the state. */
 .fd .fd-chair.state-not_bookable { opacity: .45; stroke-dasharray: 3 2; }
 .fd .fd-chair.assign-ok { stroke-width: 2; stroke-dasharray: none; }
 .fd .fd-chair.assign-soon { fill: #f59e0b; }
@@ -47,7 +46,9 @@
 .fd .fd-assign-text { fill: var(--fd-assign-text); stroke: none; }
 .fd .fd-chair-back { stroke: var(--fd-chair-back); stroke-width: 1.2; }
 .fd .fd-dot { fill: #16a34a; stroke: var(--fd-bg); stroke-width: 1.5; }
-.fd .fd-initials { fill: #fff; }
+.fd .fd-dot.dot-booked { fill: #f59e0b; }
+.fd .fd-dot.dot-occupied { fill: #ef4444; }
+.fd .fd-initials { fill: var(--fd-text); }
 .fd .fd-selected { stroke: #2563eb; }
 .fd .fd-found { stroke: #2563eb; }
 .fd .disp-seat { cursor: pointer; }

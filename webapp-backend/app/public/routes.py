@@ -11,7 +11,6 @@ from sqlalchemy import select
 from app.admin.floorplan_publishing import _version_element_dto
 from app.admin.floorplans import _catalog, _catalog_dto
 from app.admin.displays import display_dto
-from app.core.auth_models import Department
 from app.core.desk_models import DashboardDisplay
 from app.core.errors import error
 from app.core.orm import orm_session
@@ -44,11 +43,7 @@ def floors(at):
 def floor(at, plan_id):
     plan = service.published_plan(plan_id)
     live = plan.published_version
-    seats = service.seat_states(plan, rules.local_today(at), None, at)
-    dept_ids = {s["department_id"] for s in seats if s["department_id"]}
-    names = {str(d.id): d.name for d in orm_session().scalars(select(Department).where(Department.id.in_(dept_ids)))}         if dept_ids else {}
-    for s in seats:
-        s["department"] = "Free for all" if s["open_to_all"] else names.get(s["department_id"])
+    seats = service.seat_states(plan, rules.local_today(at), None, at)   # each with its team name and colour
     return jsonify(id=str(plan.id), name=live.name, cols=live.cols, rows=live.rows,
                    date=rules.local_today(at).isoformat(), now=at.isoformat(),
                    elements=[_version_element_dto(el) for el in live.elements],

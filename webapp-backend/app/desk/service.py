@@ -319,6 +319,7 @@ def floor_view(plan: FloorPlan, day: date, preset: str | None, at: datetime, vie
     out = []
     for el in seats:
         seat_blocks = ctx["blocks_by_seat"].get(el.element_id, [])
+        team_of = el.department   # name, and colour (null: the floor drawing works out the automatic one)
         checkin = ctx["open"].get(el.element_id) if is_today else None
         if not _overlaps(checkin, starts, ends):
             checkin = None
@@ -328,6 +329,8 @@ def floor_view(plan: FloorPlan, day: date, preset: str | None, at: datetime, vie
         state = ("occupied" if checkin else "booked" if booking else "available" if tagged else "not_bookable")
         seat = {"id": str(el.element_id), "label": seat_label(el), "x": el.x, "y": el.y,
                 "department_id": str(el.department_id) if el.department_id else None,
+                "department": "Free for all" if el.open_to_all else (team_of.name if team_of else None),
+                "team_color": team_of.color if team_of and not el.open_to_all else None,
                 "open_to_all": bool(el.open_to_all), "state": state,
                 "occupant": {**person(checkin.user_name), "since": checkin.checked_in_at.isoformat(),   # times: floor tooltip
                              "until": checkin.ends_at.isoformat()} if checkin else None,
@@ -750,9 +753,7 @@ def seat_info(viewer: User | None, seat_id, at: datetime) -> dict:
     day = rules.local_today(at)
     state = next(s for s in seat_states(plan, day, None, at) if s["id"] == str(el.element_id))
     upcoming = next((b for b in _active_bookings_on(el.element_id, day) if b.starts_at > at), None)
-    dept = orm_session().get(Department, el.department_id) if el.department_id else None
-    info = {**state, "plan": {"id": str(plan.id), "name": plan.published_version.name},
-            "department": "Free for all" if el.open_to_all else (dept.name if dept else None),
+    info = {**state, "plan": {"id": str(plan.id), "name": plan.published_version.name},   # state has the team name
             "next_booking_at": upcoming.starts_at.isoformat() if upcoming else None}
     if viewer is not None:
         decision = checkin_decision(viewer, el, at)

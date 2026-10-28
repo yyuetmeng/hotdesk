@@ -321,7 +321,7 @@ export default function EditorPage() {
     {showPreview && <FloorPreview onClose={() => setShowPreview(false)}
       note={dirty ? 'includes your unsaved changes; every seat with a project team shows as available' : 'every seat with a project team shows as available'}
       floor={previewFloor({ ...plan, name: meta.name.trim() || plan.name }, elements, CATALOG,
-        Object.fromEntries(departments.map((d) => [d.id, d.name])))} />}
+        Object.fromEntries(departments.map((d) => [d.id, d])))} />}
     <PublishBanner plan={plan} dirty={dirty || metaChanged(meta, plan)} />
     {problems.length > 0 && <Notice kind="error">{problems.join(' · ')}</Notice>}
     <div className="fp-panes">

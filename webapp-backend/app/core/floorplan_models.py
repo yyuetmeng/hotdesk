@@ -123,3 +123,5 @@ class FloorPlanVersionElement(Base):
         UUID(as_uuid=True), ForeignKey("departments.id", ondelete="SET NULL"))
     open_to_all: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
                                               server_default=text("false"))
+    # The seat's project team (name and colour for seat maps), joined into the element load: no extra query.
+    department: Mapped["Department | None"] = relationship(lazy="joined", viewonly=True)
