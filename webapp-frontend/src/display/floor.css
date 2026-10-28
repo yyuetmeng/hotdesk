@@ -39,7 +39,7 @@
 .fd .fd-chair { fill: var(--fd-chair); stroke: var(--fd-chair-edge); stroke-width: 1.5; }
 /* Booked and occupied keep the chair's own colour (team, or grey); the corner dot shows the state. */
 .fd .fd-chair.state-not_bookable { opacity: .45; stroke-dasharray: 3 2; }
-.fd .fd-chair.assign-ok { stroke-width: 2; stroke-dasharray: none; }
+.fd .fd-chair.assign-ok { fill: #22c55e; stroke-width: 2; stroke-dasharray: none; }
 .fd .fd-chair.assign-soon { fill: #f59e0b; }
 .fd .fd-chair.assign-left { fill: #ef4444; }
 .fd .fd-assign-plate { fill: var(--fd-assign-plate); stroke: var(--fd-chair-edge); stroke-width: 1; }

@@ -14,7 +14,7 @@
 .sa-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
 .sa-legend li { display: flex; align-items: center; gap: 6px; }
 .sa-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2px solid var(--fd-chair-edge, #64748b); }
-.sa-key.soon { background: #f59e0b; } .sa-key.left { background: #ef4444; }
+.sa-key.ok { background: #22c55e; } .sa-key.soon { background: #f59e0b; } .sa-key.left { background: #ef4444; }
 
 .sa-table-wrap { max-height: 60vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
 .sa-table th { position: sticky; top: 0; background: var(--surface); z-index: 1; white-space: nowrap; }

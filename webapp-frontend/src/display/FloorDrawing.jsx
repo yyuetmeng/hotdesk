@@ -134,7 +134,8 @@ function Seat({ el, seat, onClick, selected, highlight, onHover, note = null }) 
     rx={6 + pad / 2} fill="none" {...extra} />;
   const show = () => onHover?.({ seat, cx, top: cy - s / 2, bottom: cy + s / 2, lines: note?.tip });
   const hide = () => onHover?.(null);
-  const team = DOTTED.has(seat.state) && seat.department_id && !seat.open_to_all && (!note || note.tone === 'ok')
+  // Seat assignments colour assigned seats by their own key (green / amber / red), not by team.
+  const team = DOTTED.has(seat.state) && seat.department_id && !seat.open_to_all && !note
     ? departmentColor(seat.department_id, seat.team_color) : null;
   return <g className={`disp-seat${highlight ? ' is-found' : ''}`} onClick={() => onClick?.(seat)} role="button" tabIndex={0} aria-label={label}
     onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(seat); }} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
