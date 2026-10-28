@@ -1,11 +1,12 @@
 """Clearing the audit log by hand (owner 2026-10-16): no automatic deletion; admins clear old entries by
 period and category, and the page says when entries are older than a month."""
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 
 from app.core.db import run_query, run_write
-from desk_helpers import build_world, hdr
+from app.desk import rules
+from desk_helpers import DAY, build_world, hdr
 
 URL = "/api/admin/audit"
 
@@ -15,9 +16,15 @@ def world(client, db, monkeypatch):
     return build_world(client, monkeypatch)
 
 
+def _today():
+    return rules.local_today(rules.now())
+
+
 def _old(action, days):
-    run_write("insert into audit_logs (action, details, created_at) values (:a, '{}', now() - make_interval(days => :d))",
-              {"a": action, "d": days})
+    # Back-dated from the app clock that build_world pins, not the database's now(): the server measures age
+    # from the app clock, and the two drift apart as real days pass.
+    run_write("insert into audit_logs (action, details, created_at) values (:a, '{}', :at)",
+              {"a": action, "at": rules.now() - timedelta(days=days)})
 
 
 def _count(action):
@@ -32,7 +39,7 @@ def test_reading_the_log_does_not_delete_old_entries(client, world):
     _old("auth.login_failed", 400)
     body = client.get(URL, headers=hdr(world["tok"]["root"])).get_json()
     assert _count("auth.login_failed") == 1
-    assert body["old"]["count"] == 1 and body["old"]["oldest"] < (date.today() - timedelta(days=399)).isoformat()
+    assert body["old"]["count"] == 1 and body["old"]["oldest"] < (_today() - timedelta(days=399)).isoformat()
 
 
 def test_old_indicator_counts_entries_older_than_a_month(client, world):
@@ -64,12 +71,12 @@ def test_clear_all_categories_before_a_date(client, world):
     _old("booking.create", 90)
     _old("floorplan.update", 90)
     _old("display.update", 45)
-    r = _clear(client, world, before=(date.today() - timedelta(days=60)).isoformat())
+    r = _clear(client, world, before=(_today() - timedelta(days=60)).isoformat())
     assert r.status_code == 200 and r.get_json()["deleted"] == 2
     assert (_count("booking.create"), _count("floorplan.update"), _count("display.update")) == (0, 0, 1)
 
 
-@pytest.mark.parametrize("body", [{"older_than_days": 7}, {"before": (date.today() - timedelta(days=5)).isoformat()},
+@pytest.mark.parametrize("body", [{"older_than_days": 7}, {"before": (DAY - timedelta(days=5)).isoformat()},
                                   {}, {"older_than_days": "x"}, {"before": "soon"},
                                   {"older_than_days": 30, "categories": ["nope"]}])
 def test_recent_entries_and_bad_options_are_refused(client, world, body):
