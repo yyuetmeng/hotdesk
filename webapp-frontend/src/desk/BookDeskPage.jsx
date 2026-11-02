@@ -140,14 +140,14 @@ export function BookDeskPage() {
 
     <section className="card desk-bookings">
       <h2>My bookings</h2>
-      {mine.length ? <table><thead><tr><th>Day</th><th>Seat</th><th>Time</th><th>For</th><th>Status</th><th /></tr></thead>
+      {mine.length ? <div className="table-scroll"><table><thead><tr><th>Day</th><th>Seat</th><th>Time</th><th>For</th><th>Status</th><th /></tr></thead>
         <tbody>{mine.map((b) => <tr key={b.id}>
           <td>{formatDate(b.date)}</td><td>{b.seat_label}</td>
           <td>{formatTime(b.starts_at).slice(0, 5)}–{formatTime(b.ends_at).slice(0, 5)}<small>{presetLabel(b.preset)}</small></td>
           <td>{b.booked_for.name}{b.booked_by.name && b.booked_by.id !== b.booked_for.id && <small>booked by {b.booked_by.name}</small>}</td>
           <td>{STATE_TEXT[b.state] ?? b.state}</td>
           <td>{b.state === 'active' && <button className="button" onClick={() => cancel(b)}>Cancel</button>}</td>
-        </tr>)}</tbody></table>
+        </tr>)}</tbody></table></div>
         : <p className="muted">No bookings for today or the next working day.</p>}
     </section>
   </main>;
