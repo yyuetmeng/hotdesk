@@ -52,7 +52,26 @@ export default function ThemeSettings() {
       </div>
       <p className="theme-panel-current">{THEME_CHOICES.find((c) => c.value === choice).label}</p>
       {me && <div className="theme-auto">
-        <p className="theme-panel-label">Booking</p>
+        <p className="theme-panel-label theme-auto-head">Booking
+          <span className="theme-info">
+            <button type="button" className="theme-info-btn" aria-label="How auto-booking works" aria-describedby="auto-book-tip">i</button>
+            <span role="tooltip" id="auto-book-tip" className="theme-info-tip">
+              <b>How auto-booking works</b>
+              <span>When you sign in or open the Dashboard, a full-day seat (08:00–19:00) is booked for you for today and the next working day (Mon–Fri).</span>
+              <span>A day is skipped when you already have a booking for it. Today is also skipped once you have checked in, or after 18:30.</span>
+              <b>How the seat is chosen</b>
+              <ol>
+                <li>Only seats free for the whole booking count: no one has booked them or checked in.</li>
+                <li>Your project team's seats come first, on every published floor.</li>
+                <li>Among those: your usual seat, then seats in the same zone of its floor, then the rest of that floor, then other floors.</li>
+                <li>Ties go by floor order, then seat label (A–Z). With no usual seat, it is floor order, then label.</li>
+                <li>Only when no team seat is free does it pick a free-for-all seat, ranked the same way.</li>
+              </ol>
+              <span>If no seat is free, the Dashboard tells you so you can book another way.</span>
+              <span>Normal booking rules apply: check in by 10:00 (or within 30 minutes if booked after 08:00), or the seat is released as a no-show. You can cancel it like any other booking.</span>
+            </span>
+          </span>
+        </p>
         <label className="theme-switch">
           <input type="checkbox" role="switch" checked={Boolean(me.auto_book)} onChange={(e) => toggleAuto(e.target.checked)} />
           <span className="theme-switch-track" aria-hidden="true" />

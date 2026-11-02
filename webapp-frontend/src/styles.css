@@ -99,6 +99,19 @@
 .theme-switch input:checked + .theme-switch-track { background:#1d9e75; }
 .theme-switch input:checked + .theme-switch-track::after { transform:translateX(14px); }
 .theme-switch input:focus-visible + .theme-switch-track { outline:2px solid #fff; outline-offset:2px; }
+/* Auto-booking info tip: an "i" beside the Booking label; the tip opens on hover or keyboard focus. */
+.theme-auto-head { display:flex; align-items:center; gap:6px; }
+.theme-info { position:relative; display:inline-flex; }
+.theme-info-btn { width:16px; height:16px; padding:0; border-radius:50%; border:1px solid #8292ae; background:none; color:#c7d2e5; font:700 10px/14px Georgia, serif; text-transform:none; cursor:help; }
+.theme-info-btn:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+.theme-info-tip { display:none; position:absolute; left:calc(100% + 10px); bottom:-8px; z-index:30; width:280px; padding:10px 12px; border-radius:8px; background:#0b1428; border:1px solid #2a3a5c; box-shadow:0 12px 28px rgb(0 0 0/.4); color:#c7d2e5; font-size:12px; font-weight:400; line-height:1.45; letter-spacing:normal; text-transform:none; }
+.theme-info-tip b { display:block; margin-bottom:6px; color:#fff; font-size:12px; }
+.theme-info-tip span { display:block; margin-top:6px; }
+.theme-info-tip b + span { margin-top:0; }
+.theme-info-tip span + b { margin-top:10px; }
+.theme-info-tip ol { margin:0; padding-left:18px; }
+.theme-info-tip li { margin-top:4px; }
+.theme-info:hover .theme-info-tip, .theme-info:focus-within .theme-info-tip { display:block; }
 
 /* Wide tables scroll inside their card instead of spilling out; split layouts never let a column push past the page. */
 .content-split > * { min-width: 0; }
