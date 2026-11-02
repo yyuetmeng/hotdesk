@@ -17,6 +17,10 @@ Run the files in this order. Each folder is numbered, and every file is safe to 
 
    Seat ids are kept, so desk QR labels already printed still work. Seats keep their project team tags.
 
+   To refresh both files from the live database, run `python scripts/export_prod_data.py` from `webapp-backend/`.
+   It only reads (one read-only transaction), takes each floor's **published** version, and warns about floors
+   whose draft has unpublished changes. Publish those floors first if the changes should be included.
+
 With `psql`, from this folder:
 
 ```
